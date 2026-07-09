@@ -89,7 +89,7 @@ func _setup_ui():
 	layer.add_child(bottom_center)
 
 	var bottom_bar := PanelContainer.new()
-	bottom_bar.custom_minimum_size = Vector2(760, 52)
+	bottom_bar.custom_minimum_size = Vector2(440, 52)
 	bottom_center.add_child(bottom_bar)
 
 	var bottom_margin := MarginContainer.new()
@@ -108,7 +108,7 @@ func _setup_ui():
 	selected_label.add_theme_font_size_override("font_size", 16)
 	selected_label.add_theme_color_override("font_color", Color.YELLOW)
 	selected_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	selected_label.custom_minimum_size = Vector2(128, 34)
+	selected_label.custom_minimum_size = Vector2(118, 34)
 	_update_sel_label(selected_label)
 	controls.add_child(selected_label)
 
@@ -136,21 +136,9 @@ func _setup_ui():
 	save_btn.pressed.connect(_save_map)
 	controls.add_child(save_btn)
 
-	var save_exit_btn := Button.new()
-	save_exit_btn.text = "保存退出"
-	save_exit_btn.custom_minimum_size = Vector2(96, 34)
-	save_exit_btn.pressed.connect(_save_map_and_exit)
-	controls.add_child(save_exit_btn)
-
-	var load_btn := Button.new()
-	load_btn.text = "加载"
-	load_btn.custom_minimum_size = Vector2(76, 34)
-	load_btn.pressed.connect(func(): _load_map(true))
-	controls.add_child(load_btn)
-
 	var back_btn := Button.new()
-	back_btn.text = "主菜单"
-	back_btn.custom_minimum_size = Vector2(86, 34)
+	back_btn.text = "退出"
+	back_btn.custom_minimum_size = Vector2(76, 34)
 	back_btn.pressed.connect(func(): get_tree().change_scene_to_file("res://scenes/menu/main_menu.tscn"))
 	controls.add_child(back_btn)
 
@@ -177,17 +165,23 @@ func _input(event):
 			_update_sel_label(selected_label)
 
 	if event is InputEventMouseButton:
-		if get_viewport().gui_get_hovered_control() != null:
+		if not event.pressed:
 			return
-		var mp := get_global_mouse_position()
+		if _is_pointer_over_editor_ui(event.position):
+			return
+		var mp: Vector2 = get_viewport().get_canvas_transform().affine_inverse() * event.position
 		var gx := int(mp.x / TILE_SIZE)
 		var gy := int(mp.y / TILE_SIZE)
 		if gx >= 1 and gx < GRID_W - 1 and gy >= 1 and gy < GRID_H - 1:
-			if event.button_index == MOUSE_BUTTON_LEFT and event.pressed:
+			if event.button_index == MOUSE_BUTTON_LEFT:
 				grid[gy][gx] = selected_cell
-			elif event.button_index == MOUSE_BUTTON_RIGHT and event.pressed:
+			elif event.button_index == MOUSE_BUTTON_RIGHT:
 				grid[gy][gx] = Cell.EMPTY
 			_refresh_view()
+
+func _is_pointer_over_editor_ui(screen_pos: Vector2) -> bool:
+	var viewport_height := get_viewport_rect().size.y
+	return screen_pos.y <= 76.0 or screen_pos.y >= viewport_height - 84.0
 
 func _save_map():
 	var file := FileAccess.open("user://map_data.json", FileAccess.WRITE)
@@ -201,10 +195,6 @@ func _save_map():
 		file.close()
 		print("Map saved!")
 
-func _save_map_and_exit():
-	_save_map()
-	get_tree().change_scene_to_file("res://scenes/menu/main_menu.tscn")
-
 func _load_map(show_messages := true):
 	if not FileAccess.file_exists("user://map_data.json"):
 		if show_messages:
@@ -217,22 +207,22 @@ func _load_map(show_messages := true):
 		var json := JSON.new()
 		if json.parse(text) == OK:
 			var data = json.get_data()
-			for y in GRID_H:
-				for x in GRID_W:
-					grid[y][x] = Cell.EMPTY
+			for yy in GRID_H:
+				for xx in GRID_W:
+					grid[yy][xx] = Cell.EMPTY
 			# keep perimeter walls
-			for x in GRID_W:
-				grid[0][x] = Cell.WALL
-				grid[GRID_H - 1][x] = Cell.WALL
-				for y in GRID_H:
-					grid[y][0] = Cell.WALL
-					grid[y][GRID_W - 1] = Cell.WALL
-				for key in data.keys():
-					var coords = key.split(",")
-					var cx = int(coords[0])
-					var cy = int(coords[1])
-					if cx >= 1 and cx < GRID_W - 1 and cy >= 1 and cy < GRID_H - 1:
-						grid[cy][cx] = data[key]
-				_refresh_view()
-				if show_messages:
-					print("Map loaded!")
+			for xx in GRID_W:
+				grid[0][xx] = Cell.WALL
+				grid[GRID_H - 1][xx] = Cell.WALL
+			for yy in GRID_H:
+				grid[yy][0] = Cell.WALL
+				grid[yy][GRID_W - 1] = Cell.WALL
+			for key in data.keys():
+				var coords = key.split(",")
+				var cx = int(coords[0])
+				var cy = int(coords[1])
+				if cx >= 1 and cx < GRID_W - 1 and cy >= 1 and cy < GRID_H - 1:
+					grid[cy][cx] = data[key]
+			_refresh_view()
+			if show_messages:
+				print("Map loaded!")

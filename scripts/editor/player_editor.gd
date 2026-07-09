@@ -160,18 +160,12 @@ func _add_action_buttons(parent: Node):
 
 	var save_btn := Button.new()
 	save_btn.text = "保存"
-	save_btn.custom_minimum_size = Vector2(130, 42)
+	save_btn.custom_minimum_size = Vector2(150, 42)
 	save_btn.pressed.connect(_save_player)
 	actions.add_child(save_btn)
 
-	var save_exit_btn := Button.new()
-	save_exit_btn.text = "保存并返回主菜单"
-	save_exit_btn.custom_minimum_size = Vector2(220, 42)
-	save_exit_btn.pressed.connect(_save_player_and_exit)
-	actions.add_child(save_exit_btn)
-
 	var exit_btn := Button.new()
-	exit_btn.text = "返回主菜单"
+	exit_btn.text = "退出"
 	exit_btn.custom_minimum_size = Vector2(150, 42)
 	exit_btn.pressed.connect(func(): get_tree().change_scene_to_file("res://scenes/menu/main_menu.tscn"))
 	actions.add_child(exit_btn)
@@ -307,7 +301,3 @@ func _save_player():
 		file.store_string(JSON.stringify(data))
 		file.close()
 		print("Player saved!")
-
-func _save_player_and_exit():
-	_save_player()
-	get_tree().change_scene_to_file("res://scenes/menu/main_menu.tscn")
