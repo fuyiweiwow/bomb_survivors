@@ -4,15 +4,20 @@ signal bomb_placed(grid_pos)
 signal player_died
 
 const TILE_SIZE = 32
-const MOVE_TIME = 0.15
 
 var grid_pos := Vector2i.ZERO
 var is_moving := false
 var alive := true
-var bomb_max := 1
-var bomb_range := 2
-var bomb_placed_count := 0
 var player_id := 2
+
+var speed := 5
+var bomb_max := 1
+var bomb_range := 1
+var bomb_placed_count := 0
+
+const MAX_SPEED := 10
+const MAX_BOMBS := 8
+const MAX_RANGE := 10
 
 var move_timer := 0.0
 var move_interval := 0.5
@@ -28,6 +33,18 @@ func _gm():
 	if _game_node == null:
 		_game_node = get_tree().get_first_node_in_group("game")
 	return _game_node
+
+func move_time() -> float:
+	return 0.5 / float(speed)
+
+func add_speed(amount: int):
+	speed = clampi(speed + amount, 1, MAX_SPEED)
+
+func add_bomb(amount: int):
+	bomb_max = clampi(bomb_max + amount, 1, MAX_BOMBS)
+
+func add_range(amount: int):
+	bomb_range = clampi(bomb_range + amount, 1, MAX_RANGE)
 
 func setup(p_id: int, tex: Texture2D):
 	player_id = p_id
@@ -60,8 +77,11 @@ func _physics_process(delta):
 			var tw := create_tween()
 			tw.tween_property(self, "position",
 				Vector2(target.x * TILE_SIZE + TILE_SIZE / 2.0, target.y * TILE_SIZE + TILE_SIZE / 2.0),
-				MOVE_TIME)
-			tw.tween_callback(func(): is_moving = false)
+				move_time())
+			tw.tween_callback(func():
+				is_moving = false
+				gm.check_powerup_pickup(self)
+			)
 		else:
 			move_dir = Vector2i.ZERO
 
@@ -77,7 +97,6 @@ func _choose_direction(gm):
 	var dirs := [Vector2i(0, -1), Vector2i(0, 1), Vector2i(-1, 0), Vector2i(1, 0)]
 	dirs.shuffle()
 
-	# prefer moving away from own bomb
 	if last_bomb_pos != Vector2i(-1, -1):
 		var away := grid_pos - last_bomb_pos
 		if away.length() > 0:
@@ -85,7 +104,20 @@ func _choose_direction(gm):
 			if not best_dirs.is_empty():
 				dirs = best_dirs
 
-	# choose first walkable direction
+	# try to move toward visible powerups
+	var gm_ref = _gm()
+	if gm_ref:
+		var pu_pos = gm_ref.nearest_powerup_pos(grid_pos)
+		if pu_pos != Vector2i(-1, -1):
+			var dx = pu_pos.x - grid_pos.x
+			var dy = pu_pos.y - grid_pos.y
+			var toward := Vector2i.ZERO
+			if abs(dx) >= abs(dy):
+				toward = Vector2i(signi(dx), 0)
+			else:
+				toward = Vector2i(0, signi(dy))
+			dirs.push_front(toward)
+
 	for d in dirs:
 		var t = grid_pos + d
 		if gm.is_cell_walkable(t.x, t.y):
@@ -99,9 +131,9 @@ func _filter_away(dirs: Array, pos: Vector2i, away_from: Vector2i) -> Array:
 	var dx := pos.x - away_from.x
 	var dy := pos.y - away_from.y
 	for d in dirs:
-		if d.x != 0 and sign(d.x) == sign(dx) and dx != 0:
+		if d.x != 0 and signi(d.x) == signi(dx) and dx != 0:
 			result.append(d)
-		elif d.y != 0 and sign(d.y) == sign(dy) and dy != 0:
+		elif d.y != 0 and signi(d.y) == signi(dy) and dy != 0:
 			result.append(d)
 	if result.is_empty():
 		return dirs
@@ -109,7 +141,6 @@ func _filter_away(dirs: Array, pos: Vector2i, away_from: Vector2i) -> Array:
 	return result
 
 func _is_safe_to_bomb(gm) -> bool:
-	# check that after placing bomb, there's a walkable path to safety
 	var escape_dirs := [Vector2i(0, -1), Vector2i(0, 1), Vector2i(-1, 0), Vector2i(1, 0)]
 	escape_dirs.shuffle()
 	for d in escape_dirs:

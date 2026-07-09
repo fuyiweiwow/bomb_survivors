@@ -4,15 +4,21 @@ signal bomb_placed(grid_pos)
 signal player_died
 
 const TILE_SIZE = 32
-const MOVE_TIME = 0.1
+const HUD_Y_OFFSET := 380
 
 var player_id := 1
 var grid_pos := Vector2i.ZERO
 var is_moving := false
 var alive := true
+
+var speed := 5
 var bomb_max := 1
-var bomb_range := 2
+var bomb_range := 1
 var bomb_placed_count := 0
+
+const MAX_SPEED := 10
+const MAX_BOMBS := 8
+const MAX_RANGE := 10
 
 var input_dir := Vector2i.ZERO
 var bomb_pressed := false
@@ -28,6 +34,18 @@ func _gm():
 	if _game_node == null:
 		_game_node = get_tree().get_first_node_in_group("game")
 	return _game_node
+
+func move_time() -> float:
+	return 0.5 / float(speed)
+
+func add_speed(amount: int):
+	speed = clampi(speed + amount, 1, MAX_SPEED)
+
+func add_bomb(amount: int):
+	bomb_max = clampi(bomb_max + amount, 1, MAX_BOMBS)
+
+func add_range(amount: int):
+	bomb_range = clampi(bomb_range + amount, 1, MAX_RANGE)
 
 func setup(p_id: int, tex_parts: Dictionary):
 	player_id = p_id
@@ -71,7 +89,6 @@ func _physics_process(_delta):
 
 	var d := Vector2i.ZERO
 
-	# priority: event buffer > held keys
 	if input_dir != Vector2i.ZERO:
 		d = input_dir
 	else:
@@ -88,8 +105,11 @@ func _physics_process(_delta):
 			var tw := create_tween()
 			tw.tween_property(self, "position",
 				Vector2(target.x * TILE_SIZE + TILE_SIZE / 2.0, target.y * TILE_SIZE + TILE_SIZE / 2.0),
-				MOVE_TIME)
-			tw.tween_callback(func(): is_moving = false)
+				move_time())
+			tw.tween_callback(func():
+				is_moving = false
+				gm.check_powerup_pickup(self)
+			)
 
 	if (bomb_pressed or Input.is_action_just_pressed("p1_bomb")) and bomb_placed_count < bomb_max:
 		bomb_pressed = false

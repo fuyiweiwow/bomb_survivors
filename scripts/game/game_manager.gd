@@ -10,6 +10,7 @@ var grid: Array = []
 var bomb_map: Dictionary = {}
 var players: Array = []
 var crate_sprites: Dictionary = {}
+var powerups: Dictionary = {}
 var game_over := false
 
 var player_script = preload("res://scripts/player/player.gd")
@@ -21,6 +22,12 @@ var tex_male_body = preload("res://assets/art/sprites/male_body.png")
 var tex_male_legs = preload("res://assets/art/sprites/male_legs.png")
 var tex_ai_body = preload("res://assets/art/sprites/player2.png")
 
+var tex_pspeed = preload("res://assets/art/sprites/powerup_speed.png")
+var tex_pbomb = preload("res://assets/art/sprites/powerup_bomb.png")
+var tex_pfire = preload("res://assets/art/sprites/powerup_fire.png")
+
+var hud_label: Label = null
+
 func _ready():
 	add_to_group("game")
 	randomize()
@@ -29,6 +36,7 @@ func _ready():
 	_create_map()
 	_spawn_players()
 	_setup_camera()
+	_setup_hud()
 
 func _init_grid():
 	grid.clear()
@@ -197,6 +205,37 @@ func is_cell_walkable(x: int, y: int) -> bool:
 func has_bomb_at(x: int, y: int) -> bool:
 	return bomb_map.has(Vector2i(x, y))
 
+func nearest_powerup_pos(from: Vector2i) -> Vector2i:
+	var best := Vector2i(-1, -1)
+	var best_dist := 9999.0
+	for key in powerups.keys():
+		var dist := from.distance_squared_to(key)
+		if dist < best_dist:
+			best_dist = dist
+			best = key
+	return best
+
+func check_powerup_pickup(player: Node2D):
+	var key := player.grid_pos
+	if not powerups.has(key):
+		return
+
+	var pu_data = powerups[key]
+	if is_instance_valid(pu_data["sprite"]):
+		pu_data["sprite"].queue_free()
+
+	var ptype = pu_data["type"]
+	match ptype:
+		"speed":
+			player.add_speed(1)
+		"bomb":
+			player.add_bomb(1)
+		"fire":
+			player.add_range(2)
+
+	powerups.erase(key)
+	_update_hud()
+
 func unregister_bomb(pos: Vector2i, _bomb_node: Node):
 	if bomb_map.has(pos):
 		var entry = bomb_map[pos]
@@ -228,6 +267,31 @@ func get_explosion_cells(origin: Vector2i, blast_range: int) -> Dictionary:
 				tips[dir_name] = check
 	return {"cells": cells, "tips": tips}
 
+func _spawn_powerup(cell: Vector2i):
+	var r := randf()
+	var tex = null
+	var ptype = ""
+	if r < 0.35:
+		tex = tex_pspeed
+		ptype = "speed"
+	elif r < 0.65:
+		tex = tex_pbomb
+		ptype = "bomb"
+	elif r < 0.85:
+		tex = tex_pfire
+		ptype = "fire"
+	else:
+		return
+
+	var s := Sprite2D.new()
+	s.texture = tex
+	s.position = Vector2(cell.x * TILE_SIZE + TILE_SIZE / 2.0, cell.y * TILE_SIZE + TILE_SIZE / 2.0)
+	s.centered = true
+	s.z_index = 5
+	add_child(s)
+
+	powerups[cell] = {"sprite": s, "type": ptype}
+
 func apply_explosion_damage(cells: Array):
 	for cell in cells:
 		var key := Vector2i(cell.x, cell.y)
@@ -241,6 +305,7 @@ func apply_explosion_damage(cells: Array):
 				tw.tween_property(cs, "modulate:a", 0.0, 0.2)
 				tw.tween_callback(cs.queue_free)
 				crate_sprites.erase(key)
+			_spawn_powerup(cell)
 
 		for p in players:
 			if not is_instance_valid(p) or not p.alive:
@@ -296,9 +361,34 @@ func _show_result(winner_id: int):
 func _setup_camera():
 	var cam := Camera2D.new()
 	cam.position = Vector2(GRID_W * TILE_SIZE / 2.0, GRID_H * TILE_SIZE / 2.0)
-	cam.zoom = Vector2(1.5, 1.5)
+	cam.zoom = Vector2(1.3, 1.3)
 	cam.enabled = true
 	add_child(cam)
+
+func _setup_hud():
+	var bg := ColorRect.new()
+	bg.color = Color(0, 0, 0, 0.5)
+	bg.position = Vector2(0, GRID_H * TILE_SIZE)
+	bg.size = Vector2(GRID_W * TILE_SIZE, 50)
+	add_child(bg)
+
+	hud_label = Label.new()
+	hud_label.position = Vector2(10, GRID_H * TILE_SIZE + 8)
+	hud_label.size = Vector2(GRID_W * TILE_SIZE, 40)
+	hud_label.add_theme_font_size_override("font_size", 16)
+	hud_label.add_theme_color_override("font_color", Color.WHITE)
+	add_child(hud_label)
+	_update_hud()
+
+func _update_hud():
+	if hud_label == null: return
+	var p1 = players[0] if players.size() > 0 and is_instance_valid(players[0]) else null
+	if p1 == null: return
+	hud_label.text = "Speed: %d  |  Bombs: %d (max %d)  |  Range: %d  |  Esc: Menu" % [p1.speed, p1.bomb_placed_count, p1.bomb_max, p1.bomb_range]
+
+func _process(_delta):
+	if not game_over:
+		_update_hud()
 
 func _input(event):
 	if event is InputEventKey and event.pressed and event.keycode == KEY_ESCAPE:
