@@ -3,15 +3,18 @@
 *.import
 *.translation
 export/
+
 # IDE
 .idea/
 .vscode/
 *.swp
 *.swo
 *~
+
 # OS
 Thumbs.db
 .DS_Store
+
 # Build
 **/*.dll
 **/*.pdb
