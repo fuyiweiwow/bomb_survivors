@@ -9,9 +9,10 @@ enum Cell { EMPTY, WALL, CRATE }
 var grid: Array = []
 var sprites: Array = []
 var selected_cell := Cell.WALL
-var floor_tex = preload("res://assets/art/sprites/floor.png")
-var wall_tex = preload("res://assets/art/sprites/wall.png")
-var crate_tex = preload("res://assets/art/sprites/crate.png")
+var selected_label: Label = null
+var floor_tex: Texture2D = load("res://assets/art/sprites/floor.png")
+var wall_tex: Texture2D = load("res://assets/art/sprites/wall.png")
+var crate_tex: Texture2D = load("res://assets/art/sprites/crate.png")
 
 func _ready():
 	for y in GRID_H:
@@ -31,9 +32,10 @@ func _ready():
 		grid[y][0] = Cell.WALL
 		grid[y][GRID_W - 1] = Cell.WALL
 
-	_refresh_view()
 	_setup_ui()
 	_setup_camera()
+	_load_map(false)
+	_refresh_view()
 
 func _refresh_view():
 	for y in GRID_H:
@@ -51,43 +53,106 @@ func _refresh_view():
 			sprites[y][x] = s
 
 func _setup_ui():
-	var label := Label.new()
-	label.text = "Map Editor - LeftClick: Place | RightClick: Erase | 1:Wall 2:Crate 3:Empty"
-	label.add_theme_font_size_override("font_size", 16)
-	label.add_theme_color_override("font_color", Color.WHITE)
-	label.position = Vector2(10, GRID_H * TILE_SIZE + 10)
-	label.size = Vector2(600, 30)
-	add_child(label)
+	var layer := CanvasLayer.new()
+	add_child(layer)
 
-	var sel_label := Label.new()
-	sel_label.name = "SelLabel"
-	sel_label.add_theme_font_size_override("font_size", 18)
-	sel_label.add_theme_color_override("font_color", Color.YELLOW)
-	sel_label.position = Vector2(10, GRID_H * TILE_SIZE + 45)
-	sel_label.size = Vector2(200, 30)
-	_update_sel_label(sel_label)
-	add_child(sel_label)
+	var top_center := CenterContainer.new()
+	top_center.set_anchors_preset(Control.PRESET_TOP_WIDE)
+	top_center.offset_top = 12
+	top_center.offset_bottom = 68
+	layer.add_child(top_center)
+
+	var top_bar := PanelContainer.new()
+	top_bar.custom_minimum_size = Vector2(700, 46)
+	top_center.add_child(top_bar)
+
+	var top_margin := MarginContainer.new()
+	top_margin.add_theme_constant_override("margin_left", 12)
+	top_margin.add_theme_constant_override("margin_top", 8)
+	top_margin.add_theme_constant_override("margin_right", 12)
+	top_margin.add_theme_constant_override("margin_bottom", 8)
+	top_bar.add_child(top_margin)
+
+	var label := Label.new()
+	label.text = "Map Editor  |  Left: Place  Right: Erase  |  1 Wall  2 Crate  3 Empty"
+	label.add_theme_font_size_override("font_size", 15)
+	label.add_theme_color_override("font_color", Color.WHITE)
+	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	label.custom_minimum_size = Vector2(670, 28)
+	top_margin.add_child(label)
+
+	var bottom_center := CenterContainer.new()
+	bottom_center.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
+	bottom_center.offset_top = -76
+	bottom_center.offset_bottom = -14
+	layer.add_child(bottom_center)
+
+	var bottom_bar := PanelContainer.new()
+	bottom_bar.custom_minimum_size = Vector2(760, 52)
+	bottom_center.add_child(bottom_bar)
+
+	var bottom_margin := MarginContainer.new()
+	bottom_margin.add_theme_constant_override("margin_left", 10)
+	bottom_margin.add_theme_constant_override("margin_top", 8)
+	bottom_margin.add_theme_constant_override("margin_right", 10)
+	bottom_margin.add_theme_constant_override("margin_bottom", 8)
+	bottom_bar.add_child(bottom_margin)
+
+	var controls := HBoxContainer.new()
+	controls.alignment = BoxContainer.ALIGNMENT_CENTER
+	controls.add_theme_constant_override("separation", 8)
+	bottom_margin.add_child(controls)
+
+	selected_label = Label.new()
+	selected_label.add_theme_font_size_override("font_size", 16)
+	selected_label.add_theme_color_override("font_color", Color.YELLOW)
+	selected_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	selected_label.custom_minimum_size = Vector2(128, 34)
+	_update_sel_label(selected_label)
+	controls.add_child(selected_label)
+
+	var wall_btn := Button.new()
+	wall_btn.text = "墙"
+	wall_btn.custom_minimum_size = Vector2(48, 34)
+	wall_btn.pressed.connect(func(): selected_cell = Cell.WALL; _update_sel_label(selected_label))
+	controls.add_child(wall_btn)
+
+	var crate_btn := Button.new()
+	crate_btn.text = "箱"
+	crate_btn.custom_minimum_size = Vector2(48, 34)
+	crate_btn.pressed.connect(func(): selected_cell = Cell.CRATE; _update_sel_label(selected_label))
+	controls.add_child(crate_btn)
+
+	var empty_btn := Button.new()
+	empty_btn.text = "空"
+	empty_btn.custom_minimum_size = Vector2(48, 34)
+	empty_btn.pressed.connect(func(): selected_cell = Cell.EMPTY; _update_sel_label(selected_label))
+	controls.add_child(empty_btn)
 
 	var save_btn := Button.new()
-	save_btn.text = "Save Map"
-	save_btn.position = Vector2(200, GRID_H * TILE_SIZE + 10)
-	save_btn.size = Vector2(100, 30)
+	save_btn.text = "保存"
+	save_btn.custom_minimum_size = Vector2(76, 34)
 	save_btn.pressed.connect(_save_map)
-	add_child(save_btn)
+	controls.add_child(save_btn)
+
+	var save_exit_btn := Button.new()
+	save_exit_btn.text = "保存退出"
+	save_exit_btn.custom_minimum_size = Vector2(96, 34)
+	save_exit_btn.pressed.connect(_save_map_and_exit)
+	controls.add_child(save_exit_btn)
 
 	var load_btn := Button.new()
-	load_btn.text = "Load Map"
-	load_btn.position = Vector2(310, GRID_H * TILE_SIZE + 10)
-	load_btn.size = Vector2(100, 30)
-	load_btn.pressed.connect(_load_map)
-	add_child(load_btn)
+	load_btn.text = "加载"
+	load_btn.custom_minimum_size = Vector2(76, 34)
+	load_btn.pressed.connect(func(): _load_map(true))
+	controls.add_child(load_btn)
 
 	var back_btn := Button.new()
-	back_btn.text = "Back"
-	back_btn.position = Vector2(420, GRID_H * TILE_SIZE + 10)
-	back_btn.size = Vector2(100, 30)
+	back_btn.text = "主菜单"
+	back_btn.custom_minimum_size = Vector2(86, 34)
 	back_btn.pressed.connect(func(): get_tree().change_scene_to_file("res://scenes/menu/main_menu.tscn"))
-	add_child(back_btn)
+	controls.add_child(back_btn)
 
 func _update_sel_label(lbl: Label):
 	var names := {Cell.WALL: "Wall", Cell.CRATE: "Crate", Cell.EMPTY: "Empty"}
@@ -96,7 +161,7 @@ func _update_sel_label(lbl: Label):
 func _setup_camera():
 	var cam := Camera2D.new()
 	cam.position = Vector2(GRID_W * TILE_SIZE / 2.0, GRID_H * TILE_SIZE / 2.0)
-	cam.zoom = Vector2(1.4, 1.4)
+	cam.zoom = Vector2(1.2, 1.2)
 	cam.enabled = true
 	add_child(cam)
 
@@ -108,10 +173,12 @@ func _input(event):
 			KEY_3: selected_cell = Cell.EMPTY
 			KEY_ESCAPE:
 				get_tree().change_scene_to_file("res://scenes/menu/main_menu.tscn")
-		var lbl = get_node_or_null("SelLabel")
-		if lbl: _update_sel_label(lbl)
+		if selected_label:
+			_update_sel_label(selected_label)
 
 	if event is InputEventMouseButton:
+		if get_viewport().gui_get_hovered_control() != null:
+			return
 		var mp := get_global_mouse_position()
 		var gx := int(mp.x / TILE_SIZE)
 		var gy := int(mp.y / TILE_SIZE)
@@ -134,9 +201,14 @@ func _save_map():
 		file.close()
 		print("Map saved!")
 
-func _load_map():
+func _save_map_and_exit():
+	_save_map()
+	get_tree().change_scene_to_file("res://scenes/menu/main_menu.tscn")
+
+func _load_map(show_messages := true):
 	if not FileAccess.file_exists("user://map_data.json"):
-		print("No saved map.")
+		if show_messages:
+			print("No saved map.")
 		return
 	var file := FileAccess.open("user://map_data.json", FileAccess.READ)
 	if file:
@@ -152,14 +224,15 @@ func _load_map():
 			for x in GRID_W:
 				grid[0][x] = Cell.WALL
 				grid[GRID_H - 1][x] = Cell.WALL
-			for y in GRID_H:
-				grid[y][0] = Cell.WALL
-				grid[y][GRID_W - 1] = Cell.WALL
-			for key in data.keys():
-				var coords = key.split(",")
-				var cx = int(coords[0])
-				var cy = int(coords[1])
-				if cx >= 1 and cx < GRID_W - 1 and cy >= 1 and cy < GRID_H - 1:
-					grid[cy][cx] = data[key]
-			_refresh_view()
-			print("Map loaded!")
+				for y in GRID_H:
+					grid[y][0] = Cell.WALL
+					grid[y][GRID_W - 1] = Cell.WALL
+				for key in data.keys():
+					var coords = key.split(",")
+					var cx = int(coords[0])
+					var cy = int(coords[1])
+					if cx >= 1 and cx < GRID_W - 1 and cy >= 1 and cy < GRID_H - 1:
+						grid[cy][cx] = data[key]
+				_refresh_view()
+				if show_messages:
+					print("Map loaded!")
