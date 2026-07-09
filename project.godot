@@ -1,0 +1,8 @@
+[application]
+config/name="仙途"
+config/description="仙侠风格沙盒RPG"
+run/main_scene="res://scenes/world/main.tscn"
+config/icon="res://assets/art/ui/icon.png"
+[rendering]
+renderer/rendering_method="forward_plus"
+[input]
