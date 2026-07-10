@@ -5,8 +5,10 @@ const GRID_H := 11
 const TILE_SIZE := 1.6
 const FLOOR_Y := 0.0
 const BOMB_FUSE := 2.5
+const PLAYER_MAX_HP := 3
+const LAVA_DAMAGE_TIME := 1.35
 
-enum Cell { EMPTY, WALL, CRATE }
+enum Cell { EMPTY, WALL, CRATE, FOREST, LAVA }
 
 var grid: Array = []
 var players: Array = []
@@ -17,6 +19,8 @@ var game_over := false
 
 var bomb_pressed := false
 var hud_label: Label = null
+var player_card_label: Label = null
+var enemy_card_label: Label = null
 
 var tex_floor: Texture2D = load("res://assets/art/3d/floor_tile.png")
 var tex_wall: Texture2D = load("res://assets/art/3d/wall_block.png")
@@ -32,6 +36,11 @@ var mat_player := _make_mat(Color(0.18, 0.48, 0.95))
 var mat_ai := _make_mat(Color(0.95, 0.27, 0.22))
 var mat_bomb := _make_mat(Color(0.75, 0.75, 0.78), false, tex_bomb)
 var mat_fire := _make_mat(Color(1.0, 0.48, 0.08), true)
+var mat_forest_floor := _make_mat(Color(0.18, 0.36, 0.18))
+var mat_leaf := _make_mat(Color(0.10, 0.48, 0.16))
+var mat_trunk := _make_mat(Color(0.42, 0.24, 0.11))
+var mat_lava := _make_mat(Color(0.95, 0.18, 0.04), true)
+var mat_lava_glow := _make_mat(Color(1.0, 0.65, 0.08), true)
 var mat_speed := _make_mat(Color(0.2, 0.95, 0.85), true, tex_powerup)
 var mat_bomb_power := _make_mat(Color(0.95, 0.92, 0.25), true, tex_powerup)
 var mat_range := _make_mat(Color(1.0, 0.22, 0.12), true, tex_powerup)
@@ -86,7 +95,33 @@ func _init_grid():
 			if randf() < 0.5:
 				grid[y][x] = Cell.CRATE
 
+	_seed_special_terrain()
 	_load_saved_map()
+
+func _seed_special_terrain():
+	var open_cells: Array = []
+	for y in range(1, GRID_H - 1):
+		for x in range(1, GRID_W - 1):
+			if grid[y][x] != Cell.EMPTY:
+				continue
+			if (x <= 2 and y <= 2) or (x >= GRID_W - 3 and y >= GRID_H - 3):
+				continue
+			open_cells.append(Vector2i(x, y))
+	open_cells.shuffle()
+
+	var index := 0
+	for i in range(6):
+		if index >= open_cells.size():
+			return
+		var cell := open_cells[index] as Vector2i
+		grid[cell.y][cell.x] = Cell.FOREST
+		index += 1
+	for i in range(4):
+		if index >= open_cells.size():
+			return
+		var cell := open_cells[index] as Vector2i
+		grid[cell.y][cell.x] = Cell.LAVA
+		index += 1
 
 func _load_saved_map():
 	if not FileAccess.file_exists("user://map_data.json"):
@@ -138,19 +173,72 @@ func _create_world():
 
 	for y in GRID_H:
 		for x in GRID_W:
-			var floor := _box(Vector3(TILE_SIZE, 0.08, TILE_SIZE), mat_floor_a if (x + y) % 2 == 0 else mat_floor_b)
+			var cell := Vector2i(x, y)
+			var floor := _box(Vector3(TILE_SIZE, 0.08, TILE_SIZE), _floor_mat_for_cell(x, y))
 			floor.position = _grid_to_world(Vector2i(x, y)) + Vector3(0, -0.04, 0)
 			add_child(floor)
 
 			if grid[y][x] == Cell.WALL:
 				var wall := _box(Vector3(TILE_SIZE * 0.94, 1.25, TILE_SIZE * 0.94), mat_wall)
-				wall.position = _grid_to_world(Vector2i(x, y)) + Vector3(0, 0.62, 0)
+				wall.position = _grid_to_world(cell) + Vector3(0, 0.62, 0)
 				add_child(wall)
 			elif grid[y][x] == Cell.CRATE:
 				var crate := _box(Vector3(TILE_SIZE * 0.84, 0.92, TILE_SIZE * 0.84), mat_crate)
-				crate.position = _grid_to_world(Vector2i(x, y)) + Vector3(0, 0.46, 0)
-				crate_nodes[Vector2i(x, y)] = crate
+				crate.position = _grid_to_world(cell) + Vector3(0, 0.46, 0)
+				crate_nodes[cell] = crate
 				add_child(crate)
+			elif grid[y][x] == Cell.FOREST:
+				add_child(_create_forest_tile(cell))
+			elif grid[y][x] == Cell.LAVA:
+				add_child(_create_lava_tile(cell))
+
+func _floor_mat_for_cell(x: int, y: int) -> Material:
+	match grid[y][x]:
+		Cell.FOREST:
+			return mat_forest_floor
+		Cell.LAVA:
+			return mat_lava
+		_:
+			return mat_floor_a if (x + y) % 2 == 0 else mat_floor_b
+
+func _create_forest_tile(cell: Vector2i) -> Node3D:
+	var root := Node3D.new()
+	root.name = "Forest_%d_%d" % [cell.x, cell.y]
+	root.position = _grid_to_world(cell)
+
+	var offsets := [Vector3(-0.36, 0, -0.30), Vector3(0.34, 0, -0.14), Vector3(-0.04, 0, 0.34)]
+	for offset in offsets:
+		var trunk := _cylinder(0.08, 0.55, mat_trunk)
+		trunk.position = offset + Vector3(0, 0.24, 0)
+		root.add_child(trunk)
+
+		var crown := _sphere(0.34, mat_leaf)
+		crown.position = offset + Vector3(0, 0.72, 0)
+		crown.scale = Vector3(1.0, 0.82, 1.0)
+		root.add_child(crown)
+
+	var cover := _box(Vector3(TILE_SIZE * 0.88, 0.08, TILE_SIZE * 0.88), _make_mat(Color(0.08, 0.30, 0.12), true))
+	cover.position = Vector3(0, 0.10, 0)
+	root.add_child(cover)
+	return root
+
+func _create_lava_tile(cell: Vector2i) -> Node3D:
+	var root := Node3D.new()
+	root.name = "Lava_%d_%d" % [cell.x, cell.y]
+	root.position = _grid_to_world(cell)
+
+	var pool := _box(Vector3(TILE_SIZE * 0.86, 0.10, TILE_SIZE * 0.86), mat_lava_glow)
+	pool.position = Vector3(0, 0.03, 0)
+	root.add_child(pool)
+
+	var bubble := _sphere(0.16, mat_lava_glow)
+	bubble.position = Vector3(0.28, 0.16, -0.22)
+	bubble.scale = Vector3(1.0, 0.45, 1.0)
+	root.add_child(bubble)
+	var tw := create_tween().set_loops()
+	tw.tween_property(bubble, "position:y", 0.28, 0.45)
+	tw.tween_property(bubble, "position:y", 0.12, 0.45)
+	return root
 
 func _box(size: Vector3, mat: Material) -> MeshInstance3D:
 	var mesh := BoxMesh.new()
@@ -256,12 +344,16 @@ func _create_player(id: int, cell: Vector2i, ai: bool, mat: Material, style := "
 		"node": root,
 		"grid_pos": cell,
 		"alive": true,
+		"hp": PLAYER_MAX_HP,
+		"max_hp": PLAYER_MAX_HP,
 		"is_moving": false,
 		"speed": 5,
 		"bomb_max": 1,
 		"bomb_range": 2,
 		"shield": 0,
 		"suit": style,
+		"lava_time": 0.0,
+		"status": "Ready",
 		"bomb_placed_count": 0,
 		"ai": ai,
 		"move_timer": 0.0,
@@ -315,6 +407,23 @@ func _setup_hud():
 	var layer := CanvasLayer.new()
 	add_child(layer)
 
+	var top := HBoxContainer.new()
+	top.set_anchors_preset(Control.PRESET_TOP_WIDE)
+	top.offset_left = 12
+	top.offset_top = 12
+	top.offset_right = -12
+	top.offset_bottom = 86
+	top.alignment = BoxContainer.ALIGNMENT_BEGIN
+	layer.add_child(top)
+
+	player_card_label = _make_status_card(top, "YOU", Color(0.18, 0.48, 0.95))
+
+	var spacer := Control.new()
+	spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	top.add_child(spacer)
+
+	enemy_card_label = _make_status_card(top, "AI", Color(0.95, 0.27, 0.22))
+
 	var bg := ColorRect.new()
 	bg.color = Color(0, 0, 0, 0.5)
 	bg.position = Vector2(0, 548)
@@ -328,6 +437,46 @@ func _setup_hud():
 	hud_label.add_theme_color_override("font_color", Color.WHITE)
 	layer.add_child(hud_label)
 	_update_hud()
+
+func _make_status_card(parent: Node, avatar_text: String, color: Color) -> Label:
+	var panel := PanelContainer.new()
+	panel.custom_minimum_size = Vector2(238, 72)
+	parent.add_child(panel)
+
+	var margin := MarginContainer.new()
+	margin.add_theme_constant_override("margin_left", 10)
+	margin.add_theme_constant_override("margin_top", 8)
+	margin.add_theme_constant_override("margin_right", 10)
+	margin.add_theme_constant_override("margin_bottom", 8)
+	panel.add_child(margin)
+
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 10)
+	margin.add_child(row)
+
+	var avatar := Label.new()
+	avatar.text = avatar_text
+	avatar.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	avatar.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	avatar.custom_minimum_size = Vector2(46, 46)
+	avatar.add_theme_font_size_override("font_size", 18)
+	avatar.add_theme_color_override("font_color", Color.WHITE)
+	avatar.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.8))
+	var avatar_style := StyleBoxFlat.new()
+	avatar_style.bg_color = color
+	avatar_style.corner_radius_top_left = 6
+	avatar_style.corner_radius_top_right = 6
+	avatar_style.corner_radius_bottom_left = 6
+	avatar_style.corner_radius_bottom_right = 6
+	avatar.add_theme_stylebox_override("normal", avatar_style)
+	row.add_child(avatar)
+
+	var label := Label.new()
+	label.add_theme_font_size_override("font_size", 14)
+	label.add_theme_color_override("font_color", Color.WHITE)
+	label.custom_minimum_size = Vector2(158, 50)
+	row.add_child(label)
+	return label
 
 func _unhandled_input(event):
 	if game_over:
@@ -347,9 +496,37 @@ func _unhandled_input(event):
 func _process(delta):
 	if game_over:
 		return
+	_process_terrain_effects(delta)
 	_update_hud()
 	_process_player_input()
 	_process_ai(delta)
+
+func _process_terrain_effects(delta: float):
+	for i in range(players.size()):
+		var p: Dictionary = players[i]
+		if not p["alive"]:
+			continue
+		var cell: Vector2i = p["grid_pos"]
+		var cell_type: int = grid[cell.y][cell.x]
+		var status_parts: Array = []
+
+		if cell_type == Cell.FOREST:
+			status_parts.append("Hidden")
+		if cell_type == Cell.LAVA:
+			p["lava_time"] = float(p["lava_time"]) + delta
+			status_parts.append("Burning %.1fs" % maxf(LAVA_DAMAGE_TIME - float(p["lava_time"]), 0.0))
+			if float(p["lava_time"]) >= LAVA_DAMAGE_TIME:
+				p["lava_time"] = 0.0
+				_damage_player(i, 1, "lava")
+		else:
+			p["lava_time"] = 0.0
+
+		if int(p.get("shield", 0)) > 0:
+			status_parts.append("Shield %d" % int(p["shield"]))
+		if status_parts.is_empty():
+			p["status"] = "Ready"
+		else:
+			p["status"] = " / ".join(status_parts)
 
 func _process_player_input():
 	if players.is_empty():
@@ -401,13 +578,37 @@ func _process_ai(delta: float):
 		if p["move_dir"] != Vector2i.ZERO and not _try_move_player(i, p["move_dir"]):
 			p["move_dir"] = Vector2i.ZERO
 
-		if danger_escape == Vector2i.ZERO and p["bomb_timer"] >= p["bomb_interval"] and p["bomb_placed_count"] < p["bomb_max"]:
+		if danger_escape == Vector2i.ZERO and p["bomb_timer"] >= p["bomb_interval"] and p["bomb_placed_count"] < p["bomb_max"] and _ai_should_place_bomb(i):
 			p["bomb_timer"] = 0.0
 			var escape_dir := _ai_escape_dir_after_bomb(i)
 			if escape_dir != Vector2i.ZERO:
 				_try_place_bomb(i)
 				p["last_bomb_pos"] = p["grid_pos"]
 				p["move_dir"] = escape_dir
+
+func _ai_should_place_bomb(player_index: int) -> bool:
+	var p: Dictionary = players[player_index]
+	var blast_cells := _blast_cell_set(p["grid_pos"], p["bomb_range"])
+	for i in range(players.size()):
+		if i == player_index:
+			continue
+		var target: Dictionary = players[i]
+		if target["alive"] and not _is_player_hidden(i) and blast_cells.has(target["grid_pos"]):
+			return true
+
+	var dirs := [Vector2i(0, -1), Vector2i(0, 1), Vector2i(-1, 0), Vector2i(1, 0)]
+	for d in dirs:
+		var check: Vector2i = p["grid_pos"] + d
+		if check.x >= 0 and check.x < GRID_W and check.y >= 0 and check.y < GRID_H and grid[check.y][check.x] == Cell.CRATE:
+			return true
+	return false
+
+func _is_player_hidden(index: int) -> bool:
+	if index < 0 or index >= players.size():
+		return false
+	var p: Dictionary = players[index]
+	var cell: Vector2i = p["grid_pos"]
+	return p["alive"] and grid[cell.y][cell.x] == Cell.FOREST
 
 func _try_move_player(index: int, dir: Vector2i) -> bool:
 	var p: Dictionary = players[index]
@@ -431,7 +632,7 @@ func _try_move_player(index: int, dir: Vector2i) -> bool:
 func is_cell_walkable(x: int, y: int) -> bool:
 	if x < 0 or x >= GRID_W or y < 0 or y >= GRID_H:
 		return false
-	if grid[y][x] != Cell.EMPTY:
+	if not _is_walkable_cell(grid[y][x]):
 		return false
 	if bomb_map.has(Vector2i(x, y)):
 		return false
@@ -439,6 +640,9 @@ func is_cell_walkable(x: int, y: int) -> bool:
 		if p["alive"] and p["grid_pos"] == Vector2i(x, y):
 			return false
 	return true
+
+func _is_walkable_cell(cell_value: int) -> bool:
+	return cell_value == Cell.EMPTY or cell_value == Cell.FOREST or cell_value == Cell.LAVA
 
 func _try_place_bomb(player_index: int):
 	var p: Dictionary = players[player_index]
@@ -530,7 +734,7 @@ func _apply_explosion_damage(cells: Array):
 		for i in range(players.size()):
 			var p: Dictionary = players[i]
 			if p["alive"] and p["grid_pos"] == cell:
-				_kill_player(i)
+				_damage_player(i, 1, "blast")
 
 func _spawn_powerup(cell: Vector2i):
 	var r := randf()
@@ -773,7 +977,7 @@ func _blast_cell_set(origin: Vector2i, blast_range_value: int) -> Dictionary:
 func _is_ai_escape_walkable(cell: Vector2i, bomb_cell: Vector2i, player_index: int, simulated_bomb := false) -> bool:
 	if cell.x < 0 or cell.x >= GRID_W or cell.y < 0 or cell.y >= GRID_H:
 		return false
-	if grid[cell.y][cell.x] != Cell.EMPTY:
+	if not _is_walkable_cell(grid[cell.y][cell.x]):
 		return false
 	if simulated_bomb and cell == bomb_cell:
 		return false
@@ -787,13 +991,23 @@ func _is_ai_escape_walkable(cell: Vector2i, bomb_cell: Vector2i, player_index: i
 			return false
 	return true
 
-func _kill_player(index: int):
+func _damage_player(index: int, amount: int, source: String):
 	var p: Dictionary = players[index]
 	if not p["alive"]:
 		return
 	if int(p.get("shield", 0)) > 0:
 		p["shield"] = int(p["shield"]) - 1
 		_flash_player_shield(p)
+		return
+	p["hp"] = maxi(int(p["hp"]) - amount, 0)
+	p["status"] = "Hit by %s" % source
+	_flash_player_damage(p)
+	if int(p["hp"]) <= 0:
+		_kill_player(index)
+
+func _kill_player(index: int):
+	var p: Dictionary = players[index]
+	if not p["alive"]:
 		return
 	p["alive"] = false
 	var node: Node3D = p["node"]
@@ -804,6 +1018,14 @@ func _kill_player(index: int):
 			node.queue_free()
 		_check_game_over()
 	)
+
+func _flash_player_damage(p: Dictionary):
+	var node: Node3D = p["node"]
+	if not is_instance_valid(node):
+		return
+	var tw := create_tween()
+	tw.tween_property(node, "scale", Vector3(1.12, 0.88, 1.12), 0.08)
+	tw.tween_property(node, "scale", Vector3.ONE, 0.10)
 
 func _flash_player_shield(p: Dictionary):
 	var node: Node3D = p["node"]
@@ -893,3 +1115,12 @@ func _update_hud():
 		return
 	var p: Dictionary = players[0]
 	hud_label.text = "3D Mode  |  Speed: %d  |  Bombs: %d/%d  |  Range: %d  |  Shields: %d  |  WASD + Space  |  Esc: Menu" % [p["speed"], p["bomb_placed_count"], p["bomb_max"], p["bomb_range"], p["shield"]]
+	if player_card_label:
+		player_card_label.text = _player_card_text(players[0])
+	if enemy_card_label and players.size() > 1:
+		enemy_card_label.text = _player_card_text(players[1])
+
+func _player_card_text(p: Dictionary) -> String:
+	if not p["alive"]:
+		return "HP: 0/%d\nStatus: Down" % int(p["max_hp"])
+	return "HP: %d/%d\nStatus: %s" % [int(p["hp"]), int(p["max_hp"]), str(p["status"])]

@@ -5,7 +5,7 @@ const GRID_H := 11
 const TILE_SIZE := 1.6
 const FLOOR_Y := 0.0
 
-enum Cell { EMPTY, WALL, CRATE }
+enum Cell { EMPTY, WALL, CRATE, FOREST, LAVA }
 
 var grid: Array = []
 var selected_cell := Cell.WALL
@@ -21,6 +21,11 @@ var mat_floor_a := _make_mat(Color(0.70, 0.78, 0.66), false, tex_floor)
 var mat_floor_b := _make_mat(Color(0.82, 0.88, 0.76), false, tex_floor)
 var mat_wall := _make_mat(Color(0.72, 0.76, 0.82), false, tex_wall)
 var mat_crate := _make_mat(Color(1.0, 0.88, 0.70), false, tex_crate)
+var mat_forest_floor := _make_mat(Color(0.18, 0.36, 0.18))
+var mat_leaf := _make_mat(Color(0.10, 0.48, 0.16))
+var mat_trunk := _make_mat(Color(0.42, 0.24, 0.11))
+var mat_lava := _make_mat(Color(0.95, 0.18, 0.04), true)
+var mat_lava_glow := _make_mat(Color(1.0, 0.65, 0.08), true)
 
 func _ready():
 	set_process_input(true)
@@ -82,18 +87,62 @@ func _refresh_view():
 
 	for y in GRID_H:
 		for x in GRID_W:
-			var floor := _box(Vector3(TILE_SIZE, 0.08, TILE_SIZE), mat_floor_a if (x + y) % 2 == 0 else mat_floor_b)
-			floor.position = _grid_to_world(Vector2i(x, y)) + Vector3(0, -0.04, 0)
+			var cell := Vector2i(x, y)
+			var floor := _box(Vector3(TILE_SIZE, 0.08, TILE_SIZE), _floor_mat_for_cell(x, y))
+			floor.position = _grid_to_world(cell) + Vector3(0, -0.04, 0)
 			map_root.add_child(floor)
 
 			if grid[y][x] == Cell.WALL:
 				var wall := _box(Vector3(TILE_SIZE * 0.94, 1.25, TILE_SIZE * 0.94), mat_wall)
-				wall.position = _grid_to_world(Vector2i(x, y)) + Vector3(0, 0.62, 0)
+				wall.position = _grid_to_world(cell) + Vector3(0, 0.62, 0)
 				map_root.add_child(wall)
 			elif grid[y][x] == Cell.CRATE:
 				var crate := _box(Vector3(TILE_SIZE * 0.84, 0.92, TILE_SIZE * 0.84), mat_crate)
-				crate.position = _grid_to_world(Vector2i(x, y)) + Vector3(0, 0.46, 0)
+				crate.position = _grid_to_world(cell) + Vector3(0, 0.46, 0)
 				map_root.add_child(crate)
+			elif grid[y][x] == Cell.FOREST:
+				map_root.add_child(_create_forest_tile(cell))
+			elif grid[y][x] == Cell.LAVA:
+				map_root.add_child(_create_lava_tile(cell))
+
+func _floor_mat_for_cell(x: int, y: int) -> Material:
+	match grid[y][x]:
+		Cell.FOREST:
+			return mat_forest_floor
+		Cell.LAVA:
+			return mat_lava
+		_:
+			return mat_floor_a if (x + y) % 2 == 0 else mat_floor_b
+
+func _create_forest_tile(cell: Vector2i) -> Node3D:
+	var root := Node3D.new()
+	root.name = "Forest_%d_%d" % [cell.x, cell.y]
+	root.position = _grid_to_world(cell)
+
+	var offsets := [Vector3(-0.36, 0, -0.30), Vector3(0.34, 0, -0.14), Vector3(-0.04, 0, 0.34)]
+	for offset in offsets:
+		var trunk := _cylinder(0.08, 0.55, mat_trunk)
+		trunk.position = offset + Vector3(0, 0.24, 0)
+		root.add_child(trunk)
+
+		var crown := _sphere(0.34, mat_leaf)
+		crown.position = offset + Vector3(0, 0.72, 0)
+		crown.scale = Vector3(1.0, 0.82, 1.0)
+		root.add_child(crown)
+	return root
+
+func _create_lava_tile(cell: Vector2i) -> Node3D:
+	var root := Node3D.new()
+	root.name = "Lava_%d_%d" % [cell.x, cell.y]
+	root.position = _grid_to_world(cell)
+	var pool := _box(Vector3(TILE_SIZE * 0.86, 0.10, TILE_SIZE * 0.86), mat_lava_glow)
+	pool.position = Vector3(0, 0.03, 0)
+	root.add_child(pool)
+	var bubble := _sphere(0.16, mat_lava_glow)
+	bubble.position = Vector3(0.28, 0.16, -0.22)
+	bubble.scale = Vector3(1.0, 0.45, 1.0)
+	root.add_child(bubble)
+	return root
 
 func _grid_to_world(cell: Vector2i) -> Vector3:
 	return Vector3((cell.x - (GRID_W - 1) / 2.0) * TILE_SIZE, FLOOR_Y, (cell.y - (GRID_H - 1) / 2.0) * TILE_SIZE)
@@ -133,6 +182,28 @@ func _box(size: Vector3, mat: Material) -> MeshInstance3D:
 	node.material_override = mat
 	return node
 
+func _sphere(radius: float, mat: Material) -> MeshInstance3D:
+	var mesh := SphereMesh.new()
+	mesh.radius = radius
+	mesh.height = radius * 2.0
+	mesh.radial_segments = 24
+	mesh.rings = 12
+	var node := MeshInstance3D.new()
+	node.mesh = mesh
+	node.material_override = mat
+	return node
+
+func _cylinder(radius: float, height: float, mat: Material) -> MeshInstance3D:
+	var mesh := CylinderMesh.new()
+	mesh.top_radius = radius
+	mesh.bottom_radius = radius
+	mesh.height = height
+	mesh.radial_segments = 24
+	var node := MeshInstance3D.new()
+	node.mesh = mesh
+	node.material_override = mat
+	return node
+
 func _setup_ui():
 	var layer := CanvasLayer.new()
 	add_child(layer)
@@ -144,7 +215,7 @@ func _setup_ui():
 	layer.add_child(top_center)
 
 	var top_bar := PanelContainer.new()
-	top_bar.custom_minimum_size = Vector2(700, 46)
+	top_bar.custom_minimum_size = Vector2(760, 46)
 	top_center.add_child(top_bar)
 
 	var top_margin := MarginContainer.new()
@@ -155,12 +226,12 @@ func _setup_ui():
 	top_bar.add_child(top_margin)
 
 	var label := Label.new()
-	label.text = "Map Editor  |  Left: Place  Right: Erase  |  1 Wall  2 Crate  3 Empty"
+	label.text = "Map Editor  |  Left: Place  Right: Erase  |  1 Wall  2 Crate  3 Forest  4 Lava  5 Empty"
 	label.add_theme_font_size_override("font_size", 15)
 	label.add_theme_color_override("font_color", Color.WHITE)
 	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	label.custom_minimum_size = Vector2(670, 28)
+	label.custom_minimum_size = Vector2(730, 28)
 	top_margin.add_child(label)
 
 	var bottom_center := CenterContainer.new()
@@ -170,7 +241,7 @@ func _setup_ui():
 	layer.add_child(bottom_center)
 
 	var bottom_bar := PanelContainer.new()
-	bottom_bar.custom_minimum_size = Vector2(440, 52)
+	bottom_bar.custom_minimum_size = Vector2(620, 52)
 	bottom_center.add_child(bottom_bar)
 
 	var bottom_margin := MarginContainer.new()
@@ -189,7 +260,7 @@ func _setup_ui():
 	selected_label.add_theme_font_size_override("font_size", 16)
 	selected_label.add_theme_color_override("font_color", Color.YELLOW)
 	selected_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	selected_label.custom_minimum_size = Vector2(118, 34)
+	selected_label.custom_minimum_size = Vector2(132, 34)
 	_update_sel_label(selected_label)
 	controls.add_child(selected_label)
 
@@ -204,6 +275,18 @@ func _setup_ui():
 	crate_btn.custom_minimum_size = Vector2(48, 34)
 	crate_btn.pressed.connect(func(): _set_selected_cell(Cell.CRATE))
 	controls.add_child(crate_btn)
+
+	var forest_btn := Button.new()
+	forest_btn.text = "林"
+	forest_btn.custom_minimum_size = Vector2(48, 34)
+	forest_btn.pressed.connect(func(): _set_selected_cell(Cell.FOREST))
+	controls.add_child(forest_btn)
+
+	var lava_btn := Button.new()
+	lava_btn.text = "熔"
+	lava_btn.custom_minimum_size = Vector2(48, 34)
+	lava_btn.pressed.connect(func(): _set_selected_cell(Cell.LAVA))
+	controls.add_child(lava_btn)
 
 	var empty_btn := Button.new()
 	empty_btn.text = "空"
@@ -224,7 +307,7 @@ func _setup_ui():
 	controls.add_child(back_btn)
 
 func _update_sel_label(lbl: Label):
-	var names := {Cell.WALL: "Wall", Cell.CRATE: "Crate", Cell.EMPTY: "Empty"}
+	var names := {Cell.WALL: "Wall", Cell.CRATE: "Crate", Cell.FOREST: "Forest", Cell.LAVA: "Lava", Cell.EMPTY: "Empty"}
 	lbl.text = "Current: " + names.get(selected_cell, "?")
 
 func _set_selected_cell(cell: int):
@@ -237,7 +320,9 @@ func _input(event):
 		match event.keycode:
 			KEY_1: _set_selected_cell(Cell.WALL)
 			KEY_2: _set_selected_cell(Cell.CRATE)
-			KEY_3: _set_selected_cell(Cell.EMPTY)
+			KEY_3: _set_selected_cell(Cell.FOREST)
+			KEY_4: _set_selected_cell(Cell.LAVA)
+			KEY_5: _set_selected_cell(Cell.EMPTY)
 			KEY_ESCAPE:
 				get_tree().change_scene_to_file("res://scenes/menu/main_menu.tscn")
 
