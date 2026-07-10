@@ -14,6 +14,9 @@ var speed := 5
 var bomb_max := 1
 var bomb_range := 1
 var bomb_placed_count := 0
+var speed_collected := 0
+var bomb_collected := 0
+var range_collected := 0
 
 const MAX_SPEED := 10
 const MAX_BOMBS := 8
@@ -39,12 +42,15 @@ func move_time() -> float:
 
 func add_speed(amount: int):
 	speed = clampi(speed + amount, 1, MAX_SPEED)
+	speed_collected += amount
 
 func add_bomb(amount: int):
 	bomb_max = clampi(bomb_max + amount, 1, MAX_BOMBS)
+	bomb_collected += amount
 
 func add_range(amount: int):
 	bomb_range = clampi(bomb_range + amount, 1, MAX_RANGE)
+	range_collected += amount
 
 func setup(p_id: int, tex: Texture2D):
 	player_id = p_id
@@ -71,7 +77,7 @@ func _physics_process(delta):
 
 	if move_dir != Vector2i.ZERO:
 		var target := grid_pos + move_dir
-		if gm.is_cell_walkable(target.x, target.y):
+		if gm.is_cell_walkable(target.x, target.y, move_dir.x, move_dir.y):
 			grid_pos = target
 			is_moving = true
 			var tw := create_tween()
@@ -120,7 +126,7 @@ func _choose_direction(gm):
 
 	for d in dirs:
 		var t = grid_pos + d
-		if gm.is_cell_walkable(t.x, t.y):
+		if gm.is_cell_walkable(t.x, t.y, d.x, d.y):
 			move_dir = d
 			return
 

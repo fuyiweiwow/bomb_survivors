@@ -4,7 +4,7 @@ const TILE_SIZE := 32
 const GRID_W := 15
 const GRID_H := 11
 
-enum Cell { EMPTY, WALL, CRATE }
+enum Cell { EMPTY, WALL, CRATE, BAR_H, BAR_V }
 
 var grid: Array = []
 var sprites: Array = []
@@ -12,6 +12,8 @@ var selected_cell := Cell.WALL
 var floor_tex = preload("res://assets/art/sprites/floor.png")
 var wall_tex = preload("res://assets/art/sprites/wall.png")
 var crate_tex = preload("res://assets/art/sprites/crate.png")
+var bar_h_tex = preload("res://assets/art/sprites/bar_h.png")
+var bar_v_tex = preload("res://assets/art/sprites/bar_v.png")
 
 func _ready():
 	for y in GRID_H:
@@ -44,6 +46,8 @@ func _refresh_view():
 			match grid[y][x]:
 				Cell.WALL: s.texture = wall_tex
 				Cell.CRATE: s.texture = crate_tex
+				Cell.BAR_H: s.texture = bar_h_tex
+				Cell.BAR_V: s.texture = bar_v_tex
 				_: s.texture = floor_tex
 			s.position = Vector2(x * TILE_SIZE + TILE_SIZE / 2.0, y * TILE_SIZE + TILE_SIZE / 2.0)
 			s.centered = true
@@ -52,7 +56,7 @@ func _refresh_view():
 
 func _setup_ui():
 	var label := Label.new()
-	label.text = "Map Editor - LeftClick: Place | RightClick: Erase | 1:Wall 2:Crate 3:Empty"
+	label.text = "1:Wall 2:Crate 3:Clear 4:BarH 5:BarV | LClick:Place  RClick:Erase"
 	label.add_theme_font_size_override("font_size", 16)
 	label.add_theme_color_override("font_color", Color.WHITE)
 	label.position = Vector2(10, GRID_H * TILE_SIZE + 10)
@@ -90,7 +94,7 @@ func _setup_ui():
 	add_child(back_btn)
 
 func _update_sel_label(lbl: Label):
-	var names := {Cell.WALL: "Wall", Cell.CRATE: "Crate", Cell.EMPTY: "Empty"}
+	var names := {Cell.WALL: "Wall", Cell.CRATE: "Crate", Cell.EMPTY: "Clear", Cell.BAR_H: "BarH", Cell.BAR_V: "BarV"}
 	lbl.text = "Current: " + names.get(selected_cell, "?")
 
 func _setup_camera():
@@ -106,6 +110,8 @@ func _input(event):
 			KEY_1: selected_cell = Cell.WALL
 			KEY_2: selected_cell = Cell.CRATE
 			KEY_3: selected_cell = Cell.EMPTY
+			KEY_4: selected_cell = Cell.BAR_H
+			KEY_5: selected_cell = Cell.BAR_V
 			KEY_ESCAPE:
 				get_tree().change_scene_to_file("res://scenes/menu/main_menu.tscn")
 		var lbl = get_node_or_null("SelLabel")

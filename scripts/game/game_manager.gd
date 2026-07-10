@@ -4,7 +4,7 @@ const TILE_SIZE := 32
 const GRID_W := 15
 const GRID_H := 11
 
-enum Cell { EMPTY, WALL, CRATE }
+enum Cell { EMPTY, WALL, CRATE, BAR_H, BAR_V }
 
 var grid: Array = []
 var bomb_map: Dictionary = {}
@@ -82,23 +82,41 @@ func _create_floor():
 func _create_map():
 	var wall_tex = load("res://assets/art/sprites/wall.png")
 	var crate_tex = load("res://assets/art/sprites/crate.png")
+	var bar_h_tex = load("res://assets/art/sprites/bar_h.png")
+	var bar_v_tex = load("res://assets/art/sprites/bar_v.png")
 	for y in GRID_H:
 		for x in GRID_W:
-			if grid[y][x] == Cell.WALL:
-				var w := Sprite2D.new()
-				w.texture = wall_tex
-				w.position = Vector2(x * TILE_SIZE + TILE_SIZE / 2.0, y * TILE_SIZE + TILE_SIZE / 2.0)
-				w.centered = true
-				w.z_index = 1
-				add_child(w)
-			elif grid[y][x] == Cell.CRATE:
-				var c := Sprite2D.new()
-				c.texture = crate_tex
-				c.position = Vector2(x * TILE_SIZE + TILE_SIZE / 2.0, y * TILE_SIZE + TILE_SIZE / 2.0)
-				c.centered = true
-				c.z_index = 1
-				crate_sprites[Vector2i(x, y)] = c
-				add_child(c)
+			var pos := Vector2(x * TILE_SIZE + TILE_SIZE / 2.0, y * TILE_SIZE + TILE_SIZE / 2.0)
+			match grid[y][x]:
+				Cell.WALL:
+					var w := Sprite2D.new()
+					w.texture = wall_tex
+					w.position = pos
+					w.centered = true
+					w.z_index = 1
+					add_child(w)
+				Cell.CRATE:
+					var c := Sprite2D.new()
+					c.texture = crate_tex
+					c.position = pos
+					c.centered = true
+					c.z_index = 1
+					crate_sprites[Vector2i(x, y)] = c
+					add_child(c)
+				Cell.BAR_H:
+					var bh := Sprite2D.new()
+					bh.texture = bar_h_tex
+					bh.position = pos
+					bh.centered = true
+					bh.z_index = 1
+					add_child(bh)
+				Cell.BAR_V:
+					var bv := Sprite2D.new()
+					bv.texture = bar_v_tex
+					bv.position = pos
+					bv.centered = true
+					bv.z_index = 1
+					add_child(bv)
 
 func _spawn_players():
 	_spawn_player1(Vector2i(1, 1))
@@ -190,10 +208,15 @@ func _on_bomb(grid_pos: Vector2i, player: Node2D):
 	b.setup(grid_pos, player.bomb_range)
 	bomb_map[grid_pos] = {"node": b, "player": player}
 
-func is_cell_walkable(x: int, y: int) -> bool:
+func is_cell_walkable(x: int, y: int, dx: int = 0, dy: int = 0) -> bool:
 	if x < 0 or x >= GRID_W or y < 0 or y >= GRID_H:
 		return false
-	if grid[y][x] != Cell.EMPTY:
+	var c = grid[y][x]
+	if c == Cell.WALL or c == Cell.CRATE:
+		return false
+	if c == Cell.BAR_H and dx != 0:
+		return false
+	if c == Cell.BAR_V and dy != 0:
 		return false
 	if bomb_map.has(Vector2i(x, y)):
 		return false
@@ -366,25 +389,91 @@ func _setup_camera():
 	add_child(cam)
 
 func _setup_hud():
+	var bar_h := 80
+	var bar_y := GRID_H * TILE_SIZE
+	var bar_w := GRID_W * TILE_SIZE
+
 	var bg := ColorRect.new()
-	bg.color = Color(0, 0, 0, 0.5)
-	bg.position = Vector2(0, GRID_H * TILE_SIZE)
-	bg.size = Vector2(GRID_W * TILE_SIZE, 50)
+	bg.color = Color(0.05, 0.05, 0.1, 0.85)
+	bg.position = Vector2(0, bar_y)
+	bg.size = Vector2(bar_w, bar_h)
 	add_child(bg)
 
+	var left_bg := ColorRect.new()
+	left_bg.color = Color(0.1, 0.15, 0.25, 0.9)
+	left_bg.position = Vector2(4, bar_y + 4)
+	left_bg.size = Vector2(168, bar_h - 8)
+	add_child(left_bg)
+
+	var left_title := Label.new()
+	left_title.text = "Stats"
+	left_title.add_theme_font_size_override("font_size", 14)
+	left_title.add_theme_color_override("font_color", Color(0.4, 0.7, 1.0))
+	left_title.position = Vector2(12, bar_y + 6)
+	left_title.size = Vector2(150, 18)
+	add_child(left_title)
+
+	hud_stats_label = Label.new()
+	hud_stats_label.add_theme_font_size_override("font_size", 13)
+	hud_stats_label.add_theme_color_override("font_color", Color.WHITE)
+	hud_stats_label.position = Vector2(12, bar_y + 24)
+	hud_stats_label.size = Vector2(150, 50)
+	add_child(hud_stats_label)
+
+	var center_bg := ColorRect.new()
+	center_bg.color = Color(0.08, 0.08, 0.15, 0.7)
+	center_bg.position = Vector2(176, bar_y + 4)
+	center_bg.size = Vector2(bar_w - 352, bar_h - 8)
+	add_child(center_bg)
+
 	hud_label = Label.new()
-	hud_label.position = Vector2(10, GRID_H * TILE_SIZE + 8)
-	hud_label.size = Vector2(GRID_W * TILE_SIZE, 40)
-	hud_label.add_theme_font_size_override("font_size", 16)
-	hud_label.add_theme_color_override("font_color", Color.WHITE)
+	hud_label.add_theme_font_size_override("font_size", 13)
+	hud_label.add_theme_color_override("font_color", Color(0.6, 0.6, 0.6))
+	hud_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	hud_label.position = Vector2(176, bar_y + 4)
+	hud_label.size = Vector2(bar_w - 352, 30)
 	add_child(hud_label)
+
+	var right_bg := ColorRect.new()
+	right_bg.color = Color(0.15, 0.1, 0.05, 0.9)
+	right_bg.position = Vector2(bar_w - 172, bar_y + 4)
+	right_bg.size = Vector2(168, bar_h - 8)
+	add_child(right_bg)
+
+	var right_title := Label.new()
+	right_title.text = "Powerups"
+	right_title.add_theme_font_size_override("font_size", 14)
+	right_title.add_theme_color_override("font_color", Color(1.0, 0.7, 0.3))
+	right_title.position = Vector2(bar_w - 164, bar_y + 6)
+	right_title.size = Vector2(150, 18)
+	add_child(right_title)
+
+	hud_items_label = Label.new()
+	hud_items_label.add_theme_font_size_override("font_size", 13)
+	hud_items_label.add_theme_color_override("font_color", Color(1.0, 0.9, 0.6))
+	hud_items_label.position = Vector2(bar_w - 164, bar_y + 24)
+	hud_items_label.size = Vector2(150, 50)
+	add_child(hud_items_label)
+
 	_update_hud()
 
 func _update_hud():
 	if hud_label == null: return
 	var p1 = players[0] if players.size() > 0 and is_instance_valid(players[0]) else null
 	if p1 == null: return
-	hud_label.text = "Speed: %d  |  Bombs: %d (max %d)  |  Range: %d  |  Esc: Menu" % [p1.speed, p1.bomb_placed_count, p1.bomb_max, p1.bomb_range]
+	hud_label.text = "Esc: Menu  |  R: Restart"
+	if hud_stats_label:
+		hud_stats_label.text = "Speed: %d (+%d)\nBombs: %d (+%d)\nRange: %d (+%d)" % [
+			p1.speed, p1.speed_collected,
+			p1.bomb_max, p1.bomb_collected,
+			p1.bomb_range, p1.range_collected
+		]
+	if hud_items_label:
+		hud_items_label.text = "Boots: %d\nBomb+: %d\nFire+: %d" % [
+			p1.speed_collected,
+			p1.bomb_collected,
+			p1.range_collected
+		]
 
 func _process(_delta):
 	if not game_over:
