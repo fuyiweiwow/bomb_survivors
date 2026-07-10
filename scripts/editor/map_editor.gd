@@ -16,6 +16,7 @@ var camera: Camera3D = null
 var tex_floor: Texture2D = load("res://assets/art/3d/floor_tile.png")
 var tex_wall: Texture2D = load("res://assets/art/3d/wall_block.png")
 var tex_crate: Texture2D = load("res://assets/art/3d/crate_wood.png")
+var tex_lava: Texture2D = load("res://assets/art/3d/lava_cracked.png")
 
 var mat_floor_a := _make_mat(Color(0.70, 0.78, 0.66), false, tex_floor)
 var mat_floor_b := _make_mat(Color(0.82, 0.88, 0.76), false, tex_floor)
@@ -24,8 +25,8 @@ var mat_crate := _make_mat(Color(1.0, 0.88, 0.70), false, tex_crate)
 var mat_forest_floor := _make_mat(Color(0.18, 0.36, 0.18))
 var mat_leaf := _make_mat(Color(0.10, 0.48, 0.16))
 var mat_trunk := _make_mat(Color(0.42, 0.24, 0.11))
-var mat_lava := _make_mat(Color(0.95, 0.18, 0.04), true)
-var mat_lava_glow := _make_mat(Color(1.0, 0.65, 0.08), true)
+var mat_lava := _make_mat(Color(0.95, 0.18, 0.04), true, tex_lava)
+var mat_lava_glow := _make_mat(Color(1.0, 0.65, 0.08), true, tex_lava)
 
 func _ready():
 	set_process_input(true)
