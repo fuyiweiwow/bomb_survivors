@@ -19,8 +19,12 @@ var game_over := false
 
 var bomb_pressed := false
 var hud_label: Label = null
+var game_camera: Camera3D = null
+var player_card_panel: PanelContainer = null
 var player_card_label: Label = null
+var enemy_card_panel: PanelContainer = null
 var enemy_card_label: Label = null
+var ai_difficulty := "normal"
 
 var tex_floor: Texture2D = load("res://assets/art/3d/floor_tile.png")
 var tex_wall: Texture2D = load("res://assets/art/3d/wall_block.png")
@@ -49,6 +53,7 @@ var mat_shield := _make_mat(Color(0.35, 0.55, 1.0), true, tex_powerup)
 func _ready():
 	add_to_group("game")
 	randomize()
+	ai_difficulty = _load_ai_difficulty()
 	_init_grid()
 	_create_world()
 	_spawn_players()
@@ -292,7 +297,28 @@ func _spawn_players():
 	player["bomb_range"] = config["start_range"]
 	player["shield"] = config["start_shields"]
 	players.append(player)
-	players.append(_create_player(2, Vector2i(GRID_W - 2, GRID_H - 2), true, mat_ai, "ai"))
+	var ai_player := _create_player(2, Vector2i(GRID_W - 2, GRID_H - 2), true, mat_ai, "ai")
+	_apply_ai_difficulty(ai_player)
+	players.append(ai_player)
+
+func _apply_ai_difficulty(p: Dictionary):
+	p["ai_difficulty"] = ai_difficulty
+	match ai_difficulty:
+		"easy":
+			p["speed"] = 3
+			p["bomb_range"] = 1
+			p["move_interval"] = randf_range(0.75, 1.15)
+			p["bomb_interval"] = randf_range(3.2, 5.0)
+		"hard":
+			p["speed"] = 6
+			p["bomb_range"] = 3
+			p["move_interval"] = randf_range(0.18, 0.38)
+			p["bomb_interval"] = randf_range(0.9, 1.7)
+		_:
+			p["speed"] = 5
+			p["bomb_range"] = 2
+			p["move_interval"] = randf_range(0.35, 0.75)
+			p["bomb_interval"] = randf_range(1.6, 3.2)
 
 func _load_player_config() -> Dictionary:
 	var config := {
@@ -317,6 +343,22 @@ func _load_player_config() -> Dictionary:
 		config["start_shields"] = clampi(int(data.get("start_shields", config["start_shields"])), 0, 3)
 	file.close()
 	return config
+
+func _load_ai_difficulty() -> String:
+	if not FileAccess.file_exists("user://ai_settings.json"):
+		return "normal"
+	var file := FileAccess.open("user://ai_settings.json", FileAccess.READ)
+	if file == null:
+		return "normal"
+	var result := "normal"
+	var json := JSON.new()
+	if json.parse(file.get_as_text()) == OK:
+		var data = json.get_data()
+		result = str(data.get("difficulty", "normal"))
+	file.close()
+	if not ["easy", "normal", "hard"].has(result):
+		result = "normal"
+	return result
 
 func _player_material_from_config(config: Dictionary) -> Material:
 	var color := Color(0.18, 0.48, 0.95)
@@ -395,34 +437,25 @@ func _player_style_data(style: String) -> Dictionary:
 			}
 
 func _setup_camera():
-	var cam := Camera3D.new()
-	cam.projection = Camera3D.PROJECTION_ORTHOGONAL
-	cam.size = 19.0
-	cam.position = Vector3(0, 16, 12)
-	cam.rotation_degrees = Vector3(-58, 0, 0)
-	cam.current = true
-	add_child(cam)
+	game_camera = Camera3D.new()
+	game_camera.projection = Camera3D.PROJECTION_ORTHOGONAL
+	game_camera.size = 19.0
+	game_camera.position = Vector3(0, 16, 12)
+	game_camera.rotation_degrees = Vector3(-58, 0, 0)
+	game_camera.current = true
+	add_child(game_camera)
 
 func _setup_hud():
 	var layer := CanvasLayer.new()
 	add_child(layer)
 
-	var top := HBoxContainer.new()
-	top.set_anchors_preset(Control.PRESET_TOP_WIDE)
-	top.offset_left = 12
-	top.offset_top = 12
-	top.offset_right = -12
-	top.offset_bottom = 86
-	top.alignment = BoxContainer.ALIGNMENT_BEGIN
-	layer.add_child(top)
+	var player_card := _make_status_card(layer, "YOU", Color(0.18, 0.48, 0.95))
+	player_card_panel = player_card["panel"]
+	player_card_label = player_card["label"]
 
-	player_card_label = _make_status_card(top, "YOU", Color(0.18, 0.48, 0.95))
-
-	var spacer := Control.new()
-	spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	top.add_child(spacer)
-
-	enemy_card_label = _make_status_card(top, "AI", Color(0.95, 0.27, 0.22))
+	var enemy_card := _make_status_card(layer, "AI", Color(0.95, 0.27, 0.22))
+	enemy_card_panel = enemy_card["panel"]
+	enemy_card_label = enemy_card["label"]
 
 	var bg := ColorRect.new()
 	bg.color = Color(0, 0, 0, 0.5)
@@ -438,16 +471,16 @@ func _setup_hud():
 	layer.add_child(hud_label)
 	_update_hud()
 
-func _make_status_card(parent: Node, avatar_text: String, color: Color) -> Label:
+func _make_status_card(parent: Node, avatar_text: String, color: Color) -> Dictionary:
 	var panel := PanelContainer.new()
-	panel.custom_minimum_size = Vector2(238, 72)
+	panel.custom_minimum_size = Vector2(156, 46)
 	parent.add_child(panel)
 
 	var margin := MarginContainer.new()
-	margin.add_theme_constant_override("margin_left", 10)
-	margin.add_theme_constant_override("margin_top", 8)
-	margin.add_theme_constant_override("margin_right", 10)
-	margin.add_theme_constant_override("margin_bottom", 8)
+	margin.add_theme_constant_override("margin_left", 6)
+	margin.add_theme_constant_override("margin_top", 4)
+	margin.add_theme_constant_override("margin_right", 6)
+	margin.add_theme_constant_override("margin_bottom", 4)
 	panel.add_child(margin)
 
 	var row := HBoxContainer.new()
@@ -458,8 +491,8 @@ func _make_status_card(parent: Node, avatar_text: String, color: Color) -> Label
 	avatar.text = avatar_text
 	avatar.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	avatar.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	avatar.custom_minimum_size = Vector2(46, 46)
-	avatar.add_theme_font_size_override("font_size", 18)
+	avatar.custom_minimum_size = Vector2(34, 34)
+	avatar.add_theme_font_size_override("font_size", 13)
 	avatar.add_theme_color_override("font_color", Color.WHITE)
 	avatar.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.8))
 	var avatar_style := StyleBoxFlat.new()
@@ -472,11 +505,11 @@ func _make_status_card(parent: Node, avatar_text: String, color: Color) -> Label
 	row.add_child(avatar)
 
 	var label := Label.new()
-	label.add_theme_font_size_override("font_size", 14)
+	label.add_theme_font_size_override("font_size", 11)
 	label.add_theme_color_override("font_color", Color.WHITE)
-	label.custom_minimum_size = Vector2(158, 50)
+	label.custom_minimum_size = Vector2(92, 36)
 	row.add_child(label)
-	return label
+	return {"panel": panel, "label": label}
 
 func _unhandled_input(event):
 	if game_over:
@@ -588,19 +621,26 @@ func _process_ai(delta: float):
 
 func _ai_should_place_bomb(player_index: int) -> bool:
 	var p: Dictionary = players[player_index]
+	var difficulty := str(p.get("ai_difficulty", "normal"))
 	var blast_cells := _blast_cell_set(p["grid_pos"], p["bomb_range"])
-	for i in range(players.size()):
-		if i == player_index:
-			continue
-		var target: Dictionary = players[i]
-		if target["alive"] and not _is_player_hidden(i) and blast_cells.has(target["grid_pos"]):
-			return true
+	if difficulty != "easy":
+		for i in range(players.size()):
+			if i == player_index:
+				continue
+			var target: Dictionary = players[i]
+			if target["alive"] and not _is_player_hidden(i) and blast_cells.has(target["grid_pos"]):
+				return true
 
 	var dirs := [Vector2i(0, -1), Vector2i(0, 1), Vector2i(-1, 0), Vector2i(1, 0)]
 	for d in dirs:
 		var check: Vector2i = p["grid_pos"] + d
 		if check.x >= 0 and check.x < GRID_W and check.y >= 0 and check.y < GRID_H and grid[check.y][check.x] == Cell.CRATE:
 			return true
+	if difficulty == "hard":
+		for cell in blast_cells.keys():
+			var c := cell as Vector2i
+			if grid[c.y][c.x] == Cell.CRATE:
+				return true
 	return false
 
 func _is_player_hidden(index: int) -> bool:
@@ -863,6 +903,10 @@ func _choose_ai_direction(p: Dictionary) -> Vector2i:
 	var dirs := [Vector2i(0, -1), Vector2i(0, 1), Vector2i(-1, 0), Vector2i(1, 0)]
 	dirs.shuffle()
 	var danger_cells := _active_blast_cell_set()
+	if str(p.get("ai_difficulty", "normal")) == "hard":
+		var chase_dir := _hard_ai_chase_dir(p, danger_cells)
+		if chase_dir != Vector2i.ZERO:
+			return chase_dir
 	var last_bomb: Vector2i = p["last_bomb_pos"]
 	if last_bomb != Vector2i(-1, -1):
 		var away := _filter_away(dirs, p["grid_pos"], last_bomb)
@@ -871,9 +915,50 @@ func _choose_ai_direction(p: Dictionary) -> Vector2i:
 
 	for d in dirs:
 		var target: Vector2i = p["grid_pos"] + d
+		if is_cell_walkable(target.x, target.y) and not danger_cells.has(target) and not _is_lava_cell(target):
+			return d
+	for d in dirs:
+		var target: Vector2i = p["grid_pos"] + d
 		if is_cell_walkable(target.x, target.y) and not danger_cells.has(target):
 			return d
 	return Vector2i.ZERO
+
+func _hard_ai_chase_dir(p: Dictionary, danger_cells: Dictionary) -> Vector2i:
+	if players.is_empty() or _is_player_hidden(0) or not players[0]["alive"]:
+		return Vector2i.ZERO
+	var start: Vector2i = p["grid_pos"]
+	var target: Vector2i = players[0]["grid_pos"]
+	var queue: Array = [{"pos": start, "first": Vector2i.ZERO}]
+	var visited := {start: true}
+	var head := 0
+	var dirs := [Vector2i(0, -1), Vector2i(0, 1), Vector2i(-1, 0), Vector2i(1, 0)]
+	dirs.shuffle()
+	while head < queue.size():
+		var item: Dictionary = queue[head]
+		head += 1
+		var pos: Vector2i = item["pos"]
+		var first_step: Vector2i = item["first"]
+		if pos == target and first_step != Vector2i.ZERO:
+			return first_step
+		for d in dirs:
+			var next: Vector2i = pos + d
+			if visited.has(next):
+				continue
+			if next != target and not is_cell_walkable(next.x, next.y):
+				continue
+			if danger_cells.has(next) or _is_lava_cell(next):
+				continue
+			visited[next] = true
+			queue.append({
+				"pos": next,
+				"first": d if first_step == Vector2i.ZERO else first_step
+			})
+	return Vector2i.ZERO
+
+func _is_lava_cell(cell: Vector2i) -> bool:
+	if cell.x < 0 or cell.x >= GRID_W or cell.y < 0 or cell.y >= GRID_H:
+		return false
+	return grid[cell.y][cell.x] == Cell.LAVA
 
 func _filter_away(dirs: Array, pos: Vector2i, away_from: Vector2i) -> Array:
 	var result: Array = []
@@ -1113,8 +1198,9 @@ func _make_result_button(text: String) -> Button:
 func _update_hud():
 	if hud_label == null or players.is_empty():
 		return
+	_position_status_cards()
 	var p: Dictionary = players[0]
-	hud_label.text = "3D Mode  |  Speed: %d  |  Bombs: %d/%d  |  Range: %d  |  Shields: %d  |  WASD + Space  |  Esc: Menu" % [p["speed"], p["bomb_placed_count"], p["bomb_max"], p["bomb_range"], p["shield"]]
+	hud_label.text = "AI: %s  |  Speed: %d  |  Bombs: %d/%d  |  Range: %d  |  Shields: %d  |  WASD + Space  |  Esc: Menu" % [_difficulty_label(), p["speed"], p["bomb_placed_count"], p["bomb_max"], p["bomb_range"], p["shield"]]
 	if player_card_label:
 		player_card_label.text = _player_card_text(players[0])
 	if enemy_card_label and players.size() > 1:
@@ -1122,5 +1208,24 @@ func _update_hud():
 
 func _player_card_text(p: Dictionary) -> String:
 	if not p["alive"]:
-		return "HP: 0/%d\nStatus: Down" % int(p["max_hp"])
-	return "HP: %d/%d\nStatus: %s" % [int(p["hp"]), int(p["max_hp"]), str(p["status"])]
+		return "HP 0/%d\nDown" % int(p["max_hp"])
+	return "HP %d/%d\n%s" % [int(p["hp"]), int(p["max_hp"]), str(p["status"])]
+
+func _position_status_cards():
+	if game_camera == null:
+		return
+	if player_card_panel:
+		var player_pos := game_camera.unproject_position(_grid_to_world(Vector2i(2, 0)) + Vector3(0, 1.05, 0))
+		player_card_panel.position = player_pos + Vector2(-78, -22)
+	if enemy_card_panel:
+		var enemy_pos := game_camera.unproject_position(_grid_to_world(Vector2i(GRID_W - 3, 0)) + Vector3(0, 1.05, 0))
+		enemy_card_panel.position = enemy_pos + Vector2(-78, -22)
+
+func _difficulty_label() -> String:
+	match ai_difficulty:
+		"easy":
+			return "Easy"
+		"hard":
+			return "Hard"
+		_:
+			return "Normal"

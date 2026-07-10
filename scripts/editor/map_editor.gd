@@ -241,7 +241,7 @@ func _setup_ui():
 	layer.add_child(bottom_center)
 
 	var bottom_bar := PanelContainer.new()
-	bottom_bar.custom_minimum_size = Vector2(620, 52)
+	bottom_bar.custom_minimum_size = Vector2(472, 46)
 	bottom_center.add_child(bottom_bar)
 
 	var bottom_margin := MarginContainer.new()
@@ -253,62 +253,112 @@ func _setup_ui():
 
 	var controls := HBoxContainer.new()
 	controls.alignment = BoxContainer.ALIGNMENT_CENTER
-	controls.add_theme_constant_override("separation", 8)
+	controls.add_theme_constant_override("separation", 6)
 	bottom_margin.add_child(controls)
 
 	selected_label = Label.new()
 	selected_label.add_theme_font_size_override("font_size", 16)
 	selected_label.add_theme_color_override("font_color", Color.YELLOW)
 	selected_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	selected_label.custom_minimum_size = Vector2(132, 34)
+	selected_label.custom_minimum_size = Vector2(110, 30)
 	_update_sel_label(selected_label)
 	controls.add_child(selected_label)
 
-	var wall_btn := Button.new()
-	wall_btn.text = "墙"
-	wall_btn.custom_minimum_size = Vector2(48, 34)
-	wall_btn.pressed.connect(func(): _set_selected_cell(Cell.WALL))
-	controls.add_child(wall_btn)
-
-	var crate_btn := Button.new()
-	crate_btn.text = "箱"
-	crate_btn.custom_minimum_size = Vector2(48, 34)
-	crate_btn.pressed.connect(func(): _set_selected_cell(Cell.CRATE))
-	controls.add_child(crate_btn)
-
-	var forest_btn := Button.new()
-	forest_btn.text = "林"
-	forest_btn.custom_minimum_size = Vector2(48, 34)
-	forest_btn.pressed.connect(func(): _set_selected_cell(Cell.FOREST))
-	controls.add_child(forest_btn)
-
-	var lava_btn := Button.new()
-	lava_btn.text = "熔"
-	lava_btn.custom_minimum_size = Vector2(48, 34)
-	lava_btn.pressed.connect(func(): _set_selected_cell(Cell.LAVA))
-	controls.add_child(lava_btn)
-
-	var empty_btn := Button.new()
-	empty_btn.text = "空"
-	empty_btn.custom_minimum_size = Vector2(48, 34)
-	empty_btn.pressed.connect(func(): _set_selected_cell(Cell.EMPTY))
-	controls.add_child(empty_btn)
+	_add_tool_button(controls, Cell.WALL, "Wall / 1")
+	_add_tool_button(controls, Cell.CRATE, "Crate / 2")
+	_add_tool_button(controls, Cell.FOREST, "Forest: hides players / 3")
+	_add_tool_button(controls, Cell.LAVA, "Lava: damages over time / 4")
+	_add_tool_button(controls, Cell.EMPTY, "Empty / 5")
 
 	var save_btn := Button.new()
-	save_btn.text = "保存"
-	save_btn.custom_minimum_size = Vector2(76, 34)
+	save_btn.text = "S"
+	save_btn.tooltip_text = "保存"
+	save_btn.custom_minimum_size = Vector2(42, 30)
 	save_btn.pressed.connect(_save_map)
 	controls.add_child(save_btn)
 
 	var back_btn := Button.new()
-	back_btn.text = "退出"
-	back_btn.custom_minimum_size = Vector2(76, 34)
+	back_btn.text = "X"
+	back_btn.tooltip_text = "退出"
+	back_btn.custom_minimum_size = Vector2(42, 30)
 	back_btn.pressed.connect(func(): get_tree().change_scene_to_file("res://scenes/menu/main_menu.tscn"))
 	controls.add_child(back_btn)
 
+func _add_tool_button(parent: Node, cell: int, tooltip: String):
+	var btn := Button.new()
+	btn.text = ""
+	btn.icon = _make_cell_icon(cell)
+	btn.expand_icon = true
+	btn.tooltip_text = tooltip
+	btn.custom_minimum_size = Vector2(32, 30)
+	btn.pressed.connect(func(): _set_selected_cell(cell))
+	parent.add_child(btn)
+
+func _make_cell_icon(cell: int) -> Texture2D:
+	var img := Image.create(24, 24, false, Image.FORMAT_RGBA8)
+	var bg := Color(0.20, 0.22, 0.24)
+	var fg := Color.WHITE
+	match cell:
+		Cell.WALL:
+			bg = Color(0.58, 0.62, 0.68)
+			fg = Color(0.32, 0.35, 0.40)
+		Cell.CRATE:
+			bg = Color(0.78, 0.50, 0.24)
+			fg = Color(0.42, 0.24, 0.10)
+		Cell.FOREST:
+			bg = Color(0.10, 0.42, 0.16)
+			fg = Color(0.40, 0.78, 0.28)
+		Cell.LAVA:
+			bg = Color(0.82, 0.14, 0.04)
+			fg = Color(1.0, 0.72, 0.10)
+		Cell.EMPTY:
+			bg = Color(0.70, 0.78, 0.66)
+			fg = Color(0.82, 0.88, 0.76)
+	img.fill(bg)
+	for i in range(24):
+		img.set_pixel(i, 0, Color(0.05, 0.06, 0.07))
+		img.set_pixel(i, 23, Color(0.05, 0.06, 0.07))
+		img.set_pixel(0, i, Color(0.05, 0.06, 0.07))
+		img.set_pixel(23, i, Color(0.05, 0.06, 0.07))
+	match cell:
+		Cell.WALL:
+			for y in range(5, 19, 6):
+				for x in range(3, 21):
+					img.set_pixel(x, y, fg)
+			for x in range(6, 21, 7):
+				for y in range(3, 21):
+					img.set_pixel(x, y, fg)
+		Cell.CRATE:
+			for i in range(4, 20):
+				img.set_pixel(i, i, fg)
+				img.set_pixel(23 - i, i, fg)
+			for i in range(5, 19):
+				img.set_pixel(i, 5, fg)
+				img.set_pixel(i, 18, fg)
+				img.set_pixel(5, i, fg)
+				img.set_pixel(18, i, fg)
+		Cell.FOREST:
+			for y in range(5, 17):
+				for x in range(7, 17):
+					if abs(x - 12) + abs(y - 11) < 8:
+						img.set_pixel(x, y, fg)
+			for y in range(14, 21):
+				img.set_pixel(11, y, Color(0.38, 0.20, 0.08))
+				img.set_pixel(12, y, Color(0.38, 0.20, 0.08))
+		Cell.LAVA:
+			for x in range(4, 20):
+				var y := 12 + int(sin(float(x) * 0.8) * 3.0)
+				for yy in range(y, 20):
+					img.set_pixel(x, yy, fg)
+		Cell.EMPTY:
+			for y in range(4, 20, 5):
+				for x in range(4, 20, 5):
+					img.set_pixel(x, y, fg)
+	return ImageTexture.create_from_image(img)
+
 func _update_sel_label(lbl: Label):
 	var names := {Cell.WALL: "Wall", Cell.CRATE: "Crate", Cell.FOREST: "Forest", Cell.LAVA: "Lava", Cell.EMPTY: "Empty"}
-	lbl.text = "Current: " + names.get(selected_cell, "?")
+	lbl.text = "Sel: " + names.get(selected_cell, "?")
 
 func _set_selected_cell(cell: int):
 	selected_cell = cell
