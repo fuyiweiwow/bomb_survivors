@@ -15,6 +15,8 @@ var wall_tex: Texture2D = load("res://assets/art/sprites/wall.png")
 var crate_tex: Texture2D = load("res://assets/art/sprites/crate.png")
 
 func _ready():
+	set_process_input(true)
+
 	for y in GRID_H:
 		var row: Array = []
 		row.resize(GRID_W)
@@ -33,7 +35,6 @@ func _ready():
 		grid[y][GRID_W - 1] = Cell.WALL
 
 	_setup_ui()
-	_setup_camera()
 	_load_map(false)
 	_refresh_view()
 
@@ -47,10 +48,21 @@ func _refresh_view():
 				Cell.WALL: s.texture = wall_tex
 				Cell.CRATE: s.texture = crate_tex
 				_: s.texture = floor_tex
-			s.position = Vector2(x * TILE_SIZE + TILE_SIZE / 2.0, y * TILE_SIZE + TILE_SIZE / 2.0)
+			s.position = _map_origin() + Vector2(x * TILE_SIZE + TILE_SIZE / 2.0, y * TILE_SIZE + TILE_SIZE / 2.0)
 			s.centered = true
 			add_child(s)
 			sprites[y][x] = s
+
+func _map_origin() -> Vector2:
+	var viewport_size := get_viewport_rect().size
+	var map_size := Vector2(GRID_W * TILE_SIZE, GRID_H * TILE_SIZE)
+	var usable_top := 82.0
+	var usable_bottom := viewport_size.y - 90.0
+	var usable_height := usable_bottom - usable_top
+	return Vector2(
+		(viewport_size.x - map_size.x) / 2.0,
+		usable_top + (usable_height - map_size.y) / 2.0
+	)
 
 func _setup_ui():
 	var layer := CanvasLayer.new()
@@ -115,19 +127,19 @@ func _setup_ui():
 	var wall_btn := Button.new()
 	wall_btn.text = "墙"
 	wall_btn.custom_minimum_size = Vector2(48, 34)
-	wall_btn.pressed.connect(func(): selected_cell = Cell.WALL; _update_sel_label(selected_label))
+	wall_btn.pressed.connect(func(): _set_selected_cell(Cell.WALL))
 	controls.add_child(wall_btn)
 
 	var crate_btn := Button.new()
 	crate_btn.text = "箱"
 	crate_btn.custom_minimum_size = Vector2(48, 34)
-	crate_btn.pressed.connect(func(): selected_cell = Cell.CRATE; _update_sel_label(selected_label))
+	crate_btn.pressed.connect(func(): _set_selected_cell(Cell.CRATE))
 	controls.add_child(crate_btn)
 
 	var empty_btn := Button.new()
 	empty_btn.text = "空"
 	empty_btn.custom_minimum_size = Vector2(48, 34)
-	empty_btn.pressed.connect(func(): selected_cell = Cell.EMPTY; _update_sel_label(selected_label))
+	empty_btn.pressed.connect(func(): _set_selected_cell(Cell.EMPTY))
 	controls.add_child(empty_btn)
 
 	var save_btn := Button.new()
@@ -146,12 +158,10 @@ func _update_sel_label(lbl: Label):
 	var names := {Cell.WALL: "Wall", Cell.CRATE: "Crate", Cell.EMPTY: "Empty"}
 	lbl.text = "Current: " + names.get(selected_cell, "?")
 
-func _setup_camera():
-	var cam := Camera2D.new()
-	cam.position = Vector2(GRID_W * TILE_SIZE / 2.0, GRID_H * TILE_SIZE / 2.0)
-	cam.zoom = Vector2(1.2, 1.2)
-	cam.enabled = true
-	add_child(cam)
+func _set_selected_cell(cell: int):
+	selected_cell = cell
+	if selected_label:
+		_update_sel_label(selected_label)
 
 func _input(event):
 	if event is InputEventKey and event.pressed:
@@ -169,9 +179,9 @@ func _input(event):
 			return
 		if _is_pointer_over_editor_ui(event.position):
 			return
-		var mp: Vector2 = get_viewport().get_canvas_transform().affine_inverse() * event.position
-		var gx := int(mp.x / TILE_SIZE)
-		var gy := int(mp.y / TILE_SIZE)
+		var local_pos: Vector2 = event.position - _map_origin()
+		var gx := int(floor(local_pos.x / TILE_SIZE))
+		var gy := int(floor(local_pos.y / TILE_SIZE))
 		if gx >= 1 and gx < GRID_W - 1 and gy >= 1 and gy < GRID_H - 1:
 			if event.button_index == MOUSE_BUTTON_LEFT:
 				grid[gy][gx] = selected_cell
