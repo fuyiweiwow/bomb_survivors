@@ -403,7 +403,8 @@ func _create_player(id: int, cell: Vector2i, ai: bool, mat: Material, style := "
 		"bomb_timer": 0.0,
 		"bomb_interval": randf_range(1.5, 3.5),
 		"move_dir": Vector2i.ZERO,
-		"last_bomb_pos": Vector2i(-1, -1)
+		"last_bomb_pos": Vector2i(-1, -1),
+		"last_seen_player_pos": Vector2i(-1, -1)
 	}
 
 func _player_style_data(style: String) -> Dictionary:
@@ -597,6 +598,7 @@ func _process_ai(delta: float):
 		if not p["ai"] or not p["alive"] or p["is_moving"]:
 			continue
 
+		_update_ai_target_memory(p)
 		p["move_timer"] += delta
 		p["bomb_timer"] += delta
 
@@ -619,10 +621,29 @@ func _process_ai(delta: float):
 				p["last_bomb_pos"] = p["grid_pos"]
 				p["move_dir"] = escape_dir
 
+func _update_ai_target_memory(p: Dictionary):
+	if str(p.get("ai_difficulty", "normal")) != "hard" or players.is_empty():
+		return
+	var target: Dictionary = players[0]
+	if not target["alive"]:
+		return
+	p["last_seen_player_pos"] = target["grid_pos"]
+
+func _hard_ai_search_target() -> Vector2i:
+	if players.is_empty() or not players[0]["alive"]:
+		return Vector2i(-1, -1)
+	var target: Dictionary = players[0]
+	var target_pos: Vector2i = target["grid_pos"]
+	if _is_player_hidden(0):
+		return target_pos
+	return target_pos
+
 func _ai_should_place_bomb(player_index: int) -> bool:
 	var p: Dictionary = players[player_index]
 	var difficulty := str(p.get("ai_difficulty", "normal"))
 	var blast_cells := _blast_cell_set(p["grid_pos"], p["bomb_range"])
+	if difficulty == "hard" and _is_player_hidden(0) and blast_cells.has(players[0]["grid_pos"]):
+		return true
 	if difficulty != "easy":
 		for i in range(players.size()):
 			if i == player_index:
@@ -924,10 +945,14 @@ func _choose_ai_direction(p: Dictionary) -> Vector2i:
 	return Vector2i.ZERO
 
 func _hard_ai_chase_dir(p: Dictionary, danger_cells: Dictionary) -> Vector2i:
-	if players.is_empty() or _is_player_hidden(0) or not players[0]["alive"]:
+	if players.is_empty() or not players[0]["alive"]:
 		return Vector2i.ZERO
 	var start: Vector2i = p["grid_pos"]
-	var target: Vector2i = players[0]["grid_pos"]
+	var target := _hard_ai_search_target()
+	if target == Vector2i(-1, -1):
+		target = p.get("last_seen_player_pos", Vector2i(-1, -1))
+	if target == Vector2i(-1, -1):
+		return Vector2i.ZERO
 	var queue: Array = [{"pos": start, "first": Vector2i.ZERO}]
 	var visited := {start: true}
 	var head := 0
