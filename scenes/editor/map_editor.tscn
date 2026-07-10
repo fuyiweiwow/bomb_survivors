@@ -2,5 +2,5 @@
 
 [ext_resource type="Script" path="res://scripts/editor/map_editor.gd" id="1_map_editor"]
 
-[node name="MapEditorRoot" type="Node2D"]
+[node name="MapEditorRoot" type="Node3D"]
 script = ExtResource("1_map_editor")

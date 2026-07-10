@@ -15,7 +15,6 @@ var crate_nodes: Dictionary = {}
 var powerups: Dictionary = {}
 var game_over := false
 
-var input_dir := Vector2i.ZERO
 var bomb_pressed := false
 var hud_label: Label = null
 
@@ -36,6 +35,7 @@ var mat_fire := _make_mat(Color(1.0, 0.48, 0.08), true)
 var mat_speed := _make_mat(Color(0.2, 0.95, 0.85), true, tex_powerup)
 var mat_bomb_power := _make_mat(Color(0.95, 0.92, 0.25), true, tex_powerup)
 var mat_range := _make_mat(Color(1.0, 0.22, 0.12), true, tex_powerup)
+var mat_shield := _make_mat(Color(0.35, 0.55, 1.0), true, tex_powerup)
 
 func _ready():
 	add_to_group("game")
@@ -198,19 +198,21 @@ func _grid_to_world(cell: Vector2i) -> Vector3:
 
 func _spawn_players():
 	var config := _load_player_config()
-	var player := _create_player(1, Vector2i(1, 1), false, _player_material_from_config(config))
+	var player := _create_player(1, Vector2i(1, 1), false, _player_material_from_config(config), str(config["gender"]))
 	player["speed"] = config["start_speed"]
 	player["bomb_max"] = config["start_bombs"]
 	player["bomb_range"] = config["start_range"]
+	player["shield"] = config["start_shields"]
 	players.append(player)
-	players.append(_create_player(2, Vector2i(GRID_W - 2, GRID_H - 2), true, mat_ai))
+	players.append(_create_player(2, Vector2i(GRID_W - 2, GRID_H - 2), true, mat_ai, "ai"))
 
 func _load_player_config() -> Dictionary:
 	var config := {
 		"gender": "male",
 		"start_speed": 5,
 		"start_bombs": 1,
-		"start_range": 2
+		"start_range": 2,
+		"start_shields": 0
 	}
 	if not FileAccess.file_exists("user://player_config.json"):
 		return config
@@ -224,6 +226,7 @@ func _load_player_config() -> Dictionary:
 		config["start_speed"] = clampi(int(data.get("start_speed", config["start_speed"])), 1, 10)
 		config["start_bombs"] = clampi(int(data.get("start_bombs", config["start_bombs"])), 1, 8)
 		config["start_range"] = clampi(int(data.get("start_range", config["start_range"])), 1, 10)
+		config["start_shields"] = clampi(int(data.get("start_shields", config["start_shields"])), 0, 3)
 	file.close()
 	return config
 
@@ -233,17 +236,18 @@ func _player_material_from_config(config: Dictionary) -> Material:
 		color = Color(0.95, 0.27, 0.22)
 	return _make_mat(color)
 
-func _create_player(id: int, cell: Vector2i, ai: bool, mat: Material) -> Dictionary:
+func _create_player(id: int, cell: Vector2i, ai: bool, mat: Material, style := "male") -> Dictionary:
+	var style_data := _player_style_data(style)
 	var root := Node3D.new()
 	root.name = "Player%d_3D" % id
 	root.position = _grid_to_world(cell)
 
-	var body := _capsule(0.35, 1.05, mat)
-	body.position = Vector3(0, 0.62, 0)
+	var body := _capsule(style_data["radius"], style_data["height"], mat)
+	body.position = Vector3(0, style_data["body_y"], 0)
 	root.add_child(body)
 
-	var visor := _box(Vector3(0.46, 0.12, 0.08), _make_mat(Color(0.02, 0.03, 0.04)))
-	visor.position = Vector3(0, 0.82, -0.34)
+	var visor := _box(Vector3(style_data["visor_w"], 0.12, 0.08), _make_mat(style_data["visor_color"], true))
+	visor.position = Vector3(0, style_data["visor_y"], -0.34)
 	root.add_child(visor)
 
 	add_child(root)
@@ -256,6 +260,8 @@ func _create_player(id: int, cell: Vector2i, ai: bool, mat: Material) -> Diction
 		"speed": 5,
 		"bomb_max": 1,
 		"bomb_range": 2,
+		"shield": 0,
+		"suit": style,
 		"bomb_placed_count": 0,
 		"ai": ai,
 		"move_timer": 0.0,
@@ -265,6 +271,36 @@ func _create_player(id: int, cell: Vector2i, ai: bool, mat: Material) -> Diction
 		"move_dir": Vector2i.ZERO,
 		"last_bomb_pos": Vector2i(-1, -1)
 	}
+
+func _player_style_data(style: String) -> Dictionary:
+	match style:
+		"female":
+			return {
+				"radius": 0.31,
+				"height": 0.98,
+				"body_y": 0.58,
+				"visor_y": 0.78,
+				"visor_w": 0.52,
+				"visor_color": Color(1.0, 0.58, 0.25)
+			}
+		"ai":
+			return {
+				"radius": 0.36,
+				"height": 1.08,
+				"body_y": 0.63,
+				"visor_y": 0.83,
+				"visor_w": 0.48,
+				"visor_color": Color(0.02, 0.03, 0.04)
+			}
+		_:
+			return {
+				"radius": 0.35,
+				"height": 1.05,
+				"body_y": 0.62,
+				"visor_y": 0.82,
+				"visor_w": 0.46,
+				"visor_color": Color(0.2, 0.85, 1.0)
+			}
 
 func _setup_camera():
 	var cam := Camera3D.new()
@@ -305,16 +341,8 @@ func _unhandled_input(event):
 
 	if event is InputEventKey and event.pressed:
 		match event.physical_keycode:
-			KEY_W: input_dir = Vector2i(0, -1)
-			KEY_S: input_dir = Vector2i(0, 1)
-			KEY_A: input_dir = Vector2i(-1, 0)
-			KEY_D: input_dir = Vector2i(1, 0)
 			KEY_SPACE: bomb_pressed = true
 			KEY_ESCAPE: get_tree().change_scene_to_file("res://scenes/menu/main_menu.tscn")
-	elif event is InputEventKey and not event.pressed:
-		match event.physical_keycode:
-			KEY_W, KEY_S, KEY_A, KEY_D:
-				input_dir = Vector2i.ZERO
 
 func _process(delta):
 	if game_over:
@@ -330,12 +358,7 @@ func _process_player_input():
 	if not p["alive"] or p["is_moving"]:
 		return
 
-	var d := input_dir
-	if d == Vector2i.ZERO:
-		if Input.is_action_pressed("p1_up"): d.y = -1
-		elif Input.is_action_pressed("p1_down"): d.y = 1
-		elif Input.is_action_pressed("p1_left"): d.x = -1
-		elif Input.is_action_pressed("p1_right"): d.x = 1
+	var d := _read_player_move_dir()
 
 	if d != Vector2i.ZERO:
 		_try_move_player(0, d)
@@ -343,6 +366,20 @@ func _process_player_input():
 	if (bomb_pressed or Input.is_action_just_pressed("p1_bomb")) and p["bomb_placed_count"] < p["bomb_max"]:
 		bomb_pressed = false
 		_try_place_bomb(0)
+
+func _read_player_move_dir() -> Vector2i:
+	var d := Vector2i.ZERO
+	if Input.is_action_pressed("p1_up"):
+		d.y -= 1
+	if Input.is_action_pressed("p1_down"):
+		d.y += 1
+	if Input.is_action_pressed("p1_left"):
+		d.x -= 1
+	if Input.is_action_pressed("p1_right"):
+		d.x += 1
+	if d.x != 0:
+		d.y = 0
+	return d
 
 func _process_ai(delta: float):
 	for i in range(players.size()):
@@ -383,7 +420,8 @@ func _try_move_player(index: int, dir: Vector2i) -> bool:
 	var node: Node3D = p["node"]
 	node.look_at(_grid_to_world(target), Vector3.UP, true)
 	var tw := create_tween()
-	tw.tween_property(node, "position", _grid_to_world(target), 0.5 / float(p["speed"]))
+	var move_duration := clampf(0.72 / float(p["speed"]), 0.10, 0.24)
+	tw.tween_property(node, "position", _grid_to_world(target), move_duration)
 	tw.tween_callback(func():
 		p["is_moving"] = false
 		_check_powerup_pickup(index)
@@ -498,15 +536,18 @@ func _spawn_powerup(cell: Vector2i):
 	var r := randf()
 	var ptype := ""
 	var mat: Material = null
-	if r < 0.35:
+	if r < 0.28:
 		ptype = "speed"
 		mat = mat_speed
-	elif r < 0.65:
+	elif r < 0.53:
 		ptype = "bomb"
 		mat = mat_bomb_power
-	elif r < 0.85:
+	elif r < 0.76:
 		ptype = "range"
 		mat = mat_range
+	elif r < 0.95:
+		ptype = "shield"
+		mat = mat_shield
 	else:
 		return
 
@@ -564,6 +605,26 @@ func _create_powerup_model(ptype: String, mat: Material) -> Node3D:
 			glow.position = Vector3(0, 0.12, 0)
 			glow.scale = Vector3(1.0, 0.45, 1.0)
 			root.add_child(glow)
+		"shield":
+			var core := _sphere(0.20, mat)
+			core.position = Vector3(0, 0.12, 0)
+			root.add_child(core)
+
+			var front := _box(Vector3(0.46, 0.08, 0.12), mat)
+			front.position = Vector3(0, 0.12, -0.34)
+			root.add_child(front)
+
+			var back := _box(Vector3(0.46, 0.08, 0.12), mat)
+			back.position = Vector3(0, 0.12, 0.34)
+			root.add_child(back)
+
+			var left := _box(Vector3(0.12, 0.08, 0.46), mat)
+			left.position = Vector3(-0.34, 0.12, 0)
+			root.add_child(left)
+
+			var right := _box(Vector3(0.12, 0.08, 0.46), mat)
+			right.position = Vector3(0.34, 0.12, 0)
+			root.add_child(right)
 		_:
 			var orb := _sphere(0.28, mat)
 			root.add_child(orb)
@@ -590,6 +651,8 @@ func _check_powerup_pickup(index: int):
 			p["bomb_max"] = clampi(p["bomb_max"] + 1, 1, 8)
 		"range":
 			p["bomb_range"] = clampi(p["bomb_range"] + 2, 1, 10)
+		"shield":
+			p["shield"] = clampi(p["shield"] + 1, 0, 5)
 	powerups.erase(cell)
 
 func _choose_ai_direction(p: Dictionary) -> Vector2i:
@@ -728,6 +791,10 @@ func _kill_player(index: int):
 	var p: Dictionary = players[index]
 	if not p["alive"]:
 		return
+	if int(p.get("shield", 0)) > 0:
+		p["shield"] = int(p["shield"]) - 1
+		_flash_player_shield(p)
+		return
 	p["alive"] = false
 	var node: Node3D = p["node"]
 	var tw := create_tween()
@@ -737,6 +804,18 @@ func _kill_player(index: int):
 			node.queue_free()
 		_check_game_over()
 	)
+
+func _flash_player_shield(p: Dictionary):
+	var node: Node3D = p["node"]
+	if not is_instance_valid(node):
+		return
+	var shield := _sphere(0.62, mat_shield)
+	shield.transparency = 0.35
+	node.add_child(shield)
+	var tw := create_tween()
+	tw.tween_property(shield, "scale", Vector3(1.35, 1.35, 1.35), 0.18)
+	tw.tween_property(shield, "transparency", 1.0, 0.18)
+	tw.tween_callback(shield.queue_free)
 
 func _check_game_over():
 	var alive_left := 0
@@ -813,4 +892,4 @@ func _update_hud():
 	if hud_label == null or players.is_empty():
 		return
 	var p: Dictionary = players[0]
-	hud_label.text = "3D Mode  |  Speed: %d  |  Bombs: %d/%d  |  Range: %d  |  WASD + Space  |  Esc: Menu" % [p["speed"], p["bomb_placed_count"], p["bomb_max"], p["bomb_range"]]
+	hud_label.text = "3D Mode  |  Speed: %d  |  Bombs: %d/%d  |  Range: %d  |  Shields: %d  |  WASD + Space  |  Esc: Menu" % [p["speed"], p["bomb_placed_count"], p["bomb_max"], p["bomb_range"], p["shield"]]

@@ -1,32 +1,43 @@
-extends Node2D
+extends Node3D
 
-const TILE_SIZE := 32
 const GRID_W := 15
 const GRID_H := 11
+const TILE_SIZE := 1.6
+const FLOOR_Y := 0.0
 
 enum Cell { EMPTY, WALL, CRATE }
 
 var grid: Array = []
-var sprites: Array = []
 var selected_cell := Cell.WALL
 var selected_label: Label = null
-var floor_tex: Texture2D = load("res://assets/art/sprites/floor.png")
-var wall_tex: Texture2D = load("res://assets/art/sprites/wall.png")
-var crate_tex: Texture2D = load("res://assets/art/sprites/crate.png")
+var map_root: Node3D = null
+var camera: Camera3D = null
+
+var tex_floor: Texture2D = load("res://assets/art/3d/floor_tile.png")
+var tex_wall: Texture2D = load("res://assets/art/3d/wall_block.png")
+var tex_crate: Texture2D = load("res://assets/art/3d/crate_wood.png")
+
+var mat_floor_a := _make_mat(Color(0.70, 0.78, 0.66), false, tex_floor)
+var mat_floor_b := _make_mat(Color(0.82, 0.88, 0.76), false, tex_floor)
+var mat_wall := _make_mat(Color(0.72, 0.76, 0.82), false, tex_wall)
+var mat_crate := _make_mat(Color(1.0, 0.88, 0.70), false, tex_crate)
 
 func _ready():
 	set_process_input(true)
+	_init_grid()
+	_setup_scene()
+	_setup_ui()
+	_load_map(false)
+	_refresh_view()
 
+func _init_grid():
+	grid.clear()
 	for y in GRID_H:
 		var row: Array = []
 		row.resize(GRID_W)
 		row.fill(Cell.EMPTY)
 		grid.append(row)
-		var sprite_row: Array = []
-		sprite_row.resize(GRID_W)
-		sprites.append(sprite_row)
 
-	# perimeter walls
 	for x in GRID_W:
 		grid[0][x] = Cell.WALL
 		grid[GRID_H - 1][x] = Cell.WALL
@@ -34,35 +45,93 @@ func _ready():
 		grid[y][0] = Cell.WALL
 		grid[y][GRID_W - 1] = Cell.WALL
 
-	_setup_ui()
-	_load_map(false)
-	_refresh_view()
+func _setup_scene():
+	var world := WorldEnvironment.new()
+	var env := Environment.new()
+	env.background_mode = Environment.BG_COLOR
+	env.background_color = Color(0.07, 0.09, 0.12)
+	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
+	env.ambient_light_color = Color(0.55, 0.58, 0.64)
+	env.ambient_light_energy = 0.9
+	world.environment = env
+	add_child(world)
+
+	var sun := DirectionalLight3D.new()
+	sun.light_energy = 2.0
+	sun.rotation_degrees = Vector3(-55, -35, 0)
+	add_child(sun)
+
+	camera = Camera3D.new()
+	camera.projection = Camera3D.PROJECTION_ORTHOGONAL
+	camera.size = 19.0
+	camera.position = Vector3(0, 16, 12)
+	camera.rotation_degrees = Vector3(-58, 0, 0)
+	camera.current = true
+	add_child(camera)
+
+	map_root = Node3D.new()
+	map_root.name = "EditableMap3D"
+	add_child(map_root)
 
 func _refresh_view():
+	if is_instance_valid(map_root):
+		map_root.queue_free()
+	map_root = Node3D.new()
+	map_root.name = "EditableMap3D"
+	add_child(map_root)
+
 	for y in GRID_H:
 		for x in GRID_W:
-			if is_instance_valid(sprites[y][x]):
-				sprites[y][x].queue_free()
-			var s := Sprite2D.new()
-			match grid[y][x]:
-				Cell.WALL: s.texture = wall_tex
-				Cell.CRATE: s.texture = crate_tex
-				_: s.texture = floor_tex
-			s.position = _map_origin() + Vector2(x * TILE_SIZE + TILE_SIZE / 2.0, y * TILE_SIZE + TILE_SIZE / 2.0)
-			s.centered = true
-			add_child(s)
-			sprites[y][x] = s
+			var floor := _box(Vector3(TILE_SIZE, 0.08, TILE_SIZE), mat_floor_a if (x + y) % 2 == 0 else mat_floor_b)
+			floor.position = _grid_to_world(Vector2i(x, y)) + Vector3(0, -0.04, 0)
+			map_root.add_child(floor)
 
-func _map_origin() -> Vector2:
-	var viewport_size := get_viewport_rect().size
-	var map_size := Vector2(GRID_W * TILE_SIZE, GRID_H * TILE_SIZE)
-	var usable_top := 82.0
-	var usable_bottom := viewport_size.y - 90.0
-	var usable_height := usable_bottom - usable_top
-	return Vector2(
-		(viewport_size.x - map_size.x) / 2.0,
-		usable_top + (usable_height - map_size.y) / 2.0
-	)
+			if grid[y][x] == Cell.WALL:
+				var wall := _box(Vector3(TILE_SIZE * 0.94, 1.25, TILE_SIZE * 0.94), mat_wall)
+				wall.position = _grid_to_world(Vector2i(x, y)) + Vector3(0, 0.62, 0)
+				map_root.add_child(wall)
+			elif grid[y][x] == Cell.CRATE:
+				var crate := _box(Vector3(TILE_SIZE * 0.84, 0.92, TILE_SIZE * 0.84), mat_crate)
+				crate.position = _grid_to_world(Vector2i(x, y)) + Vector3(0, 0.46, 0)
+				map_root.add_child(crate)
+
+func _grid_to_world(cell: Vector2i) -> Vector3:
+	return Vector3((cell.x - (GRID_W - 1) / 2.0) * TILE_SIZE, FLOOR_Y, (cell.y - (GRID_H - 1) / 2.0) * TILE_SIZE)
+
+func _screen_to_grid(screen_pos: Vector2) -> Vector2i:
+	if camera == null:
+		return Vector2i(-1, -1)
+	var ray_origin := camera.project_ray_origin(screen_pos)
+	var ray_dir := camera.project_ray_normal(screen_pos)
+	if absf(ray_dir.y) < 0.001:
+		return Vector2i(-1, -1)
+	var distance := (FLOOR_Y - ray_origin.y) / ray_dir.y
+	if distance < 0.0:
+		return Vector2i(-1, -1)
+	var hit := ray_origin + ray_dir * distance
+	var gx := int(floor(hit.x / TILE_SIZE + (GRID_W - 1) / 2.0 + 0.5))
+	var gy := int(floor(hit.z / TILE_SIZE + (GRID_H - 1) / 2.0 + 0.5))
+	return Vector2i(gx, gy)
+
+func _make_mat(color: Color, emission := false, texture: Texture2D = null) -> StandardMaterial3D:
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = color
+	if texture:
+		mat.albedo_texture = texture
+	mat.roughness = 0.68
+	if emission:
+		mat.emission_enabled = true
+		mat.emission = color
+		mat.emission_energy_multiplier = 1.4
+	return mat
+
+func _box(size: Vector3, mat: Material) -> MeshInstance3D:
+	var mesh := BoxMesh.new()
+	mesh.size = size
+	var node := MeshInstance3D.new()
+	node.mesh = mesh
+	node.material_override = mat
+	return node
 
 func _setup_ui():
 	var layer := CanvasLayer.new()
@@ -166,31 +235,27 @@ func _set_selected_cell(cell: int):
 func _input(event):
 	if event is InputEventKey and event.pressed:
 		match event.keycode:
-			KEY_1: selected_cell = Cell.WALL
-			KEY_2: selected_cell = Cell.CRATE
-			KEY_3: selected_cell = Cell.EMPTY
+			KEY_1: _set_selected_cell(Cell.WALL)
+			KEY_2: _set_selected_cell(Cell.CRATE)
+			KEY_3: _set_selected_cell(Cell.EMPTY)
 			KEY_ESCAPE:
 				get_tree().change_scene_to_file("res://scenes/menu/main_menu.tscn")
-		if selected_label:
-			_update_sel_label(selected_label)
 
 	if event is InputEventMouseButton:
 		if not event.pressed:
 			return
 		if _is_pointer_over_editor_ui(event.position):
 			return
-		var local_pos: Vector2 = event.position - _map_origin()
-		var gx := int(floor(local_pos.x / TILE_SIZE))
-		var gy := int(floor(local_pos.y / TILE_SIZE))
-		if gx >= 1 and gx < GRID_W - 1 and gy >= 1 and gy < GRID_H - 1:
+		var cell := _screen_to_grid(event.position)
+		if cell.x >= 1 and cell.x < GRID_W - 1 and cell.y >= 1 and cell.y < GRID_H - 1:
 			if event.button_index == MOUSE_BUTTON_LEFT:
-				grid[gy][gx] = selected_cell
+				grid[cell.y][cell.x] = selected_cell
 			elif event.button_index == MOUSE_BUTTON_RIGHT:
-				grid[gy][gx] = Cell.EMPTY
+				grid[cell.y][cell.x] = Cell.EMPTY
 			_refresh_view()
 
 func _is_pointer_over_editor_ui(screen_pos: Vector2) -> bool:
-	var viewport_height := get_viewport_rect().size.y
+	var viewport_height := get_viewport().get_visible_rect().size.y
 	return screen_pos.y <= 76.0 or screen_pos.y >= viewport_height - 84.0
 
 func _save_map():
@@ -220,7 +285,6 @@ func _load_map(show_messages := true):
 			for yy in GRID_H:
 				for xx in GRID_W:
 					grid[yy][xx] = Cell.EMPTY
-			# keep perimeter walls
 			for xx in GRID_W:
 				grid[0][xx] = Cell.WALL
 				grid[GRID_H - 1][xx] = Cell.WALL
@@ -229,10 +293,12 @@ func _load_map(show_messages := true):
 				grid[yy][GRID_W - 1] = Cell.WALL
 			for key in data.keys():
 				var coords = key.split(",")
+				if coords.size() != 2:
+					continue
 				var cx = int(coords[0])
 				var cy = int(coords[1])
 				if cx >= 1 and cx < GRID_W - 1 and cy >= 1 and cy < GRID_H - 1:
-					grid[cy][cx] = data[key]
+					grid[cy][cx] = int(data[key])
 			_refresh_view()
 			if show_messages:
 				print("Map loaded!")

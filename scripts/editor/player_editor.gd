@@ -4,6 +4,7 @@ var current_gender := "male"
 var start_speed := 5
 var start_bombs := 1
 var start_range := 2
+var start_shields := 0
 var preview_viewport: SubViewport = null
 var preview_root: Node3D = null
 var player_body: MeshInstance3D = null
@@ -11,6 +12,7 @@ var player_visor: MeshInstance3D = null
 var speed_spin: SpinBox = null
 var bombs_spin: SpinBox = null
 var range_spin: SpinBox = null
+var shields_spin: SpinBox = null
 
 var tex_bomb: Texture2D = load("res://assets/art/3d/bomb_shell.png")
 
@@ -86,7 +88,7 @@ func _build_ui():
 	controls.add_child(female_btn)
 
 	var hint := Label.new()
-	hint.text = "Matches the 3D in-game capsule style."
+	hint.text = "Saved stats and suit style are used by the next match."
 	hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	hint.add_theme_font_size_override("font_size", 14)
@@ -97,6 +99,7 @@ func _build_ui():
 	speed_spin = _add_stat_spin(controls, "Start Speed", start_speed, 1, 10)
 	bombs_spin = _add_stat_spin(controls, "Start Bombs", start_bombs, 1, 8)
 	range_spin = _add_stat_spin(controls, "Start Range", start_range, 1, 10)
+	shields_spin = _add_stat_spin(controls, "Start Shields", start_shields, 0, 3)
 
 	var preview_panel := PanelContainer.new()
 	preview_panel.custom_minimum_size = Vector2(300, 390)
@@ -144,7 +147,7 @@ func _build_ui():
 	info.add_child(bomb_label)
 
 	var note := Label.new()
-	note.text = "3D preview uses the same generated bomb material as the game."
+	note.text = "Powerups can raise speed, bomb count, blast range, or add a shield."
 	note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	note.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	note.add_theme_font_size_override("font_size", 14)
@@ -268,8 +271,14 @@ func _make_mat(color: Color, emission := false, texture: Texture2D = null) -> St
 func _refresh_preview():
 	if player_body == null:
 		return
-	var color := Color(0.18, 0.48, 0.95) if current_gender == "male" else Color(0.95, 0.27, 0.22)
-	player_body.material_override = _make_mat(color)
+	if current_gender == "female":
+		player_body.material_override = _make_mat(Color(0.95, 0.27, 0.22))
+		player_body.scale = Vector3(0.90, 0.93, 0.90)
+		player_visor.material_override = _make_mat(Color(1.0, 0.58, 0.25), true)
+	else:
+		player_body.material_override = _make_mat(Color(0.18, 0.48, 0.95))
+		player_body.scale = Vector3.ONE
+		player_visor.material_override = _make_mat(Color(0.2, 0.85, 1.0), true)
 
 func _load_player():
 	if not FileAccess.file_exists("user://player_config.json"):
@@ -284,6 +293,7 @@ func _load_player():
 		start_speed = clampi(int(data.get("start_speed", start_speed)), 1, 10)
 		start_bombs = clampi(int(data.get("start_bombs", start_bombs)), 1, 8)
 		start_range = clampi(int(data.get("start_range", start_range)), 1, 10)
+		start_shields = clampi(int(data.get("start_shields", start_shields)), 0, 3)
 	file.close()
 
 func _save_player():
@@ -292,11 +302,13 @@ func _save_player():
 		start_speed = int(speed_spin.value) if speed_spin else start_speed
 		start_bombs = int(bombs_spin.value) if bombs_spin else start_bombs
 		start_range = int(range_spin.value) if range_spin else start_range
+		start_shields = int(shields_spin.value) if shields_spin else start_shields
 		var data := {
 			"gender": current_gender,
 			"start_speed": start_speed,
 			"start_bombs": start_bombs,
-			"start_range": start_range
+			"start_range": start_range,
+			"start_shields": start_shields
 		}
 		file.store_string(JSON.stringify(data))
 		file.close()
