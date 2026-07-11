@@ -10,6 +10,8 @@ const LAVA_DAMAGE_TIME := 1.35
 const DOWNED_DURATION := 5.0
 const MAX_CONSUMABLES := 3
 const AI_DECISION_POLICY := preload("res://scripts/character/AIDecisionPolicy.gd")
+const WEATHER_MANAGER := preload("res://scripts/weather/WeatherManager.gd")
+const WAVE_MANAGER := preload("res://scripts/wave/WaveManager.gd")
 
 enum Cell { EMPTY, WALL, CRATE, FOREST, LAVA }
 
@@ -19,6 +21,11 @@ var bomb_map: Dictionary = {}
 var crate_nodes: Dictionary = {}
 var powerups: Dictionary = {}
 var game_over := false
+var next_player_id := 2
+var weather_manager: Node = null
+var wave_manager: Node = null
+var world_environment: Environment = null
+var weather_visuals := Node3D.new()
 
 var bomb_pressed := false
 var hud_label: Label = null
@@ -54,6 +61,9 @@ var mat_bomb_power := _make_mat(Color(0.95, 0.92, 0.25), true, tex_powerup)
 var mat_range := _make_mat(Color(1.0, 0.22, 0.12), true, tex_powerup)
 var mat_shield := _make_mat(Color(0.35, 0.55, 1.0), true, tex_powerup)
 var mat_dummy := _make_mat(Color(0.92, 0.78, 0.46), true, tex_powerup)
+var mat_boss_blast := _make_mat(Color(0.52, 0.08, 0.04), true)
+var mat_boss_frost := _make_mat(Color(0.40, 0.82, 1.0), true)
+var mat_boss_clone := _make_mat(Color(0.62, 0.22, 0.88), true)
 
 func _ready():
 	add_to_group("game")
@@ -64,6 +74,18 @@ func _ready():
 	_spawn_players()
 	_setup_camera()
 	_setup_hud()
+	_setup_progression()
+
+func _setup_progression():
+	weather_manager = WEATHER_MANAGER.new()
+	add_child(weather_manager)
+	weather_manager.weather_changed.connect(_on_weather_changed)
+	weather_manager.thunder_requested.connect(_request_thunder_strike)
+
+	wave_manager = WAVE_MANAGER.new()
+	add_child(wave_manager)
+	wave_manager.wave_started.connect(_on_wave_started)
+	wave_manager.start()
 
 func _make_mat(color: Color, emission := false, texture: Texture2D = null) -> StandardMaterial3D:
 	var mat := StandardMaterial3D.new()
@@ -174,7 +196,10 @@ func _create_world():
 	env.ambient_light_color = Color(0.55, 0.58, 0.64)
 	env.ambient_light_energy = 0.9
 	world.environment = env
+	world_environment = env
 	add_child(world)
+	weather_visuals.name = "WeatherVisuals"
+	add_child(weather_visuals)
 
 	var sun := DirectionalLight3D.new()
 	sun.light_energy = 2.0
@@ -302,9 +327,65 @@ func _spawn_players():
 	player["bomb_range"] = config["start_range"]
 	player["shield"] = config["start_shields"]
 	players.append(player)
-	var ai_player := _create_player(2, Vector2i(GRID_W - 2, GRID_H - 2), true, mat_ai, "ai")
-	_apply_ai_difficulty(ai_player)
-	players.append(ai_player)
+
+func _spawn_ai_wave(count: int):
+	for i in range(count):
+		var spawn_cell := _find_spawn_cell()
+		if spawn_cell == Vector2i(-1, -1):
+			return
+		var ai_player := _create_player(next_player_id, spawn_cell, true, mat_ai, "ai")
+		next_player_id += 1
+		_apply_ai_difficulty(ai_player)
+		players.append(ai_player)
+
+func _spawn_boss(boss_id: String):
+	var spawn_cell := _find_spawn_cell()
+	if spawn_cell == Vector2i(-1, -1):
+		return
+	var boss_data := _boss_data(boss_id)
+	var boss := _create_player(next_player_id, spawn_cell, true, boss_data["material"], "boss")
+	next_player_id += 1
+	boss["boss_id"] = boss_id
+	boss["boss_name"] = boss_data["name"]
+	boss["hp"] = boss_data["hp"]
+	boss["max_hp"] = boss_data["hp"]
+	boss["speed"] = boss_data["speed"]
+	boss["bomb_range"] = boss_data["range"]
+	boss["bomb_max"] = boss_data["bomb_max"]
+	boss["move_interval"] = boss_data["move_interval"]
+	boss["bomb_interval"] = boss_data["bomb_interval"]
+	boss["skill_timer"] = boss_data["skill_interval"]
+	boss["node"].scale = Vector3(1.45, 1.45, 1.45)
+	players.append(boss)
+
+func _boss_data(boss_id: String) -> Dictionary:
+	match boss_id:
+		"frost_giant":
+			return {"name": "Frost Giant", "hp": 12, "speed": 3, "range": 1, "bomb_max": 0, "move_interval": 0.48, "bomb_interval": 99.0, "skill_interval": 4.5, "material": mat_boss_frost}
+		"clone_demon":
+			return {"name": "Clone Demon", "hp": 6, "speed": 6, "range": 2, "bomb_max": 2, "move_interval": 0.20, "bomb_interval": 1.4, "skill_interval": 5.0, "material": mat_boss_clone}
+		_:
+			return {"name": "Blast King", "hp": 8, "speed": 5, "range": 5, "bomb_max": 3, "move_interval": 0.28, "bomb_interval": 0.75, "skill_interval": 3.5, "material": mat_boss_blast}
+
+func _find_spawn_cell() -> Vector2i:
+	var candidates: Array = []
+	for y in range(1, GRID_H - 1):
+		for x in range(1, GRID_W - 1):
+			var cell := Vector2i(x, y)
+			if not _is_walkable_cell(grid[y][x]) or grid[y][x] == Cell.LAVA or bomb_map.has(cell):
+				continue
+			var occupied := false
+			for p: Dictionary in players:
+				if p["alive"] and p["grid_pos"] == cell:
+					occupied = true
+					break
+			if not occupied:
+				candidates.append(cell)
+	if candidates.is_empty():
+		return Vector2i(-1, -1)
+	candidates.sort_custom(func(a: Vector2i, b: Vector2i): return a.distance_squared_to(Vector2i(1, 1)) > b.distance_squared_to(Vector2i(1, 1)))
+	var pool_size := mini(12, candidates.size())
+	return candidates[randi_range(0, pool_size - 1)]
 
 func _apply_ai_difficulty(p: Dictionary):
 	p["ai_difficulty"] = ai_difficulty
@@ -412,7 +493,12 @@ func _create_player(id: int, cell: Vector2i, ai: bool, mat: Material, style := "
 		"bomb_interval": randf_range(1.5, 3.5),
 		"move_dir": Vector2i.ZERO,
 		"last_bomb_pos": Vector2i(-1, -1),
-		"last_seen_player_pos": Vector2i(-1, -1)
+		"last_seen_player_pos": Vector2i(-1, -1),
+		"boss_id": "",
+		"boss_name": "",
+		"is_minion": false,
+		"skill_timer": 0.0,
+		"frozen_timer": 0.0
 	}
 
 func _player_style_data(style: String) -> Dictionary:
@@ -434,6 +520,15 @@ func _player_style_data(style: String) -> Dictionary:
 				"visor_y": 0.83,
 				"visor_w": 0.48,
 				"visor_color": Color(0.02, 0.03, 0.04)
+			}
+		"boss":
+			return {
+				"radius": 0.40,
+				"height": 1.18,
+				"body_y": 0.68,
+				"visor_y": 0.90,
+				"visor_w": 0.56,
+				"visor_color": Color(1.0, 0.82, 0.18)
 			}
 		_:
 			return {
@@ -548,11 +643,16 @@ func _try_use_player_consumable():
 func _process(delta):
 	if game_over:
 		return
+	if wave_manager:
+		wave_manager.process_wave(delta)
+	if weather_manager:
+		weather_manager.process_weather(delta)
 	_process_downed_players(delta)
 	_process_terrain_effects(delta)
 	_update_hud()
 	_process_player_input()
 	_process_ai(delta)
+	_update_weather_visibility()
 
 func _process_downed_players(delta: float):
 	for i in range(players.size()):
@@ -571,6 +671,7 @@ func _process_terrain_effects(delta: float):
 		var p: Dictionary = players[i]
 		if not p["alive"] or bool(p.get("downed", false)):
 			continue
+		p["frozen_timer"] = maxf(float(p.get("frozen_timer", 0.0)) - delta, 0.0)
 		var cell: Vector2i = p["grid_pos"]
 		var cell_type: int = grid[cell.y][cell.x]
 		var status_parts: Array = []
@@ -588,6 +689,8 @@ func _process_terrain_effects(delta: float):
 
 		if int(p.get("shield", 0)) > 0:
 			status_parts.append("Shield %d" % int(p["shield"]))
+		if float(p.get("frozen_timer", 0.0)) > 0.0:
+			status_parts.append("Frozen %.1fs" % float(p["frozen_timer"]))
 		if status_parts.is_empty():
 			p["status"] = "Ready"
 		else:
@@ -628,6 +731,14 @@ func _process_ai(delta: float):
 		var p: Dictionary = players[i]
 		if not p["ai"] or not p["alive"] or bool(p.get("downed", false)):
 			continue
+		if float(p.get("frozen_timer", 0.0)) > 0.0:
+			continue
+		if bool(p.get("is_minion", false)) and not players.is_empty():
+			if _grid_distance(p["grid_pos"], players[0]["grid_pos"]) <= 1:
+				_explode_clone_minion(i)
+				continue
+		if str(p.get("boss_id", "")) != "":
+			_process_boss_skill(i, delta)
 
 		_update_ai_target_memory(p)
 		p["move_timer"] += delta
@@ -666,7 +777,7 @@ func _update_ai_target_memory(p: Dictionary):
 	if str(p.get("ai_difficulty", "normal")) != "hard" or players.is_empty():
 		return
 	var target: Dictionary = players[0]
-	if not target["alive"]:
+	if not target["alive"] or (weather_manager and not weather_manager.can_see(p["grid_pos"], target["grid_pos"])):
 		return
 	p["last_seen_player_pos"] = target["grid_pos"]
 
@@ -704,6 +815,8 @@ func _is_player_hidden(index: int) -> bool:
 
 func _try_move_player(index: int, dir: Vector2i) -> bool:
 	var p: Dictionary = players[index]
+	if float(p.get("frozen_timer", 0.0)) > 0.0:
+		return false
 	var target: Vector2i = p["grid_pos"] + dir
 	if not is_cell_walkable(target.x, target.y):
 		return false
@@ -712,8 +825,11 @@ func _try_move_player(index: int, dir: Vector2i) -> bool:
 	p["is_moving"] = true
 	var node: Node3D = p["node"]
 	node.look_at(_grid_to_world(target), Vector3.UP, true)
-	var tw := create_tween()
-	var move_duration := clampf(0.72 / float(p["speed"]), 0.10, 0.24)
+	var tw := create_tween().bind_node(node)
+	var effective_speed := int(p["speed"])
+	if weather_manager:
+		effective_speed = weather_manager.movement_speed(effective_speed, target)
+	var move_duration := clampf(0.72 / float(effective_speed), 0.10, 0.34)
 	tw.tween_property(node, "position", _grid_to_world(target), move_duration)
 	tw.tween_callback(func():
 		p["is_moving"] = false
@@ -777,17 +893,20 @@ func _explode_bomb(cell: Vector2i):
 		pulse.kill()
 	bomb_map.erase(cell)
 
-	var results: Dictionary = _get_explosion_cells(cell, entry["range"])
+	var results: Dictionary = _get_explosion_cells(cell, entry["range"], true)
 	_spawn_explosion(results["cells"])
 	_apply_explosion_damage(results["cells"])
 	if is_instance_valid(bomb):
 		bomb.queue_free()
 
-func _get_explosion_cells(origin: Vector2i, blast_range: int) -> Dictionary:
+func _get_explosion_cells(origin: Vector2i, blast_range: int, apply_weather := false) -> Dictionary:
 	var cells: Array = [origin]
 	var directions: Array = [Vector2i(0, -1), Vector2i(0, 1), Vector2i(-1, 0), Vector2i(1, 0)]
 	for dir in directions:
-		for i in range(1, blast_range + 1):
+		var direction_range := blast_range
+		if apply_weather and weather_manager and weather_manager.should_extend_wind(dir as Vector2i):
+			direction_range += 1
+		for i in range(1, direction_range + 1):
 			var check: Vector2i = origin + (dir as Vector2i) * i
 			if check.x < 0 or check.x >= GRID_W or check.y < 0 or check.y >= GRID_H:
 				break
@@ -995,6 +1114,7 @@ func _choose_ai_direction(p: Dictionary) -> Vector2i:
 		not players.is_empty()
 		and players[0]["alive"]
 		and (difficulty == "hard" or not _is_player_hidden(0))
+		and (not weather_manager or weather_manager.can_see(p["grid_pos"], players[0]["grid_pos"]))
 	)
 	var player_cell := Vector2i(-1, -1)
 	if can_target_player:
@@ -1165,6 +1285,193 @@ func _is_ai_escape_walkable(cell: Vector2i, bomb_cell: Vector2i, player_index: i
 			return false
 	return true
 
+func _on_wave_started(wave_number: int, enemy_count: int, boss_id: String):
+	if weather_manager:
+		weather_manager.start_wave(wave_number, _walkable_weather_cells())
+	if boss_id != "":
+		_spawn_boss(boss_id)
+	_spawn_ai_wave(enemy_count)
+
+func _walkable_weather_cells() -> Array:
+	var cells: Array = []
+	for y in range(1, GRID_H - 1):
+		for x in range(1, GRID_W - 1):
+			if _is_walkable_cell(grid[y][x]):
+				cells.append(Vector2i(x, y))
+	return cells
+
+func _on_weather_changed(weather_type: String):
+	for child in weather_visuals.get_children():
+		child.queue_free()
+	if world_environment:
+		world_environment.fog_enabled = weather_type == "fog"
+		world_environment.fog_light_color = Color(0.66, 0.70, 0.72)
+		world_environment.fog_density = 0.075 if weather_type == "fog" else 0.0
+		world_environment.background_color = Color(0.055, 0.065, 0.08) if weather_type in ["rain", "thunder"] else Color(0.07, 0.09, 0.12)
+	match weather_type:
+		"rain":
+			_create_rain_visuals()
+		"wind":
+			_create_wind_visuals()
+		"snow":
+			_create_snow_visuals()
+
+func _create_rain_visuals():
+	var rain_mat := _make_mat(Color(0.35, 0.68, 0.92), true)
+	for i in range(36):
+		var drop := _box(Vector3(0.025, 0.65, 0.025), rain_mat)
+		drop.position = Vector3(randf_range(-11.0, 11.0), randf_range(2.0, 8.0), randf_range(-7.5, 7.5))
+		weather_visuals.add_child(drop)
+		var tw := create_tween().bind_node(drop).set_loops()
+		tw.tween_property(drop, "position:y", -0.1, randf_range(0.55, 0.90)).from(8.0)
+
+func _create_wind_visuals():
+	var wind_mat := _make_mat(Color(0.72, 0.92, 0.94), true)
+	var dir3 := Vector3(weather_manager.wind_direction.x, 0, weather_manager.wind_direction.y)
+	for i in range(12):
+		var streak := _box(Vector3(0.7 if dir3.x != 0 else 0.04, 0.035, 0.7 if dir3.z != 0 else 0.04), wind_mat)
+		streak.position = Vector3(randf_range(-10.0, 10.0), randf_range(0.6, 1.8), randf_range(-7.0, 7.0))
+		weather_visuals.add_child(streak)
+		var tw := create_tween().bind_node(streak).set_loops()
+		tw.tween_property(streak, "position", streak.position + dir3 * 4.0, 1.2).from(streak.position - dir3 * 4.0)
+
+func _create_snow_visuals():
+	var snow_mat := _make_mat(Color(0.82, 0.92, 1.0), true)
+	for raw_cell in weather_manager.snow_cells.keys():
+		var cell := raw_cell as Vector2i
+		var patch := _box(Vector3(TILE_SIZE * 0.82, 0.045, TILE_SIZE * 0.82), snow_mat)
+		patch.position = _grid_to_world(cell) + Vector3(0, 0.08, 0)
+		weather_visuals.add_child(patch)
+
+func _request_thunder_strike():
+	var cells := _walkable_weather_cells()
+	if cells.is_empty():
+		return
+	var cell := cells.pick_random() as Vector2i
+	var warning := _cylinder(0.58, 0.04, _make_mat(Color(1.0, 0.82, 0.12), true))
+	warning.position = _grid_to_world(cell) + Vector3(0, 0.10, 0)
+	weather_visuals.add_child(warning)
+	var tw := create_tween().bind_node(warning)
+	tw.tween_property(warning, "scale", Vector3(1.4, 1.0, 1.4), 0.35)
+	tw.tween_property(warning, "scale", Vector3(0.75, 1.0, 0.75), 0.30)
+	tw.tween_callback(func(): _strike_thunder(cell, warning))
+
+func _strike_thunder(cell: Vector2i, warning: Node3D):
+	if is_instance_valid(warning):
+		warning.queue_free()
+	var bolt := _box(Vector3(0.18, 7.0, 0.18), _make_mat(Color(0.75, 0.90, 1.0), true))
+	bolt.position = _grid_to_world(cell) + Vector3(0, 3.5, 0)
+	weather_visuals.add_child(bolt)
+	var tw := create_tween().bind_node(bolt)
+	tw.tween_property(bolt, "transparency", 1.0, 0.22)
+	tw.tween_callback(bolt.queue_free)
+	for i in range(players.size()):
+		if players[i]["alive"] and players[i]["grid_pos"] == cell:
+			_damage_player(i, 1, "thunder")
+
+func _update_weather_visibility():
+	if players.is_empty() or not weather_manager:
+		return
+	for i in range(1, players.size()):
+		var p: Dictionary = players[i]
+		var node: Node3D = p["node"]
+		if is_instance_valid(node):
+			node.visible = p["alive"] and weather_manager.can_see(players[0]["grid_pos"], p["grid_pos"])
+
+func _process_boss_skill(index: int, delta: float):
+	var boss: Dictionary = players[index]
+	boss["skill_timer"] = float(boss["skill_timer"]) - delta
+	if float(boss["skill_timer"]) > 0.0:
+		return
+	match str(boss["boss_id"]):
+		"blast_king":
+			boss["skill_timer"] = 3.5
+			if int(boss["bomb_placed_count"]) < int(boss["bomb_max"]):
+				_try_place_bomb(index)
+			boss["bomb_timer"] = float(boss["bomb_interval"])
+		"frost_giant":
+			boss["skill_timer"] = 4.5
+			_frost_giant_skill(index)
+		"clone_demon":
+			boss["skill_timer"] = 5.0
+			call_deferred("_spawn_clone_minions", boss["grid_pos"])
+
+func _frost_giant_skill(index: int):
+	if players.is_empty() or not players[0]["alive"]:
+		return
+	var boss: Dictionary = players[index]
+	var player: Dictionary = players[0]
+	var delta: Vector2i = player["grid_pos"] - boss["grid_pos"]
+	if absi(delta.x) <= 1 and absi(delta.y) <= 1:
+		player["frozen_timer"] = 3.0
+		player["status"] = "Frozen 3.0s"
+		var freeze := _box(Vector3(TILE_SIZE * 0.9, 0.12, TILE_SIZE * 0.9), _make_mat(Color(0.45, 0.88, 1.0), true))
+		freeze.position = _grid_to_world(player["grid_pos"]) + Vector3(0, 0.14, 0)
+		add_child(freeze)
+		var tw := create_tween()
+		tw.tween_property(freeze, "transparency", 1.0, 3.0)
+		tw.tween_callback(freeze.queue_free)
+		return
+	var charge_dir := Vector2i(signi(delta.x), 0) if absi(delta.x) >= absi(delta.y) else Vector2i(0, signi(delta.y))
+	_frost_charge(index, charge_dir)
+
+func _frost_charge(index: int, direction: Vector2i):
+	var boss: Dictionary = players[index]
+	var destination: Vector2i = boss["grid_pos"]
+	for step in range(2):
+		var target := destination + direction
+		if not players.is_empty() and players[0]["alive"] and target == players[0]["grid_pos"]:
+			_damage_player(0, 1, "frost charge")
+			break
+		if not is_cell_walkable(target.x, target.y):
+			break
+		destination = target
+	if destination == boss["grid_pos"]:
+		return
+	boss["grid_pos"] = destination
+	boss["is_moving"] = true
+	var node: Node3D = boss["node"]
+	node.look_at(_grid_to_world(destination), Vector3.UP, true)
+	var tw := create_tween()
+	tw.tween_property(node, "position", _grid_to_world(destination), 0.18)
+	tw.tween_callback(func(): boss["is_moving"] = false)
+
+func _spawn_clone_minions(origin: Vector2i):
+	var directions := [Vector2i.UP, Vector2i.DOWN, Vector2i.LEFT, Vector2i.RIGHT]
+	directions.shuffle()
+	var spawned := 0
+	for raw_direction in directions:
+		var direction := raw_direction as Vector2i
+		var cell: Vector2i = origin + direction
+		if not is_cell_walkable(cell.x, cell.y):
+			continue
+		var minion := _create_player(next_player_id, cell, true, mat_boss_clone, "ai")
+		next_player_id += 1
+		minion["is_minion"] = true
+		minion["hp"] = 1
+		minion["max_hp"] = 1
+		minion["speed"] = 6
+		minion["bomb_max"] = 0
+		minion["move_interval"] = 0.18
+		minion["ai_difficulty"] = "hard"
+		minion["status"] = "Decoy"
+		minion["node"].scale = Vector3(0.72, 0.72, 0.72)
+		players.append(minion)
+		spawned += 1
+		if spawned >= 2:
+			return
+
+func _explode_clone_minion(index: int):
+	var minion: Dictionary = players[index]
+	var data := _get_explosion_cells(minion["grid_pos"], 1, true)
+	_spawn_explosion(data["cells"])
+	_apply_explosion_damage(data["cells"])
+	if minion["alive"]:
+		_kill_player(index)
+
+func _grid_distance(a: Vector2i, b: Vector2i) -> int:
+	return absi(a.x - b.x) + absi(a.y - b.y)
+
 func _damage_player(index: int, amount: int, source: String):
 	var p: Dictionary = players[index]
 	if not p["alive"] or bool(p.get("downed", false)):
@@ -1172,6 +1479,13 @@ func _damage_player(index: int, amount: int, source: String):
 	if int(p.get("shield", 0)) > 0:
 		p["shield"] = int(p["shield"]) - 1
 		_flash_player_shield(p)
+		return
+	if str(p.get("boss_id", "")) != "" or bool(p.get("is_minion", false)):
+		p["hp"] = maxi(int(p["hp"]) - amount, 0)
+		p["status"] = "HP %d" % int(p["hp"])
+		_flash_player_damage(p)
+		if int(p["hp"]) <= 0:
+			_kill_player(index)
 		return
 	p["hp"] = maxi(int(p["hp"]), 1)
 	p["status"] = "Downed"
@@ -1207,6 +1521,8 @@ func _kill_player(index: int):
 	if not p["alive"]:
 		return
 	p["alive"] = false
+	if str(p.get("boss_id", "")) != "":
+		_spawn_boss_reward(p["grid_pos"])
 	var node: Node3D = p["node"]
 	var tw := create_tween()
 	tw.tween_property(node, "scale", Vector3(1.0, 0.05, 1.0), 0.35)
@@ -1215,6 +1531,14 @@ func _kill_player(index: int):
 			node.queue_free()
 		_check_game_over()
 	)
+
+func _spawn_boss_reward(cell: Vector2i):
+	if powerups.has(cell):
+		return
+	var node := _create_powerup_model("dummy", mat_dummy)
+	node.position = _grid_to_world(cell) + Vector3(0, 0.32, 0)
+	add_child(node)
+	powerups[cell] = {"node": node, "type": "dummy"}
 
 func _flash_player_damage(p: Dictionary):
 	var node: Node3D = p["node"]
@@ -1237,15 +1561,19 @@ func _flash_player_shield(p: Dictionary):
 	tw.tween_callback(shield.queue_free)
 
 func _check_game_over():
-	var alive_left := 0
-	var winner_id := 0
-	for p in players:
-		if p["alive"]:
-			alive_left += 1
-			winner_id = p["id"]
-	if alive_left <= 1:
+	if players.is_empty():
+		return
+	if not players[0]["alive"]:
 		game_over = true
-		_show_result(winner_id)
+		_show_result(2)
+		return
+	var hostile_count := 0
+	for i in range(1, players.size()):
+		if players[i]["alive"]:
+			hostile_count += 1
+	if wave_manager and wave_manager.is_final_wave() and hostile_count == 0:
+		game_over = true
+		_show_result(1)
 
 func _show_result(winner_id: int):
 	var layer := CanvasLayer.new()
@@ -1312,18 +1640,37 @@ func _update_hud():
 		return
 	_position_status_cards()
 	var p: Dictionary = players[0]
-	hud_label.text = "AI: %s  |  Speed: %d  |  Bombs: %d/%d  |  Range: %d  |  Shields: %d  |  Bag: %s  |  WASD + Space" % [_difficulty_label(), p["speed"], p["bomb_placed_count"], p["bomb_max"], p["bomb_range"], p["shield"], _bag_text(p)]
+	var wave_text := "Wave -"
+	var weather_text := "Clear"
+	if wave_manager:
+		wave_text = "Wave %d/7  %.0fs" % [wave_manager.current_wave, wave_manager.time_remaining()]
+	if weather_manager:
+		weather_text = weather_manager.display_name()
+	hud_label.text = "%s  |  %s  |  AI %s  |  SPD %d  BOMB %d/%d  RNG %d  SH %d  BAG %s" % [wave_text, weather_text, _difficulty_label(), p["speed"], p["bomb_placed_count"], p["bomb_max"], p["bomb_range"], p["shield"], _bag_text(p)]
 	if player_card_label:
 		player_card_label.text = _player_card_text(players[0])
-	if enemy_card_label and players.size() > 1:
-		enemy_card_label.text = _player_card_text(players[1])
+	if enemy_card_label:
+		var featured := _featured_enemy()
+		enemy_card_label.text = _player_card_text(featured) if not featured.is_empty() else "No enemies\nNext wave"
 
 func _player_card_text(p: Dictionary) -> String:
 	if not p["alive"]:
 		return "HP 0/%d\nDown" % int(p["max_hp"])
 	if bool(p.get("downed", false)):
 		return "HP %d/%d\nDown %.1fs" % [int(p["hp"]), int(p["max_hp"]), float(p["downed_timer"])]
+	var title := str(p.get("boss_name", ""))
+	if title != "":
+		return "%s  HP %d/%d\n%s" % [title, int(p["hp"]), int(p["max_hp"]), str(p["status"])]
 	return "HP %d/%d\n%s" % [int(p["hp"]), int(p["max_hp"]), str(p["status"])]
+
+func _featured_enemy() -> Dictionary:
+	for i in range(1, players.size()):
+		if players[i]["alive"] and str(players[i].get("boss_id", "")) != "":
+			return players[i]
+	for i in range(1, players.size()):
+		if players[i]["alive"]:
+			return players[i]
+	return {}
 
 func _bag_text(p: Dictionary) -> String:
 	var items: Array = p.get("consumables", [])
