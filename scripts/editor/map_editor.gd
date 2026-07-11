@@ -4,6 +4,7 @@ const GRID_W := 15
 const GRID_H := 11
 const TILE_SIZE := 1.6
 const FLOOR_Y := 0.0
+const TERRAIN_ART := preload("res://scripts/terrain/TerrainArtFactory.gd")
 
 enum Cell { EMPTY, WALL, CRATE, FOREST, LAVA }
 
@@ -18,15 +19,15 @@ var tex_wall: Texture2D = load("res://assets/art/3d/wall_block.png")
 var tex_crate: Texture2D = load("res://assets/art/3d/crate_wood.png")
 var tex_lava: Texture2D = load("res://assets/art/3d/lava_cracked.png")
 
-var mat_floor_a := _make_mat(Color(0.70, 0.78, 0.66), false, tex_floor)
-var mat_floor_b := _make_mat(Color(0.82, 0.88, 0.76), false, tex_floor)
-var mat_wall := _make_mat(Color(0.72, 0.76, 0.82), false, tex_wall)
-var mat_crate := _make_mat(Color(1.0, 0.88, 0.70), false, tex_crate)
-var mat_forest_floor := _make_mat(Color(0.18, 0.36, 0.18))
+var mat_floor_a := TERRAIN_ART.brushed_material(tex_floor, Color(0.70, 0.78, 0.66), TERRAIN_ART.PATCH_BRUSH)
+var mat_floor_b := TERRAIN_ART.brushed_material(tex_floor, Color(0.82, 0.88, 0.76), TERRAIN_ART.PATCH_BRUSH)
+var mat_wall := TERRAIN_ART.brushed_material(tex_wall, Color(0.72, 0.76, 0.82), TERRAIN_ART.PATCH_BRUSH)
+var mat_crate := TERRAIN_ART.brushed_material(tex_crate, Color(1.0, 0.88, 0.70), TERRAIN_ART.PATCH_BRUSH)
+var mat_forest_floor := TERRAIN_ART.brushed_material(tex_floor, Color(0.18, 0.36, 0.18), TERRAIN_ART.DOTS_BRUSH)
 var mat_leaf := _make_mat(Color(0.10, 0.48, 0.16))
 var mat_trunk := _make_mat(Color(0.42, 0.24, 0.11))
-var mat_lava := _make_mat(Color(0.95, 0.18, 0.04), true, tex_lava)
-var mat_lava_glow := _make_mat(Color(1.0, 0.65, 0.08), true, tex_lava)
+var mat_lava := TERRAIN_ART.brushed_material(tex_lava, Color(0.95, 0.18, 0.04), TERRAIN_ART.LAVA_BRUSH, 0.8)
+var mat_lava_glow := TERRAIN_ART.brushed_material(tex_lava, Color(1.0, 0.65, 0.08), TERRAIN_ART.LAVA_BRUSH, 1.5)
 
 func _ready():
 	set_process_input(true)
@@ -78,6 +79,7 @@ func _setup_scene():
 	map_root = Node3D.new()
 	map_root.name = "EditableMap3D"
 	add_child(map_root)
+	add_child(TERRAIN_ART.create_outer_terrain(GRID_W, GRID_H, TILE_SIZE, mat_wall, mat_floor_a))
 
 func _refresh_view():
 	if is_instance_valid(map_root):
@@ -94,7 +96,7 @@ func _refresh_view():
 			map_root.add_child(floor)
 
 			if grid[y][x] == Cell.WALL:
-				var wall := _box(Vector3(TILE_SIZE * 0.94, 1.25, TILE_SIZE * 0.94), mat_wall)
+				var wall := TERRAIN_ART.create_rock_wall(cell, TILE_SIZE, mat_wall)
 				wall.position = _grid_to_world(cell) + Vector3(0, 0.62, 0)
 				map_root.add_child(wall)
 			elif grid[y][x] == Cell.CRATE:
@@ -116,34 +118,10 @@ func _floor_mat_for_cell(x: int, y: int) -> Material:
 			return mat_floor_a if (x + y) % 2 == 0 else mat_floor_b
 
 func _create_forest_tile(cell: Vector2i) -> Node3D:
-	var root := Node3D.new()
-	root.name = "Forest_%d_%d" % [cell.x, cell.y]
-	root.position = _grid_to_world(cell)
-
-	var offsets := [Vector3(-0.36, 0, -0.30), Vector3(0.34, 0, -0.14), Vector3(-0.04, 0, 0.34)]
-	for offset in offsets:
-		var trunk := _cylinder(0.08, 0.55, mat_trunk)
-		trunk.position = offset + Vector3(0, 0.24, 0)
-		root.add_child(trunk)
-
-		var crown := _sphere(0.34, mat_leaf)
-		crown.position = offset + Vector3(0, 0.72, 0)
-		crown.scale = Vector3(1.0, 0.82, 1.0)
-		root.add_child(crown)
-	return root
+	return TERRAIN_ART.create_forest_tile(cell, _grid_to_world(cell), TILE_SIZE, mat_forest_floor, mat_trunk, mat_leaf)
 
 func _create_lava_tile(cell: Vector2i) -> Node3D:
-	var root := Node3D.new()
-	root.name = "Lava_%d_%d" % [cell.x, cell.y]
-	root.position = _grid_to_world(cell)
-	var pool := _box(Vector3(TILE_SIZE * 0.86, 0.10, TILE_SIZE * 0.86), mat_lava_glow)
-	pool.position = Vector3(0, 0.03, 0)
-	root.add_child(pool)
-	var bubble := _sphere(0.16, mat_lava_glow)
-	bubble.position = Vector3(0.28, 0.16, -0.22)
-	bubble.scale = Vector3(1.0, 0.45, 1.0)
-	root.add_child(bubble)
-	return root
+	return TERRAIN_ART.create_lava_tile(cell, _grid_to_world(cell), TILE_SIZE, mat_lava_glow)
 
 func _grid_to_world(cell: Vector2i) -> Vector3:
 	return Vector3((cell.x - (GRID_W - 1) / 2.0) * TILE_SIZE, FLOOR_Y, (cell.y - (GRID_H - 1) / 2.0) * TILE_SIZE)

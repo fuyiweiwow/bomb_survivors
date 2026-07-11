@@ -10,9 +10,15 @@ const LAVA_DAMAGE_TIME := 1.35
 const DOWNED_DURATION := 5.0
 const MAX_CONSUMABLES := 3
 const MOVE_HOLD_DELAY := 0.26
+const BOMB_HOP_WINDOW := 0.30
+const WALL_WARNING_TIME := 2.0
+const WALL_DESTROY_TIME := 4.0
+const WALL_RESTORE_TIME := 8.0
 const AI_DECISION_POLICY := preload("res://scripts/character/AIDecisionPolicy.gd")
 const WEATHER_MANAGER := preload("res://scripts/weather/WeatherManager.gd")
 const WAVE_MANAGER := preload("res://scripts/wave/WaveManager.gd")
+const TERRAIN_ART := preload("res://scripts/terrain/TerrainArtFactory.gd")
+const CONSUMABLE_IDS := ["detonator", "glue", "shield_potion", "invincible_star", "dummy", "oil_barrel", "wings", "football_shoes", "tianlao"]
 
 enum Cell { EMPTY, WALL, CRATE, FOREST, LAVA }
 
@@ -20,7 +26,11 @@ var grid: Array = []
 var players: Array = []
 var bomb_map: Dictionary = {}
 var crate_nodes: Dictionary = {}
+var wall_nodes: Dictionary = {}
+var destroyed_walls: Dictionary = {}
 var powerups: Dictionary = {}
+var glue_areas: Dictionary = {}
+var oil_barrels: Dictionary = {}
 var game_over := false
 var next_player_id := 2
 var weather_manager: Node = null
@@ -35,6 +45,7 @@ var player_card_panel: PanelContainer = null
 var player_card_label: Label = null
 var enemy_card_panel: PanelContainer = null
 var enemy_card_label: Label = null
+var inventory_slot_labels: Array[Label] = []
 var ai_difficulty := "normal"
 
 var tex_floor: Texture2D = load("res://assets/art/3d/floor_tile.png")
@@ -44,24 +55,27 @@ var tex_bomb: Texture2D = load("res://assets/art/3d/bomb_shell.png")
 var tex_powerup: Texture2D = load("res://assets/art/3d/powerup_energy.png")
 var tex_lava: Texture2D = load("res://assets/art/3d/lava_cracked.png")
 
-var mat_floor_a := _make_mat(Color(0.70, 0.78, 0.66), false, tex_floor)
-var mat_floor_b := _make_mat(Color(0.82, 0.88, 0.76), false, tex_floor)
-var mat_wall := _make_mat(Color(0.72, 0.76, 0.82), false, tex_wall)
-var mat_crate := _make_mat(Color(1.0, 0.88, 0.70), false, tex_crate)
+var mat_floor_a := TERRAIN_ART.brushed_material(tex_floor, Color(0.70, 0.78, 0.66), TERRAIN_ART.PATCH_BRUSH)
+var mat_floor_b := TERRAIN_ART.brushed_material(tex_floor, Color(0.82, 0.88, 0.76), TERRAIN_ART.PATCH_BRUSH)
+var mat_wall := TERRAIN_ART.brushed_material(tex_wall, Color(0.72, 0.76, 0.82), TERRAIN_ART.PATCH_BRUSH)
+var mat_crate := TERRAIN_ART.brushed_material(tex_crate, Color(1.0, 0.88, 0.70), TERRAIN_ART.PATCH_BRUSH)
 var mat_player := _make_mat(Color(0.18, 0.48, 0.95))
 var mat_ai := _make_mat(Color(0.95, 0.27, 0.22))
 var mat_bomb := _make_mat(Color(0.75, 0.75, 0.78), false, tex_bomb)
 var mat_fire := _make_mat(Color(1.0, 0.48, 0.08), true)
-var mat_forest_floor := _make_mat(Color(0.18, 0.36, 0.18))
+var mat_forest_floor := TERRAIN_ART.brushed_material(tex_floor, Color(0.18, 0.36, 0.18), TERRAIN_ART.DOTS_BRUSH)
 var mat_leaf := _make_mat(Color(0.10, 0.48, 0.16))
 var mat_trunk := _make_mat(Color(0.42, 0.24, 0.11))
-var mat_lava := _make_mat(Color(0.95, 0.18, 0.04), true, tex_lava)
-var mat_lava_glow := _make_mat(Color(1.0, 0.65, 0.08), true, tex_lava)
+var mat_lava := TERRAIN_ART.brushed_material(tex_lava, Color(0.95, 0.18, 0.04), TERRAIN_ART.LAVA_BRUSH, 0.8)
+var mat_lava_glow := TERRAIN_ART.brushed_material(tex_lava, Color(1.0, 0.65, 0.08), TERRAIN_ART.LAVA_BRUSH, 1.5)
 var mat_speed := _make_mat(Color(0.2, 0.95, 0.85), true, tex_powerup)
 var mat_bomb_power := _make_mat(Color(0.95, 0.92, 0.25), true, tex_powerup)
 var mat_range := _make_mat(Color(1.0, 0.22, 0.12), true, tex_powerup)
 var mat_shield := _make_mat(Color(0.35, 0.55, 1.0), true, tex_powerup)
 var mat_dummy := _make_mat(Color(0.92, 0.78, 0.46), true, tex_powerup)
+var mat_consumable := _make_mat(Color(0.25, 0.92, 0.72), true, tex_powerup)
+var mat_glue := _make_mat(Color(0.92, 0.34, 0.78), true)
+var mat_oil := _make_mat(Color(0.18, 0.20, 0.22))
 var mat_boss_blast := _make_mat(Color(0.52, 0.08, 0.04), true)
 var mat_boss_frost := _make_mat(Color(0.40, 0.82, 1.0), true)
 var mat_boss_clone := _make_mat(Color(0.62, 0.22, 0.88), true)
@@ -201,6 +215,7 @@ func _create_world():
 	add_child(world)
 	weather_visuals.name = "WeatherVisuals"
 	add_child(weather_visuals)
+	add_child(TERRAIN_ART.create_outer_terrain(GRID_W, GRID_H, TILE_SIZE, mat_wall, mat_floor_a))
 
 	var sun := DirectionalLight3D.new()
 	sun.light_energy = 2.0
@@ -215,8 +230,9 @@ func _create_world():
 			add_child(floor)
 
 			if grid[y][x] == Cell.WALL:
-				var wall := _box(Vector3(TILE_SIZE * 0.94, 1.25, TILE_SIZE * 0.94), mat_wall)
+				var wall := TERRAIN_ART.create_rock_wall(cell, TILE_SIZE, mat_wall)
 				wall.position = _grid_to_world(cell) + Vector3(0, 0.62, 0)
+				wall_nodes[cell] = wall
 				add_child(wall)
 			elif grid[y][x] == Cell.CRATE:
 				var crate := _box(Vector3(TILE_SIZE * 0.84, 0.92, TILE_SIZE * 0.84), mat_crate)
@@ -238,43 +254,10 @@ func _floor_mat_for_cell(x: int, y: int) -> Material:
 			return mat_floor_a if (x + y) % 2 == 0 else mat_floor_b
 
 func _create_forest_tile(cell: Vector2i) -> Node3D:
-	var root := Node3D.new()
-	root.name = "Forest_%d_%d" % [cell.x, cell.y]
-	root.position = _grid_to_world(cell)
-
-	var offsets := [Vector3(-0.36, 0, -0.30), Vector3(0.34, 0, -0.14), Vector3(-0.04, 0, 0.34)]
-	for offset in offsets:
-		var trunk := _cylinder(0.08, 0.55, mat_trunk)
-		trunk.position = offset + Vector3(0, 0.24, 0)
-		root.add_child(trunk)
-
-		var crown := _sphere(0.34, mat_leaf)
-		crown.position = offset + Vector3(0, 0.72, 0)
-		crown.scale = Vector3(1.0, 0.82, 1.0)
-		root.add_child(crown)
-
-	var cover := _box(Vector3(TILE_SIZE * 0.88, 0.08, TILE_SIZE * 0.88), _make_mat(Color(0.08, 0.30, 0.12), true))
-	cover.position = Vector3(0, 0.10, 0)
-	root.add_child(cover)
-	return root
+	return TERRAIN_ART.create_forest_tile(cell, _grid_to_world(cell), TILE_SIZE, mat_forest_floor, mat_trunk, mat_leaf)
 
 func _create_lava_tile(cell: Vector2i) -> Node3D:
-	var root := Node3D.new()
-	root.name = "Lava_%d_%d" % [cell.x, cell.y]
-	root.position = _grid_to_world(cell)
-
-	var pool := _box(Vector3(TILE_SIZE * 0.86, 0.10, TILE_SIZE * 0.86), mat_lava_glow)
-	pool.position = Vector3(0, 0.03, 0)
-	root.add_child(pool)
-
-	var bubble := _sphere(0.16, mat_lava_glow)
-	bubble.position = Vector3(0.28, 0.16, -0.22)
-	bubble.scale = Vector3(1.0, 0.45, 1.0)
-	root.add_child(bubble)
-	var tw := create_tween().set_loops()
-	tw.tween_property(bubble, "position:y", 0.28, 0.45)
-	tw.tween_property(bubble, "position:y", 0.12, 0.45)
-	return root
+	return TERRAIN_ART.create_lava_tile(cell, _grid_to_world(cell), TILE_SIZE, mat_lava_glow)
 
 func _box(size: Vector3, mat: Material) -> MeshInstance3D:
 	var mesh := BoxMesh.new()
@@ -493,6 +476,11 @@ func _create_player(id: int, cell: Vector2i, ai: bool, mat: Material, style := "
 		"lava_time": 0.0,
 		"status": "Ready",
 		"consumables": [],
+		"selected_consumable_index": 0,
+		"invincible_timer": 0.0,
+		"wings_timer": 0.0,
+		"football_timer": 0.0,
+		"slow_timer": 0.0,
 		"bomb_placed_count": 0,
 		"ai": ai,
 		"move_timer": 0.0,
@@ -501,6 +489,13 @@ func _create_player(id: int, cell: Vector2i, ai: bool, mat: Material, style := "
 		"bomb_interval": randf_range(1.5, 3.5),
 		"move_dir": Vector2i.ZERO,
 		"last_bomb_pos": Vector2i(-1, -1),
+		"last_bomb_place_time": -99.0,
+		"bomb_hop_until": -99.0,
+		"bomb_hop_cells": {},
+		"last_move_dir": Vector2i.DOWN,
+		"elevated_cell": Vector2i(-1, -1),
+		"wall_stay_timer": 0.0,
+		"wall_warning": false,
 		"last_seen_player_pos": Vector2i(-1, -1),
 		"boss_id": "",
 		"boss_name": "",
@@ -581,7 +576,25 @@ func _setup_hud():
 	hud_label.add_theme_font_size_override("font_size", 16)
 	hud_label.add_theme_color_override("font_color", Color.WHITE)
 	layer.add_child(hud_label)
+	_setup_inventory_bar(layer)
 	_update_hud()
+
+func _setup_inventory_bar(layer: CanvasLayer):
+	var panel := PanelContainer.new()
+	panel.position = Vector2(446, 500)
+	panel.custom_minimum_size = Vector2(342, 42)
+	layer.add_child(panel)
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 4)
+	panel.add_child(row)
+	for i in range(MAX_CONSUMABLES):
+		var slot := Label.new()
+		slot.custom_minimum_size = Vector2(110, 36)
+		slot.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		slot.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		slot.add_theme_font_size_override("font_size", 11)
+		row.add_child(slot)
+		inventory_slot_labels.append(slot)
 
 func _make_status_card(parent: Node, avatar_text: String, color: Color) -> Dictionary:
 	var panel := PanelContainer.new()
@@ -637,16 +650,158 @@ func _unhandled_input(event):
 		match event.physical_keycode:
 			KEY_SPACE: bomb_pressed = true
 			KEY_E: _try_use_player_consumable()
+			KEY_Q: _cycle_player_consumable()
 			KEY_ESCAPE: get_tree().change_scene_to_file("res://scenes/menu/main_menu.tscn")
 
 func _try_use_player_consumable():
 	if players.is_empty():
 		return
 	var p: Dictionary = players[0]
-	if bool(p.get("downed", false)) and _consume_dummy_if_available(p):
-		_revive_player(0)
-	elif p["alive"]:
-		p["status"] = "No usable item"
+	if bool(p.get("downed", false)):
+		if _consume_dummy_if_available(p):
+			_revive_player(0)
+		return
+	if not p["alive"]:
+		return
+	var items: Array = p["consumables"]
+	if items.is_empty():
+		p["status"] = "Bag empty"
+		return
+	var selected := clampi(int(p["selected_consumable_index"]), 0, items.size() - 1)
+	var item_id := str(items[selected])
+	if item_id == "dummy":
+		p["status"] = "Dummy is passive"
+		return
+	if _use_consumable(0, item_id):
+		items.remove_at(selected)
+		p["selected_consumable_index"] = clampi(selected, 0, maxi(items.size() - 1, 0))
+
+func _cycle_player_consumable():
+	if players.is_empty() or not players[0]["alive"]:
+		return
+	var p: Dictionary = players[0]
+	var items: Array = p["consumables"]
+	if items.is_empty():
+		p["status"] = "Bag empty"
+		return
+	p["selected_consumable_index"] = (int(p["selected_consumable_index"]) + 1) % items.size()
+	p["status"] = "Selected %s" % _item_display_name(str(items[p["selected_consumable_index"]]))
+
+func _use_consumable(player_index: int, item_id: String) -> bool:
+	var p: Dictionary = players[player_index]
+	match item_id:
+		"detonator":
+			return _use_detonator(p)
+		"glue":
+			_place_glue(player_index)
+			return true
+		"shield_potion":
+			p["shield"] = clampi(int(p["shield"]) + 1, 0, 5)
+			p["status"] = "Shield gained"
+			return true
+		"invincible_star":
+			p["invincible_timer"] = 5.0
+			p["status"] = "Invincible 5s"
+			return true
+		"oil_barrel":
+			return _place_oil_barrel(player_index)
+		"wings":
+			p["wings_timer"] = 8.0
+			p["status"] = "Wings 8s"
+			return true
+		"football_shoes":
+			p["football_timer"] = 8.0
+			p["status"] = "Football shoes 8s"
+			return true
+		"tianlao":
+			_cast_tianlao(player_index)
+			return true
+	return false
+
+func _use_detonator(p: Dictionary) -> bool:
+	var direction := p["last_move_dir"] as Vector2i
+	for distance in range(1, 7):
+		var cell: Vector2i = p["grid_pos"] + direction * distance
+		if cell.x < 0 or cell.x >= GRID_W or cell.y < 0 or cell.y >= GRID_H or grid[cell.y][cell.x] == Cell.WALL:
+			break
+		if bomb_map.has(cell):
+			_explode_bomb(cell)
+			return true
+	p["status"] = "No bomb in sight"
+	return false
+
+func _place_glue(player_index: int):
+	var p: Dictionary = players[player_index]
+	var cell := p["grid_pos"] as Vector2i
+	if glue_areas.has(cell):
+		var old_node = (glue_areas[cell] as Dictionary).get("node")
+		if is_instance_valid(old_node):
+			old_node.queue_free()
+	var node := _cylinder(TILE_SIZE * 0.38, 0.035, mat_glue)
+	node.position = _grid_to_world(cell) + Vector3(0, 0.07, 0)
+	add_child(node)
+	glue_areas[cell] = {"node": node, "time": 5.0, "owner": player_index}
+	p["status"] = "Glue placed"
+
+func _place_oil_barrel(player_index: int) -> bool:
+	var p: Dictionary = players[player_index]
+	var cell: Vector2i = p["grid_pos"] + (p["last_move_dir"] as Vector2i)
+	if cell.x < 0 or cell.x >= GRID_W or cell.y < 0 or cell.y >= GRID_H:
+		return false
+	if not _is_walkable_cell(grid[cell.y][cell.x]) or bomb_map.has(cell) or oil_barrels.has(cell) or _is_cell_occupied(cell):
+		p["status"] = "No room for barrel"
+		return false
+	var root := Node3D.new()
+	root.position = _grid_to_world(cell)
+	var body := _cylinder(0.48, 0.92, mat_oil)
+	body.position = Vector3(0, 0.46, 0)
+	root.add_child(body)
+	var band := _cylinder(0.50, 0.10, mat_bomb_power)
+	band.position = Vector3(0, 0.48, 0)
+	root.add_child(band)
+	add_child(root)
+	oil_barrels[cell] = {"node": root, "hp": 4, "owner": player_index}
+	p["status"] = "Oil barrel placed"
+	return true
+
+func _cast_tianlao(player_index: int):
+	var p: Dictionary = players[player_index]
+	var origin := p["grid_pos"] as Vector2i
+	var cells: Array = [origin]
+	var directions := [Vector2i.UP, Vector2i.DOWN, Vector2i.LEFT, Vector2i.RIGHT]
+	for direction in directions:
+		for distance in range(1, 6):
+			var cell: Vector2i = origin + direction * distance
+			if cell.x < 0 or cell.x >= GRID_W or cell.y < 0 or cell.y >= GRID_H or grid[cell.y][cell.x] == Cell.WALL:
+				break
+			cells.append(cell)
+	for raw_cell in cells:
+		var marker := _box(Vector3(TILE_SIZE * 0.72, 0.06, TILE_SIZE * 0.72), mat_bomb_power)
+		marker.position = _grid_to_world(raw_cell as Vector2i) + Vector3(0, 0.10, 0)
+		add_child(marker)
+		var marker_tw := create_tween().bind_node(marker).set_loops()
+		marker_tw.tween_property(marker, "transparency", 0.75, 0.18)
+		marker_tw.tween_property(marker, "transparency", 0.05, 0.18)
+		var timer := get_tree().create_timer(1.5)
+		timer.timeout.connect(marker.queue_free)
+	get_tree().create_timer(1.5).timeout.connect(func():
+		_spawn_explosion(cells)
+		_apply_explosion_damage(cells, player_index)
+	)
+	p["status"] = "Tianlao armed"
+
+func _item_display_name(item_id: String) -> String:
+	match item_id:
+		"detonator": return "Detonator"
+		"glue": return "Glue"
+		"shield_potion": return "Shield Potion"
+		"invincible_star": return "Invincible Star"
+		"dummy": return "Dummy"
+		"oil_barrel": return "Oil Barrel"
+		"wings": return "Wings"
+		"football_shoes": return "Football Shoes"
+		"tianlao": return "Tianlao"
+	return item_id.capitalize()
 
 func _process(delta):
 	if game_over:
@@ -657,6 +812,8 @@ func _process(delta):
 		weather_manager.process_weather(delta)
 	_process_downed_players(delta)
 	_process_terrain_effects(delta)
+	_process_wall_mechanics(delta)
+	_process_dynamic_items(delta)
 	_update_hud()
 	_process_player_input(delta)
 	_process_ai(delta)
@@ -679,6 +836,13 @@ func _process_terrain_effects(delta: float):
 		var p: Dictionary = players[i]
 		if not p["alive"] or bool(p.get("downed", false)):
 			continue
+		var had_wings := float(p.get("wings_timer", 0.0)) > 0.0
+		p["invincible_timer"] = maxf(float(p.get("invincible_timer", 0.0)) - delta, 0.0)
+		p["wings_timer"] = maxf(float(p.get("wings_timer", 0.0)) - delta, 0.0)
+		p["football_timer"] = maxf(float(p.get("football_timer", 0.0)) - delta, 0.0)
+		p["slow_timer"] = maxf(float(p.get("slow_timer", 0.0)) - delta, 0.0)
+		if had_wings and float(p["wings_timer"]) <= 0.0:
+			_end_wings(p)
 		p["frozen_timer"] = maxf(float(p.get("frozen_timer", 0.0)) - delta, 0.0)
 		var cell: Vector2i = p["grid_pos"]
 		var cell_type: int = grid[cell.y][cell.x]
@@ -686,7 +850,7 @@ func _process_terrain_effects(delta: float):
 
 		if cell_type == Cell.FOREST:
 			status_parts.append("Hidden")
-		if cell_type == Cell.LAVA:
+		if cell_type == Cell.LAVA and float(p["wings_timer"]) <= 0.0:
 			p["lava_time"] = float(p["lava_time"]) + delta
 			status_parts.append("Burning %.1fs" % maxf(LAVA_DAMAGE_TIME - float(p["lava_time"]), 0.0))
 			if float(p["lava_time"]) >= LAVA_DAMAGE_TIME:
@@ -699,10 +863,48 @@ func _process_terrain_effects(delta: float):
 			status_parts.append("Shield %d" % int(p["shield"]))
 		if float(p.get("frozen_timer", 0.0)) > 0.0:
 			status_parts.append("Frozen %.1fs" % float(p["frozen_timer"]))
+		if float(p["invincible_timer"]) > 0.0:
+			status_parts.append("Invincible %.1fs" % float(p["invincible_timer"]))
+		if float(p["wings_timer"]) > 0.0:
+			status_parts.append("Wings %.1fs" % float(p["wings_timer"]))
+		if float(p["football_timer"]) > 0.0:
+			status_parts.append("Football %.1fs" % float(p["football_timer"]))
+		if float(p["slow_timer"]) > 0.0:
+			status_parts.append("Glued %.1fs" % float(p["slow_timer"]))
 		if status_parts.is_empty():
 			p["status"] = "Ready"
 		else:
 			p["status"] = " / ".join(status_parts)
+
+func _process_dynamic_items(delta: float):
+	for raw_cell in glue_areas.keys():
+		var cell := raw_cell as Vector2i
+		var data: Dictionary = glue_areas[cell]
+		data["time"] = float(data["time"]) - delta
+		if float(data["time"]) <= 0.0:
+			var node = data.get("node")
+			if is_instance_valid(node):
+				node.queue_free()
+			glue_areas.erase(cell)
+			continue
+		for i in range(players.size()):
+			if i != int(data["owner"]) and players[i]["alive"] and players[i]["grid_pos"] == cell:
+				players[i]["slow_timer"] = 3.0
+
+func _end_wings(p: Dictionary):
+	var cell := p["grid_pos"] as Vector2i
+	if _is_walkable_cell(grid[cell.y][cell.x]) and not bomb_map.has(cell) and not oil_barrels.has(cell):
+		return
+	for direction in [Vector2i.UP, Vector2i.DOWN, Vector2i.LEFT, Vector2i.RIGHT]:
+		var target: Vector2i = cell + direction
+		if target.x < 0 or target.x >= GRID_W or target.y < 0 or target.y >= GRID_H:
+			continue
+		if _is_walkable_cell(grid[target.y][target.x]) and not bomb_map.has(target) and not oil_barrels.has(target) and not _is_cell_occupied(target):
+			p["grid_pos"] = target
+			var node = p.get("node")
+			if is_instance_valid(node):
+				node.position = _grid_to_world(target)
+			return
 
 func _process_player_input(delta: float):
 	if players.is_empty():
@@ -713,9 +915,9 @@ func _process_player_input(delta: float):
 		_reset_player_move_input(p, true)
 		return
 
-	if (bomb_pressed or Input.is_action_just_pressed("p1_bomb")) and p["bomb_placed_count"] < p["bomb_max"]:
+	if bomb_pressed or Input.is_action_just_pressed("p1_bomb"):
 		bomb_pressed = false
-		_try_place_bomb(0)
+		_handle_player_bomb_action()
 	else:
 		bomb_pressed = false
 
@@ -747,6 +949,13 @@ func _process_player_input(delta: float):
 		var move_dir := p["queued_move_dir"] as Vector2i
 		p["queued_move_dir"] = Vector2i.ZERO
 		_try_move_player(0, move_dir)
+
+func _handle_player_bomb_action():
+	var p: Dictionary = players[0]
+	if float(p.get("football_timer", 0.0)) > 0.0:
+		_kick_bomb_in_direction(p)
+	elif int(p["bomb_placed_count"]) < int(p["bomb_max"]):
+		_try_place_bomb(0)
 
 func _read_player_move_dir(just_pressed := false) -> Vector2i:
 	var d := Vector2i.ZERO
@@ -874,20 +1083,28 @@ func _try_move_player(index: int, dir: Vector2i) -> bool:
 	if float(p.get("frozen_timer", 0.0)) > 0.0:
 		return false
 	var target: Vector2i = p["grid_pos"] + dir
-	if not is_cell_walkable(target.x, target.y):
+	if not is_cell_walkable(target.x, target.y, index):
 		return false
 	var node: Node3D = p["node"]
 	if not is_instance_valid(node):
 		return false
 
 	p["grid_pos"] = target
+	p["last_move_dir"] = dir
+	if (p["elevated_cell"] as Vector2i) != Vector2i(-1, -1):
+		_clear_wall_warning(p)
+		p["elevated_cell"] = Vector2i(-1, -1)
+		p["wall_stay_timer"] = 0.0
 	p["is_moving"] = true
 	node.look_at(_grid_to_world(target), Vector3.UP)
 	var tw := create_tween().bind_node(node)
 	p["move_tween"] = tw
 	var effective_speed := _effective_move_speed(p, target)
 	var move_duration := _move_duration_for_speed(effective_speed)
-	tw.tween_property(node, "position", _grid_to_world(target), move_duration).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	if float(p.get("slow_timer", 0.0)) > 0.0:
+		move_duration *= 3.33
+	var target_height := 0.92 if float(p.get("wings_timer", 0.0)) > 0.0 else 0.0
+	tw.tween_property(node, "position", _grid_to_world(target) + Vector3(0, target_height, 0), move_duration).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
 	tw.tween_callback(func():
 		p["move_tween"] = null
 		p["is_moving"] = false
@@ -906,26 +1123,49 @@ func _move_duration_for_speed(speed_value: int) -> float:
 	var normalized_speed := clampi(speed_value, 1, 10) - 1
 	return clampf(0.31 / (1.0 + 0.14 * float(normalized_speed)), 0.12, 0.31)
 
-func is_cell_walkable(x: int, y: int) -> bool:
+func is_cell_walkable(x: int, y: int, player_index := -1) -> bool:
 	if x < 0 or x >= GRID_W or y < 0 or y >= GRID_H:
 		return false
-	if not _is_walkable_cell(grid[y][x]):
+	var has_wings := player_index >= 0 and player_index < players.size() and float(players[player_index].get("wings_timer", 0.0)) > 0.0
+	if grid[y][x] == Cell.WALL or (not has_wings and not _is_walkable_cell(grid[y][x])):
 		return false
-	if bomb_map.has(Vector2i(x, y)):
+	var cell := Vector2i(x, y)
+	if oil_barrels.has(cell) and not has_wings:
+		return false
+	if bomb_map.has(cell) and not has_wings and not _can_player_pass_bomb(player_index, cell):
 		return false
 	for p in players:
 		if p["alive"] and p["grid_pos"] == Vector2i(x, y):
 			return false
 	return true
 
+func _can_player_pass_bomb(player_index: int, cell: Vector2i) -> bool:
+	if player_index < 0 or player_index >= players.size() or not bomb_map.has(cell):
+		return false
+	var entry: Dictionary = bomb_map[cell]
+	if int(entry.get("player_index", -1)) != player_index:
+		return false
+	var p: Dictionary = players[player_index]
+	return _game_time() <= float(p.get("bomb_hop_until", -99.0)) and (p.get("bomb_hop_cells", {}) as Dictionary).has(cell)
+
 func _is_walkable_cell(cell_value: int) -> bool:
 	return cell_value == Cell.EMPTY or cell_value == Cell.FOREST or cell_value == Cell.LAVA
 
-func _try_place_bomb(player_index: int):
+func _try_place_bomb(player_index: int) -> bool:
+	if player_index < 0 or player_index >= players.size():
+		return false
 	var p: Dictionary = players[player_index]
 	var cell: Vector2i = p["grid_pos"]
 	if bomb_map.has(cell):
-		return
+		return false
+
+	var placed_at := _game_time()
+	var previous_cell := p["last_bomb_pos"] as Vector2i
+	if previous_cell != Vector2i(-1, -1) and _grid_distance(previous_cell, cell) == 1 and placed_at - float(p["last_bomb_place_time"]) <= BOMB_HOP_WINDOW:
+		p["bomb_hop_until"] = placed_at + BOMB_HOP_WINDOW
+		p["bomb_hop_cells"] = {previous_cell: true, cell: true}
+	p["last_bomb_pos"] = cell
+	p["last_bomb_place_time"] = placed_at
 
 	p["bomb_placed_count"] += 1
 	var bomb := Node3D.new()
@@ -938,7 +1178,7 @@ func _try_place_bomb(player_index: int):
 	var timer := Timer.new()
 	timer.one_shot = true
 	timer.wait_time = BOMB_FUSE
-	timer.timeout.connect(func(): _explode_bomb(cell))
+	timer.timeout.connect(func(): _explode_bomb_by_node(bomb))
 	bomb.add_child(timer)
 	timer.start()
 
@@ -946,7 +1186,49 @@ func _try_place_bomb(player_index: int):
 	pulse.tween_property(bomb, "scale", Vector3(1.12, 1.12, 1.12), 0.35)
 	pulse.tween_property(bomb, "scale", Vector3.ONE, 0.35)
 
-	bomb_map[cell] = {"node": bomb, "player_index": player_index, "range": p["bomb_range"], "pulse": pulse}
+	bomb_map[cell] = {"node": bomb, "player_index": player_index, "range": p["bomb_range"], "pulse": pulse, "timer": timer, "placed_at": placed_at}
+	return true
+
+func _game_time() -> float:
+	return Time.get_ticks_msec() / 1000.0
+
+func _explode_bomb_by_node(bomb_node: Node3D):
+	for raw_cell in bomb_map.keys():
+		var cell := raw_cell as Vector2i
+		if (bomb_map[cell] as Dictionary).get("node") == bomb_node:
+			_explode_bomb(cell)
+			return
+
+func _kick_bomb_in_direction(p: Dictionary):
+	var direction := p["last_move_dir"] as Vector2i
+	var origin: Vector2i = p["grid_pos"] + direction
+	if not bomb_map.has(origin):
+		p["status"] = "No bomb to kick"
+		return
+	var destination := origin
+	var hit_obstacle := false
+	for step in range(4):
+		var target: Vector2i = destination + direction
+		if target.x < 0 or target.x >= GRID_W or target.y < 0 or target.y >= GRID_H:
+			hit_obstacle = true
+			break
+		if grid[target.y][target.x] in [Cell.WALL, Cell.CRATE] or oil_barrels.has(target) or bomb_map.has(target):
+			hit_obstacle = true
+			break
+		destination = target
+	if destination == origin:
+		_explode_bomb(origin)
+		return
+	var entry: Dictionary = bomb_map[origin]
+	bomb_map.erase(origin)
+	bomb_map[destination] = entry
+	var node = entry.get("node")
+	if is_instance_valid(node):
+		var tw := create_tween().bind_node(node)
+		tw.tween_property(node, "position", _grid_to_world(destination) + Vector3(0, 0.38, 0), 0.18)
+		if hit_obstacle:
+			tw.tween_callback(func(): _explode_bomb(destination))
+	p["status"] = "Bomb kicked"
 
 func _explode_bomb(cell: Vector2i):
 	if not bomb_map.has(cell):
@@ -964,7 +1246,7 @@ func _explode_bomb(cell: Vector2i):
 
 	var results: Dictionary = _get_explosion_cells(cell, entry["range"], true)
 	_spawn_explosion(results["cells"])
-	_apply_explosion_damage(results["cells"])
+	_apply_explosion_damage(results["cells"], player_index, cell)
 	if is_instance_valid(bomb):
 		bomb.queue_free()
 
@@ -982,7 +1264,7 @@ func _get_explosion_cells(origin: Vector2i, blast_range: int, apply_weather := f
 			if grid[check.y][check.x] == Cell.WALL:
 				break
 			cells.append(check)
-			if grid[check.y][check.x] == Cell.CRATE:
+			if grid[check.y][check.x] == Cell.CRATE or oil_barrels.has(check):
 				break
 	return {"cells": cells}
 
@@ -998,7 +1280,7 @@ func _spawn_explosion(cells: Array):
 		tw.set_parallel(false)
 		tw.tween_callback(flame.queue_free).set_delay(0.35)
 
-func _apply_explosion_damage(cells: Array):
+func _apply_explosion_damage(cells: Array, explosion_owner := -1, exploding_cell := Vector2i(-1, -1)):
 	for raw_cell in cells:
 		var cell := raw_cell as Vector2i
 		if grid[cell.y][cell.x] == Cell.CRATE:
@@ -1010,31 +1292,174 @@ func _apply_explosion_damage(cells: Array):
 				tw.tween_callback(crate.queue_free)
 				crate_nodes.erase(cell)
 			_spawn_powerup(cell)
+		if oil_barrels.has(cell):
+			_damage_oil_barrel(cell)
 
 		for i in range(players.size()):
 			var p: Dictionary = players[i]
 			if p["alive"] and p["grid_pos"] == cell:
+				if i == explosion_owner and _try_bomb_boost(i, exploding_cell):
+					continue
 				_damage_player(i, 1, "blast")
+
+func _damage_oil_barrel(cell: Vector2i):
+	if not oil_barrels.has(cell):
+		return
+	var data: Dictionary = oil_barrels[cell]
+	data["hp"] = int(data["hp"]) - 1
+	if int(data["hp"]) > 0:
+		var node = data.get("node")
+		if is_instance_valid(node):
+			var tw := create_tween().bind_node(node)
+			tw.tween_property(node, "scale", Vector3(1.12, 0.86, 1.12), 0.07)
+			tw.tween_property(node, "scale", Vector3.ONE, 0.09)
+		return
+	var owner := int(data.get("owner", -1))
+	var node = data.get("node")
+	oil_barrels.erase(cell)
+	if is_instance_valid(node):
+		node.queue_free()
+	var result := _get_explosion_cells(cell, 2, true)
+	_spawn_explosion(result["cells"])
+	_apply_explosion_damage(result["cells"], owner, cell)
+
+func _try_bomb_boost(player_index: int, _exploding_cell: Vector2i) -> bool:
+	if player_index < 0 or player_index >= players.size():
+		return false
+	var p: Dictionary = players[player_index]
+	if bool(p.get("downed", false)) or (p["elevated_cell"] as Vector2i) != Vector2i(-1, -1):
+		return false
+	var covering_bombs := 1
+	for raw_cell in bomb_map.keys():
+		var bomb_cell := raw_cell as Vector2i
+		var entry: Dictionary = bomb_map[bomb_cell]
+		if int(entry.get("player_index", -1)) != player_index:
+			continue
+		if _blast_cell_set(bomb_cell, int(entry["range"])).has(p["grid_pos"]):
+			covering_bombs += 1
+	if covering_bombs < 2:
+		return false
+
+	var directions := [p["last_move_dir"] as Vector2i, Vector2i.UP, Vector2i.DOWN, Vector2i.LEFT, Vector2i.RIGHT]
+	var target := Vector2i(-1, -1)
+	for direction in directions:
+		var candidate: Vector2i = p["grid_pos"] + direction
+		if candidate.x < 0 or candidate.x >= GRID_W or candidate.y < 0 or candidate.y >= GRID_H:
+			continue
+		if grid[candidate.y][candidate.x] not in [Cell.WALL, Cell.CRATE]:
+			continue
+		var occupied := false
+		for other: Dictionary in players:
+			if other != p and other["alive"] and other["grid_pos"] == candidate:
+				occupied = true
+				break
+		if not occupied:
+			target = candidate
+			break
+	if target == Vector2i(-1, -1):
+		return false
+
+	_cancel_player_movement(p)
+	p["grid_pos"] = target
+	p["elevated_cell"] = target
+	p["wall_stay_timer"] = 0.0
+	p["wall_warning"] = false
+	p["status"] = "Bomb Boost"
+	var node = p.get("node")
+	if is_instance_valid(node):
+		var height := 1.30 if grid[target.y][target.x] == Cell.WALL else 0.98
+		var tw := create_tween().bind_node(node)
+		tw.tween_property(node, "position", _grid_to_world(target) + Vector3(0, height, 0), 0.24).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	return true
+
+func _process_wall_mechanics(delta: float):
+	for p: Dictionary in players:
+		if not p["alive"]:
+			continue
+		var cell := p["elevated_cell"] as Vector2i
+		if cell == Vector2i(-1, -1):
+			continue
+		if grid[cell.y][cell.x] == Cell.CRATE:
+			continue
+		if grid[cell.y][cell.x] != Cell.WALL:
+			_drop_player_from_block(p)
+			continue
+		p["wall_stay_timer"] = float(p["wall_stay_timer"]) + delta
+		if float(p["wall_stay_timer"]) >= WALL_WARNING_TIME and not bool(p["wall_warning"]):
+			p["wall_warning"] = true
+			p["status"] = "Wall unstable"
+			_set_wall_warning(cell, true)
+		if float(p["wall_stay_timer"]) >= WALL_DESTROY_TIME:
+			_destroy_wall(cell)
+			_drop_player_from_block(p)
+
+	for raw_cell in destroyed_walls.keys():
+		var cell := raw_cell as Vector2i
+		destroyed_walls[cell] = float(destroyed_walls[cell]) + delta
+		if float(destroyed_walls[cell]) < WALL_RESTORE_TIME:
+			continue
+		if bomb_map.has(cell) or _is_cell_occupied(cell):
+			continue
+		grid[cell.y][cell.x] = Cell.WALL
+		var wall = wall_nodes.get(cell)
+		if is_instance_valid(wall):
+			wall.visible = true
+			wall.transparency = 0.0
+		destroyed_walls.erase(cell)
+
+func _destroy_wall(cell: Vector2i):
+	grid[cell.y][cell.x] = Cell.EMPTY
+	destroyed_walls[cell] = 0.0
+	var wall = wall_nodes.get(cell)
+	if is_instance_valid(wall):
+		wall.transparency = 0.0
+		wall.visible = false
+
+func _drop_player_from_block(p: Dictionary):
+	_clear_wall_warning(p)
+	p["elevated_cell"] = Vector2i(-1, -1)
+	p["wall_stay_timer"] = 0.0
+	var node = p.get("node")
+	if is_instance_valid(node):
+		var tw := create_tween().bind_node(node)
+		tw.tween_property(node, "position", _grid_to_world(p["grid_pos"]), 0.18).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+
+func _clear_wall_warning(p: Dictionary):
+	if not bool(p.get("wall_warning", false)):
+		return
+	_set_wall_warning(p["elevated_cell"] as Vector2i, false)
+	p["wall_warning"] = false
+
+func _set_wall_warning(cell: Vector2i, enabled: bool):
+	var wall = wall_nodes.get(cell)
+	if is_instance_valid(wall):
+		wall.transparency = 0.45 if enabled else 0.0
+
+func _is_cell_occupied(cell: Vector2i) -> bool:
+	for p: Dictionary in players:
+		if p["alive"] and p["grid_pos"] == cell:
+			return true
+	return false
 
 func _spawn_powerup(cell: Vector2i):
 	var r := randf()
 	var ptype := ""
 	var mat: Material = null
-	if r < 0.25:
+	if r < 0.23:
 		ptype = "speed"
 		mat = mat_speed
-	elif r < 0.50:
+	elif r < 0.46:
 		ptype = "bomb"
 		mat = mat_bomb_power
-	elif r < 0.72:
+	elif r < 0.66:
 		ptype = "range"
 		mat = mat_range
-	elif r < 0.87:
+	elif r < 0.79:
 		ptype = "shield"
 		mat = mat_shield
 	elif r < 0.95:
-		ptype = "dummy"
-		mat = mat_dummy
+		ptype = str(CONSUMABLE_IDS.pick_random())
+		mat = mat_dummy if ptype == "dummy" else mat_consumable
 	else:
 		return
 
@@ -1124,6 +1549,22 @@ func _create_powerup_model(ptype: String, mat: Material) -> Node3D:
 			var face := _box(Vector3(0.18, 0.04, 0.04), _make_mat(Color(0.12, 0.08, 0.04)))
 			face.position = Vector3(0, 0.52, -0.15)
 			root.add_child(face)
+		"oil_barrel":
+			var barrel := _cylinder(0.25, 0.58, mat_oil)
+			barrel.position = Vector3(0, 0.12, 0)
+			root.add_child(barrel)
+			var band := _cylinder(0.27, 0.08, mat_bomb_power)
+			band.position = Vector3(0, 0.14, 0)
+			root.add_child(band)
+		"wings":
+			var left_wing := _box(Vector3(0.10, 0.40, 0.34), mat)
+			left_wing.position = Vector3(-0.22, 0.20, 0)
+			left_wing.rotation_degrees.z = -25
+			root.add_child(left_wing)
+			var right_wing := _box(Vector3(0.10, 0.40, 0.34), mat)
+			right_wing.position = Vector3(0.22, 0.20, 0)
+			right_wing.rotation_degrees.z = 25
+			root.add_child(right_wing)
 		_:
 			var orb := _sphere(0.28, mat)
 			root.add_child(orb)
@@ -1139,6 +1580,9 @@ func _check_powerup_pickup(index: int):
 		return
 
 	var data: Dictionary = powerups[cell]
+	if CONSUMABLE_IDS.has(str(data["type"])) and (p["consumables"] as Array).size() >= MAX_CONSUMABLES:
+		p["status"] = "Bag full"
+		return
 	var node: Node3D = data["node"]
 	if is_instance_valid(node):
 		node.queue_free()
@@ -1152,8 +1596,9 @@ func _check_powerup_pickup(index: int):
 			p["bomb_range"] = clampi(p["bomb_range"] + 2, 1, 10)
 		"shield":
 			p["shield"] = clampi(p["shield"] + 1, 0, 5)
-		"dummy":
-			_add_consumable(p, "dummy")
+		_:
+			if CONSUMABLE_IDS.has(str(data["type"])):
+				_add_consumable(p, str(data["type"]))
 	powerups.erase(cell)
 
 func _add_consumable(p: Dictionary, item_id: String) -> bool:
@@ -1162,7 +1607,8 @@ func _add_consumable(p: Dictionary, item_id: String) -> bool:
 		p["status"] = "Bag full"
 		return false
 	items.append(item_id)
-	p["status"] = "Picked %s" % item_id.capitalize()
+	p["selected_consumable_index"] = clampi(int(p["selected_consumable_index"]), 0, items.size() - 1)
+	p["status"] = "Picked %s" % _item_display_name(item_id)
 	return true
 
 func _consume_dummy_if_available(p: Dictionary) -> bool:
@@ -1171,6 +1617,7 @@ func _consume_dummy_if_available(p: Dictionary) -> bool:
 	if index == -1:
 		return false
 	items.remove_at(index)
+	p["selected_consumable_index"] = clampi(int(p["selected_consumable_index"]), 0, maxi(items.size() - 1, 0))
 	return true
 
 func _choose_ai_direction(p: Dictionary) -> Vector2i:
@@ -1225,7 +1672,7 @@ func _ai_navigation_cells(p: Dictionary, danger_cells: Dictionary) -> Dictionary
 			var cell := Vector2i(x, y)
 			if not _is_walkable_cell(grid[y][x]):
 				continue
-			if bomb_map.has(cell) or occupied.has(cell):
+			if bomb_map.has(cell) or oil_barrels.has(cell) or occupied.has(cell):
 				continue
 			if danger_cells.has(cell) or _is_lava_cell(cell):
 				continue
@@ -1345,6 +1792,8 @@ func _is_ai_escape_walkable(cell: Vector2i, bomb_cell: Vector2i, player_index: i
 	if simulated_bomb and cell == bomb_cell:
 		return false
 	if bomb_map.has(cell):
+		return false
+	if oil_barrels.has(cell):
 		return false
 	for i in range(players.size()):
 		if i == player_index:
@@ -1546,6 +1995,9 @@ func _damage_player(index: int, amount: int, source: String):
 		return
 	var p: Dictionary = players[index]
 	if not p["alive"]:
+		return
+	if float(p.get("invincible_timer", 0.0)) > 0.0:
+		p["status"] = "Invincible"
 		return
 	if bool(p.get("downed", false)):
 		if source == "blast":
@@ -1756,7 +2208,8 @@ func _update_hud():
 		wave_text = "Wave %d/7  %.0fs" % [wave_manager.current_wave, wave_manager.time_remaining()]
 	if weather_manager:
 		weather_text = weather_manager.display_name()
-	hud_label.text = "%s  |  %s  |  AI %s  |  SPD %d  BOMB %d/%d  RNG %d  SH %d  BAG %s" % [wave_text, weather_text, _difficulty_label(), p["speed"], p["bomb_placed_count"], p["bomb_max"], p["bomb_range"], p["shield"], _bag_text(p)]
+	hud_label.text = "%s  |  %s  |  AI %s  |  SPD %d  BOMB %d/%d  RNG %d  SH %d  BAG %d/%d" % [wave_text, weather_text, _difficulty_label(), p["speed"], p["bomb_placed_count"], p["bomb_max"], p["bomb_range"], p["shield"], (p["consumables"] as Array).size(), MAX_CONSUMABLES]
+	_update_inventory_bar(p)
 	if player_card_label:
 		player_card_label.text = _player_card_text(players[0])
 	if enemy_card_label:
@@ -1787,13 +2240,26 @@ func _bag_text(p: Dictionary) -> String:
 	if items.is_empty():
 		return "-"
 	var names: Array[String] = []
-	for item in items:
-		match str(item):
-			"dummy":
-				names.append("Dummy")
-			_:
-				names.append(str(item).capitalize())
+	var selected := clampi(int(p.get("selected_consumable_index", 0)), 0, items.size() - 1)
+	for i in range(items.size()):
+		var item_name := _item_display_name(str(items[i]))
+		names.append("[%s]" % item_name if i == selected else item_name)
 	return ", ".join(names)
+
+func _update_inventory_bar(p: Dictionary):
+	var items: Array = p.get("consumables", [])
+	var selected := clampi(int(p.get("selected_consumable_index", 0)), 0, maxi(items.size() - 1, 0))
+	for i in range(inventory_slot_labels.size()):
+		var slot := inventory_slot_labels[i]
+		slot.text = _item_display_name(str(items[i])) if i < items.size() else "-"
+		var style := StyleBoxFlat.new()
+		style.bg_color = Color(0.16, 0.42, 0.50, 0.92) if i == selected and i < items.size() else Color(0.08, 0.09, 0.11, 0.86)
+		style.border_width_left = 2
+		style.border_width_top = 2
+		style.border_width_right = 2
+		style.border_width_bottom = 2
+		style.border_color = Color(0.40, 0.95, 0.78) if i == selected and i < items.size() else Color(0.25, 0.28, 0.32)
+		slot.add_theme_stylebox_override("normal", style)
 
 func _position_status_cards():
 	if game_camera == null:
