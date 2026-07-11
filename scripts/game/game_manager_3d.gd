@@ -477,6 +477,7 @@ func _create_player(id: int, cell: Vector2i, ai: bool, mat: Material, style := "
 		"downed": false,
 		"downed_timer": 0.0,
 		"is_moving": false,
+		"move_tween": null,
 		"speed": 5,
 		"bomb_max": 1,
 		"bomb_range": 2,
@@ -814,26 +815,35 @@ func _is_player_hidden(index: int) -> bool:
 	return p["alive"] and grid[cell.y][cell.x] == Cell.FOREST
 
 func _try_move_player(index: int, dir: Vector2i) -> bool:
+	if index < 0 or index >= players.size():
+		return false
 	var p: Dictionary = players[index]
+	if not bool(p.get("alive", false)) or bool(p.get("downed", false)) or bool(p.get("is_moving", false)):
+		return false
 	if float(p.get("frozen_timer", 0.0)) > 0.0:
 		return false
 	var target: Vector2i = p["grid_pos"] + dir
 	if not is_cell_walkable(target.x, target.y):
 		return false
+	var node: Node3D = p["node"]
+	if not is_instance_valid(node):
+		return false
 
 	p["grid_pos"] = target
 	p["is_moving"] = true
-	var node: Node3D = p["node"]
 	node.look_at(_grid_to_world(target), Vector3.UP, true)
 	var tw := create_tween().bind_node(node)
+	p["move_tween"] = tw
 	var effective_speed := int(p["speed"])
 	if weather_manager:
 		effective_speed = weather_manager.movement_speed(effective_speed, target)
 	var move_duration := clampf(0.72 / float(effective_speed), 0.10, 0.34)
 	tw.tween_property(node, "position", _grid_to_world(target), move_duration)
 	tw.tween_callback(func():
+		p["move_tween"] = null
 		p["is_moving"] = false
-		_check_powerup_pickup(index)
+		if bool(p.get("alive", false)) and not bool(p.get("downed", false)):
+			_check_powerup_pickup(index)
 	)
 	return true
 
@@ -1489,7 +1499,6 @@ func _damage_player(index: int, amount: int, source: String):
 		return
 	p["hp"] = maxi(int(p["hp"]), 1)
 	p["status"] = "Downed"
-	_flash_player_damage(p)
 	_enter_downed(index, source)
 
 func _enter_downed(index: int, source: String):
@@ -1499,9 +1508,12 @@ func _enter_downed(index: int, source: String):
 	p["downed"] = true
 	p["downed_timer"] = DOWNED_DURATION
 	p["status"] = "Downed by %s" % source
+	_cancel_player_movement(p)
+	if index == 0:
+		bomb_pressed = false
 	var node: Node3D = p["node"]
 	if is_instance_valid(node):
-		var tw := create_tween()
+		var tw := create_tween().bind_node(node)
 		tw.tween_property(node, "scale", Vector3(1.0, 0.35, 1.0), 0.18)
 
 func _revive_player(index: int):
@@ -1510,6 +1522,7 @@ func _revive_player(index: int):
 	p["downed_timer"] = 0.0
 	p["hp"] = mini(2, int(p["max_hp"]))
 	p["status"] = "Revived"
+	p["is_moving"] = false
 	var node: Node3D = p["node"]
 	if is_instance_valid(node):
 		var tw := create_tween()
@@ -1521,6 +1534,7 @@ func _kill_player(index: int):
 	if not p["alive"]:
 		return
 	p["alive"] = false
+	_cancel_player_movement(p)
 	if str(p.get("boss_id", "")) != "":
 		_spawn_boss_reward(p["grid_pos"])
 	var node: Node3D = p["node"]
@@ -1531,6 +1545,16 @@ func _kill_player(index: int):
 			node.queue_free()
 		_check_game_over()
 	)
+
+func _cancel_player_movement(p: Dictionary):
+	var move_tween = p.get("move_tween")
+	if move_tween is Tween and is_instance_valid(move_tween):
+		(move_tween as Tween).kill()
+	p["move_tween"] = null
+	p["is_moving"] = false
+	var node: Node3D = p.get("node") as Node3D
+	if is_instance_valid(node):
+		node.position = _grid_to_world(p["grid_pos"])
 
 func _spawn_boss_reward(cell: Vector2i):
 	if powerups.has(cell):
