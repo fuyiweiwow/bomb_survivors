@@ -16,7 +16,7 @@ func _ready():
 	center.add_child(box)
 
 	var label := Label.new()
-	label.text = "泡泡堂 Demo"
+	label.text = "Demo"
 	label.add_theme_font_size_override("font_size", 64)
 	label.add_theme_color_override("font_color", Color.YELLOW)
 	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
