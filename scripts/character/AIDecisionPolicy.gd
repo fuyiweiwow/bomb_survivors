@@ -76,6 +76,9 @@ static func _powerup_score(actor: Dictionary, powerup_type: String, distance: in
 			score += float(maxi(6 - int(actor["bomb_range"]), 0))
 		"shield":
 			score += 9.0 if int(actor["shield"]) == 0 else 3.0
+		"dummy":
+			var items: Array = actor.get("consumables", [])
+			score += 12.0 if not items.has("dummy") else 4.0
 	if distance <= 2:
 		score += NEARBY_POWERUP_BONUS
 	return score - float(distance) * DISTANCE_POWERUP_COST

@@ -7,6 +7,8 @@ const FLOOR_Y := 0.0
 const BOMB_FUSE := 2.5
 const PLAYER_MAX_HP := 3
 const LAVA_DAMAGE_TIME := 1.35
+const DOWNED_DURATION := 5.0
+const MAX_CONSUMABLES := 3
 const AI_DECISION_POLICY := preload("res://scripts/character/AIDecisionPolicy.gd")
 
 enum Cell { EMPTY, WALL, CRATE, FOREST, LAVA }
@@ -51,6 +53,7 @@ var mat_speed := _make_mat(Color(0.2, 0.95, 0.85), true, tex_powerup)
 var mat_bomb_power := _make_mat(Color(0.95, 0.92, 0.25), true, tex_powerup)
 var mat_range := _make_mat(Color(1.0, 0.22, 0.12), true, tex_powerup)
 var mat_shield := _make_mat(Color(0.35, 0.55, 1.0), true, tex_powerup)
+var mat_dummy := _make_mat(Color(0.92, 0.78, 0.46), true, tex_powerup)
 
 func _ready():
 	add_to_group("game")
@@ -390,6 +393,8 @@ func _create_player(id: int, cell: Vector2i, ai: bool, mat: Material, style := "
 		"alive": true,
 		"hp": PLAYER_MAX_HP,
 		"max_hp": PLAYER_MAX_HP,
+		"downed": false,
+		"downed_timer": 0.0,
 		"is_moving": false,
 		"speed": 5,
 		"bomb_max": 1,
@@ -398,6 +403,7 @@ func _create_player(id: int, cell: Vector2i, ai: bool, mat: Material, style := "
 		"suit": style,
 		"lava_time": 0.0,
 		"status": "Ready",
+		"consumables": [],
 		"bomb_placed_count": 0,
 		"ai": ai,
 		"move_timer": 0.0,
@@ -527,20 +533,43 @@ func _unhandled_input(event):
 	if event is InputEventKey and event.pressed:
 		match event.physical_keycode:
 			KEY_SPACE: bomb_pressed = true
+			KEY_E: _try_use_player_consumable()
 			KEY_ESCAPE: get_tree().change_scene_to_file("res://scenes/menu/main_menu.tscn")
+
+func _try_use_player_consumable():
+	if players.is_empty():
+		return
+	var p: Dictionary = players[0]
+	if bool(p.get("downed", false)) and _consume_dummy_if_available(p):
+		_revive_player(0)
+	elif p["alive"]:
+		p["status"] = "No usable item"
 
 func _process(delta):
 	if game_over:
 		return
+	_process_downed_players(delta)
 	_process_terrain_effects(delta)
 	_update_hud()
 	_process_player_input()
 	_process_ai(delta)
 
+func _process_downed_players(delta: float):
+	for i in range(players.size()):
+		var p: Dictionary = players[i]
+		if not p["alive"] or not bool(p.get("downed", false)):
+			continue
+		p["downed_timer"] = maxf(float(p["downed_timer"]) - delta, 0.0)
+		p["status"] = "Downed %.1fs" % float(p["downed_timer"])
+		if _consume_dummy_if_available(p):
+			_revive_player(i)
+		elif float(p["downed_timer"]) <= 0.0:
+			_kill_player(i)
+
 func _process_terrain_effects(delta: float):
 	for i in range(players.size()):
 		var p: Dictionary = players[i]
-		if not p["alive"]:
+		if not p["alive"] or bool(p.get("downed", false)):
 			continue
 		var cell: Vector2i = p["grid_pos"]
 		var cell_type: int = grid[cell.y][cell.x]
@@ -568,7 +597,7 @@ func _process_player_input():
 	if players.is_empty():
 		return
 	var p: Dictionary = players[0]
-	if not p["alive"] or p["is_moving"]:
+	if not p["alive"] or bool(p.get("downed", false)) or p["is_moving"]:
 		return
 
 	var d := _read_player_move_dir()
@@ -597,7 +626,7 @@ func _read_player_move_dir() -> Vector2i:
 func _process_ai(delta: float):
 	for i in range(players.size()):
 		var p: Dictionary = players[i]
-		if not p["ai"] or not p["alive"]:
+		if not p["ai"] or not p["alive"] or bool(p.get("downed", false)):
 			continue
 
 		_update_ai_target_memory(p)
@@ -803,18 +832,21 @@ func _spawn_powerup(cell: Vector2i):
 	var r := randf()
 	var ptype := ""
 	var mat: Material = null
-	if r < 0.28:
+	if r < 0.25:
 		ptype = "speed"
 		mat = mat_speed
-	elif r < 0.53:
+	elif r < 0.50:
 		ptype = "bomb"
 		mat = mat_bomb_power
-	elif r < 0.76:
+	elif r < 0.72:
 		ptype = "range"
 		mat = mat_range
-	elif r < 0.95:
+	elif r < 0.87:
 		ptype = "shield"
 		mat = mat_shield
+	elif r < 0.95:
+		ptype = "dummy"
+		mat = mat_dummy
 	else:
 		return
 
@@ -892,6 +924,18 @@ func _create_powerup_model(ptype: String, mat: Material) -> Node3D:
 			var right := _box(Vector3(0.12, 0.08, 0.46), mat)
 			right.position = Vector3(0.34, 0.12, 0)
 			root.add_child(right)
+		"dummy":
+			var body := _capsule(0.18, 0.54, mat)
+			body.position = Vector3(0, 0.15, 0)
+			root.add_child(body)
+
+			var head := _sphere(0.16, mat)
+			head.position = Vector3(0, 0.50, 0)
+			root.add_child(head)
+
+			var face := _box(Vector3(0.18, 0.04, 0.04), _make_mat(Color(0.12, 0.08, 0.04)))
+			face.position = Vector3(0, 0.52, -0.15)
+			root.add_child(face)
 		_:
 			var orb := _sphere(0.28, mat)
 			root.add_child(orb)
@@ -920,7 +964,26 @@ func _check_powerup_pickup(index: int):
 			p["bomb_range"] = clampi(p["bomb_range"] + 2, 1, 10)
 		"shield":
 			p["shield"] = clampi(p["shield"] + 1, 0, 5)
+		"dummy":
+			_add_consumable(p, "dummy")
 	powerups.erase(cell)
+
+func _add_consumable(p: Dictionary, item_id: String) -> bool:
+	var items: Array = p["consumables"]
+	if items.size() >= MAX_CONSUMABLES:
+		p["status"] = "Bag full"
+		return false
+	items.append(item_id)
+	p["status"] = "Picked %s" % item_id.capitalize()
+	return true
+
+func _consume_dummy_if_available(p: Dictionary) -> bool:
+	var items: Array = p["consumables"]
+	var index := items.find("dummy")
+	if index == -1:
+		return false
+	items.remove_at(index)
+	return true
 
 func _choose_ai_direction(p: Dictionary) -> Vector2i:
 	var dirs := [Vector2i(0, -1), Vector2i(0, 1), Vector2i(-1, 0), Vector2i(1, 0)]
@@ -1104,17 +1167,40 @@ func _is_ai_escape_walkable(cell: Vector2i, bomb_cell: Vector2i, player_index: i
 
 func _damage_player(index: int, amount: int, source: String):
 	var p: Dictionary = players[index]
-	if not p["alive"]:
+	if not p["alive"] or bool(p.get("downed", false)):
 		return
 	if int(p.get("shield", 0)) > 0:
 		p["shield"] = int(p["shield"]) - 1
 		_flash_player_shield(p)
 		return
-	p["hp"] = maxi(int(p["hp"]) - amount, 0)
-	p["status"] = "Hit by %s" % source
+	p["hp"] = maxi(int(p["hp"]), 1)
+	p["status"] = "Downed"
 	_flash_player_damage(p)
-	if int(p["hp"]) <= 0:
-		_kill_player(index)
+	_enter_downed(index, source)
+
+func _enter_downed(index: int, source: String):
+	var p: Dictionary = players[index]
+	if not p["alive"]:
+		return
+	p["downed"] = true
+	p["downed_timer"] = DOWNED_DURATION
+	p["status"] = "Downed by %s" % source
+	var node: Node3D = p["node"]
+	if is_instance_valid(node):
+		var tw := create_tween()
+		tw.tween_property(node, "scale", Vector3(1.0, 0.35, 1.0), 0.18)
+
+func _revive_player(index: int):
+	var p: Dictionary = players[index]
+	p["downed"] = false
+	p["downed_timer"] = 0.0
+	p["hp"] = mini(2, int(p["max_hp"]))
+	p["status"] = "Revived"
+	var node: Node3D = p["node"]
+	if is_instance_valid(node):
+		var tw := create_tween()
+		tw.tween_property(node, "scale", Vector3(1.12, 1.12, 1.12), 0.12)
+		tw.tween_property(node, "scale", Vector3.ONE, 0.16)
 
 func _kill_player(index: int):
 	var p: Dictionary = players[index]
@@ -1226,7 +1312,7 @@ func _update_hud():
 		return
 	_position_status_cards()
 	var p: Dictionary = players[0]
-	hud_label.text = "AI: %s  |  Speed: %d  |  Bombs: %d/%d  |  Range: %d  |  Shields: %d  |  WASD + Space  |  Esc: Menu" % [_difficulty_label(), p["speed"], p["bomb_placed_count"], p["bomb_max"], p["bomb_range"], p["shield"]]
+	hud_label.text = "AI: %s  |  Speed: %d  |  Bombs: %d/%d  |  Range: %d  |  Shields: %d  |  Bag: %s  |  WASD + Space" % [_difficulty_label(), p["speed"], p["bomb_placed_count"], p["bomb_max"], p["bomb_range"], p["shield"], _bag_text(p)]
 	if player_card_label:
 		player_card_label.text = _player_card_text(players[0])
 	if enemy_card_label and players.size() > 1:
@@ -1235,7 +1321,22 @@ func _update_hud():
 func _player_card_text(p: Dictionary) -> String:
 	if not p["alive"]:
 		return "HP 0/%d\nDown" % int(p["max_hp"])
+	if bool(p.get("downed", false)):
+		return "HP %d/%d\nDown %.1fs" % [int(p["hp"]), int(p["max_hp"]), float(p["downed_timer"])]
 	return "HP %d/%d\n%s" % [int(p["hp"]), int(p["max_hp"]), str(p["status"])]
+
+func _bag_text(p: Dictionary) -> String:
+	var items: Array = p.get("consumables", [])
+	if items.is_empty():
+		return "-"
+	var names: Array[String] = []
+	for item in items:
+		match str(item):
+			"dummy":
+				names.append("Dummy")
+			_:
+				names.append(str(item).capitalize())
+	return ", ".join(names)
 
 func _position_status_cards():
 	if game_camera == null:
