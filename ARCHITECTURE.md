@@ -45,9 +45,9 @@
 ```
 scripts/
   core/
-    EventBus.gd              # Autoload 单例，全局信号总线
-    Constants.gd              # 所有常量（网格尺寸、时间、枚举）
-    Helpers.gd                # 纯工具函数
+	EventBus.gd              # Autoload 单例，全局信号总线
+	Constants.gd              # 所有常量（网格尺寸、时间、枚举）
+	Helpers.gd                # 纯工具函数
 ```
 
 #### EventBus (`scripts/core/EventBus.gd`)
@@ -172,9 +172,9 @@ scripts/bomb/
   Explosion.gd             # 爆炸效果节点
   BombEffect.gd            # 炸弹效果策略基类
   effects/                 # 具体炸弹效果
-    NormalBombEffect.gd
-    CrossBombEffect.gd     # 天牢
-    KickedBombEffect.gd    # 被踢的炸弹
+	NormalBombEffect.gd
+	CrossBombEffect.gd     # 天牢
+	KickedBombEffect.gd    # 被踢的炸弹
 ```
 
 #### BombManager (`scripts/bomb/BombManager.gd`)
@@ -207,15 +207,15 @@ scripts/item/
   AttributeItem.gd          # 属性道具（speed/bomb/range/shield）
   ConsumableItem.gd         # 消耗道具基类
   consumables/              # 具体消耗道具
-    DetonatorItem.gd
-    GlueItem.gd
-    ShieldPotionItem.gd
-    StarItem.gd
-    DollItem.gd
-    BarrelItem.gd
-    WingsItem.gd
-    SoccerItem.gd
-    TianlaoItem.gd
+	DetonatorItem.gd
+	GlueItem.gd
+	ShieldPotionItem.gd
+	StarItem.gd
+	DollItem.gd
+	BarrelItem.gd
+	WingsItem.gd
+	SoccerItem.gd
+	TianlaoItem.gd
   ItemFactory.gd            # 工厂 — 根据权重创建道具
 ```
 
@@ -228,10 +228,10 @@ class_name BaseItem extends Resource
 @export var drop_weight: float = 1.0   # 掉落权重
 
 func on_pickup(owner: CharacterController) -> void:
-    pass  # 子类覆写
+	pass  # 子类覆写
 
 func on_use(owner: CharacterController) -> void:
-    pass  # 子类覆写
+	pass  # 子类覆写
 ```
 
 #### ConsumableItem 示例 (`scripts/item/consumables/WingsItem.gd`)
@@ -241,8 +241,8 @@ class_name WingsItem extends ConsumableItem
 @export var duration: float = 8.0
 
 func on_use(owner: CharacterController) -> void:
-    owner.status_effects.apply_effect("wings", duration)
-    # 由 StatusEffectManager 在到期时自动清理
+	owner.status_effects.apply_effect("wings", duration)
+	# 由 StatusEffectManager 在到期时自动清理
 ```
 
 #### ItemFactory (`scripts/item/ItemFactory.gd`)
@@ -251,9 +251,9 @@ class_name ItemFactory
 
 # 基于权重和随机数创建道具
 static func roll_item() -> BaseItem:
-    var r := randf()
-    # ... 权重表
-    # 新增道具只需在权重表中加一行
+	var r := randf()
+	# ... 权重表
+	# 新增道具只需在权重表中加一行
 ```
 
 **SOLID 体现**:
@@ -271,11 +271,11 @@ scripts/terrain/
   TerrainManager.gd         # 地形效果处理
   BaseTerrain.gd            # 地形行为基类
   terrains/                 # 具体地形
-    PortalTerrain.gd
-    TurretTerrain.gd
-    SpringTerrain.gd
-    IceTerrain.gd
-    ThornTerrain.gd
+	PortalTerrain.gd
+	TurretTerrain.gd
+	SpringTerrain.gd
+	IceTerrain.gd
+	ThornTerrain.gd
 ```
 
 #### TerrainManager (`scripts/terrain/TerrainManager.gd`)
@@ -300,12 +300,12 @@ scripts/weather/
   WeatherManager.gd         # 天气切换、效果应用
   BaseWeather.gd            # 天气效果基类
   weathers/                 # 具体天气
-    ClearWeather.gd
-    RainWeather.gd
-    FogWeather.gd
-    WindWeather.gd
-    ThunderWeather.gd
-    SnowWeather.gd
+	ClearWeather.gd
+	RainWeather.gd
+	FogWeather.gd
+	WindWeather.gd
+	ThunderWeather.gd
+	SnowWeather.gd
 ```
 
 ---
@@ -367,31 +367,31 @@ scripts/ui/
 
 ```
 用户输入 (WASD/Space/E)
-    │
-    ▼
+	│
+	▼
 PlayerController._process_input()
-    │  emit → EventBus.player_moved / EventBus.bomb_placed
-    ▼
+	│  emit → EventBus.player_moved / EventBus.bomb_placed
+	▼
 GameManager._process(delta)   ← 协调器，delta 分发给各子系统
-    ├── WeatherManager.process_weather(delta)
-    ├── StatusEffectManager.tick_all(delta)
-    ├── TerrainManager.process_terrain(delta)
-    ├── BombManager.process_bombs(delta)
-    ├── WaveManager.check_spawn(delta)
-    ├── GridManager.check_wall_stay(delta)     ← 墙体停留计时
-    └── GameManager.check_dying_state(delta)    ← 濒死倒计时
+	├── WeatherManager.process_weather(delta)
+	├── StatusEffectManager.tick_all(delta)
+	├── TerrainManager.process_terrain(delta)
+	├── BombManager.process_bombs(delta)
+	├── WaveManager.check_spawn(delta)
+	├── GridManager.check_wall_stay(delta)     ← 墙体停留计时
+	└── GameManager.check_dying_state(delta)    ← 濒死倒计时
 ```
 
 **响应式更新**:
 
 ```
 BombManager._explode_bomb()
-    emit → EventBus.bomb_exploded
-        ├── GridManager.on_bomb_exploded()     → 破坏箱子/更新网格
-        ├── TerrainManager.on_bomb_exploded()  → 触发桶爆炸连锁
-        ├── ItemManager.on_bomb_exploded()     → 掉落道具
-        ├── CharacterController.on_bomb_exploded() → 检测受击
-        └── HUD.on_bomb_exploded()             → 更新 UI
+	emit → EventBus.bomb_exploded
+		├── GridManager.on_bomb_exploded()     → 破坏箱子/更新网格
+		├── TerrainManager.on_bomb_exploded()  → 触发桶爆炸连锁
+		├── ItemManager.on_bomb_exploded()     → 掉落道具
+		├── CharacterController.on_bomb_exploded() → 检测受击
+		└── HUD.on_bomb_exploded()             → 更新 UI
 ```
 
 ---
@@ -431,14 +431,14 @@ GameManager (Node3D)
 ## 六、依赖关系图
 
 ```
-                 ┌─────────────┐
-                 │  EventBus   │ ← Autoload 单例，全局可见
-                 └─────────────┘
-                       ▲
-                       │ emits/receives
-                       │
-    ┌──────────────────┼──────────────────┐
-    │                  │                  │
+				 ┌─────────────┐
+				 │  EventBus   │ ← Autoload 单例，全局可见
+				 └─────────────┘
+					   ▲
+					   │ emits/receives
+					   │
+	┌──────────────────┼──────────────────┐
+	│                  │                  │
 ┌───────┐      ┌──────────┐      ┌───────────┐
 │  UI   │      │  Managers│      │Characters │
 │ Layer │◄────►│ (Bomb/   │◄────►│(Player/   │
@@ -447,10 +447,10 @@ GameManager (Node3D)
 │(GO UI)│      │  Terrain/│      │ Stats     │
 │       │      │  Weather)│      │ Effects   │
 └───────┘      └──────────┘      └───────────┘
-                      │
-                ┌─────┴─────┐
-                │ Constants │ ← 纯静态数据
-                └───────────┘
+					  │
+				┌─────┴─────┐
+				│ Constants │ ← 纯静态数据
+				└───────────┘
 ```
 
 核心原则:

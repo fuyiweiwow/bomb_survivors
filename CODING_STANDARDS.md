@@ -79,8 +79,8 @@ var players: Array[Dictionary] = []
 
 # ✅ 使用强类型 Dictionary 声明
 var stats: Dictionary = {
-    "speed": 5,
-    "bomb_max": 1
+	"speed": 5,
+	"bomb_max": 1
 }
 
 # ❌ 禁止无类型
@@ -171,9 +171,9 @@ var item: BaseItem = preload("res://scripts/item/consumables/wings.tres")
 
 # ❌ 禁止在代码中使用硬编码大字典维护道具数据
 var items_db = {
-    "wings": {"name": "翅膀", "duration": 8},
-    "star":  {"name": "无敌星", "duration": 5}
-    # ... 随着道具增多，这个字典会无限膨胀
+	"wings": {"name": "翅膀", "duration": 8},
+	"star":  {"name": "无敌星", "duration": 5}
+	# ... 随着道具增多，这个字典会无限膨胀
 }
 ```
 
@@ -191,9 +191,9 @@ _effect_timer.start()
 # ❌ 禁止手动 delta 累加实现计时器（除非极端情况）
 var _timer: float = 0.0
 func _process(delta):
-    _timer += delta
-    if _timer >= duration:
-        # ... 能加 Timer 节点就别用手动累加
+	_timer += delta
+	if _timer >= duration:
+		# ... 能加 Timer 节点就别用手动累加
 ```
 
 ### 3.5 内存与引用
@@ -201,11 +201,11 @@ func _process(delta):
 ```gdscript
 # ✅ 使用 is_instance_valid() 检查释放后的节点
 if is_instance_valid(bomb_node):
-    bomb_node.queue_free()
+	bomb_node.queue_free()
 
 # ✅ 断开不再需要的信号连接
 if effect_timer.timeout.is_connected(_on_effect_end):
-    effect_timer.timeout.disconnect(_on_effect_end)
+	effect_timer.timeout.disconnect(_on_effect_end)
 
 # ❌ 不保留对 queue_free 节点的引用
 var dead_node = some_node
@@ -225,7 +225,7 @@ scripts/
   character/      # 角色系统
   bomb/           # 炸弹系统
   item/           # 道具系统
-    consumables/  # 消耗道具（每个道具一个文件）
+	consumables/  # 消耗道具（每个道具一个文件）
   terrain/        # 地形系统
   weather/        # 天气系统
   wave/           # 波次/Boss 系统

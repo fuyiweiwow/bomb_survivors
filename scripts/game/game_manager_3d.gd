@@ -7,6 +7,7 @@ const FLOOR_Y := 0.0
 const BOMB_FUSE := 2.5
 const PLAYER_MAX_HP := 3
 const LAVA_DAMAGE_TIME := 1.35
+const AI_DECISION_POLICY := preload("res://scripts/character/AIDecisionPolicy.gd")
 
 enum Cell { EMPTY, WALL, CRATE, FOREST, LAVA }
 
@@ -640,28 +641,18 @@ func _update_ai_target_memory(p: Dictionary):
 		return
 	p["last_seen_player_pos"] = target["grid_pos"]
 
-func _hard_ai_search_target() -> Vector2i:
-	if players.is_empty() or not players[0]["alive"]:
-		return Vector2i(-1, -1)
-	var target: Dictionary = players[0]
-	var target_pos: Vector2i = target["grid_pos"]
-	if _is_player_hidden(0):
-		return target_pos
-	return target_pos
-
 func _ai_should_place_bomb(player_index: int) -> bool:
 	var p: Dictionary = players[player_index]
 	var difficulty := str(p.get("ai_difficulty", "normal"))
 	var blast_cells := _blast_cell_set(p["grid_pos"], p["bomb_range"])
 	if difficulty == "hard" and _is_player_hidden(0) and blast_cells.has(players[0]["grid_pos"]):
 		return true
-	if difficulty != "easy":
-		for i in range(players.size()):
-			if i == player_index:
-				continue
-			var target: Dictionary = players[i]
-			if target["alive"] and not _is_player_hidden(i) and blast_cells.has(target["grid_pos"]):
-				return true
+	for i: int in range(players.size()):
+		if i == player_index:
+			continue
+		var target: Dictionary = players[i]
+		if target["alive"] and not _is_player_hidden(i) and blast_cells.has(target["grid_pos"]):
+			return true
 
 	var dirs := [Vector2i(0, -1), Vector2i(0, 1), Vector2i(-1, 0), Vector2i(1, 0)]
 	for d in dirs:
@@ -935,10 +926,25 @@ func _choose_ai_direction(p: Dictionary) -> Vector2i:
 	var dirs := [Vector2i(0, -1), Vector2i(0, 1), Vector2i(-1, 0), Vector2i(1, 0)]
 	dirs.shuffle()
 	var danger_cells := _active_blast_cell_set()
-	if str(p.get("ai_difficulty", "normal")) == "hard":
-		var chase_dir := _hard_ai_chase_dir(p, danger_cells)
-		if chase_dir != Vector2i.ZERO:
-			return chase_dir
+	var walkable_cells: Dictionary = _ai_navigation_cells(p, danger_cells)
+	var difficulty: String = str(p.get("ai_difficulty", "normal"))
+	var can_target_player: bool = (
+		not players.is_empty()
+		and players[0]["alive"]
+		and (difficulty == "hard" or not _is_player_hidden(0))
+	)
+	var player_cell := Vector2i(-1, -1)
+	if can_target_player:
+		player_cell = players[0]["grid_pos"]
+	var strategic_direction: Vector2i = AI_DECISION_POLICY.choose_direction(
+		p,
+		powerups,
+		walkable_cells,
+		player_cell,
+		can_target_player
+	)
+	if strategic_direction != Vector2i.ZERO:
+		return strategic_direction
 	var last_bomb: Vector2i = p["last_bomb_pos"]
 	if last_bomb != Vector2i(-1, -1):
 		var away := _filter_away(dirs, p["grid_pos"], last_bomb)
@@ -955,41 +961,25 @@ func _choose_ai_direction(p: Dictionary) -> Vector2i:
 			return d
 	return Vector2i.ZERO
 
-func _hard_ai_chase_dir(p: Dictionary, danger_cells: Dictionary) -> Vector2i:
-	if players.is_empty() or not players[0]["alive"]:
-		return Vector2i.ZERO
+func _ai_navigation_cells(p: Dictionary, danger_cells: Dictionary) -> Dictionary:
+	var result: Dictionary = {}
 	var start: Vector2i = p["grid_pos"]
-	var target := _hard_ai_search_target()
-	if target == Vector2i(-1, -1):
-		target = p.get("last_seen_player_pos", Vector2i(-1, -1))
-	if target == Vector2i(-1, -1):
-		return Vector2i.ZERO
-	var queue: Array = [{"pos": start, "first": Vector2i.ZERO}]
-	var visited := {start: true}
-	var head := 0
-	var dirs := [Vector2i(0, -1), Vector2i(0, 1), Vector2i(-1, 0), Vector2i(1, 0)]
-	dirs.shuffle()
-	while head < queue.size():
-		var item: Dictionary = queue[head]
-		head += 1
-		var pos: Vector2i = item["pos"]
-		var first_step: Vector2i = item["first"]
-		if first_step != Vector2i.ZERO and pos.distance_to(target) <= 1.0:
-			return first_step
-		for d in dirs:
-			var next: Vector2i = pos + d
-			if visited.has(next):
+	var occupied: Dictionary = {}
+	for other: Dictionary in players:
+		if other["alive"] and other["grid_pos"] != start:
+			occupied[other["grid_pos"]] = true
+	for y: int in range(GRID_H):
+		for x: int in range(GRID_W):
+			var cell := Vector2i(x, y)
+			if not _is_walkable_cell(grid[y][x]):
 				continue
-			if not is_cell_walkable(next.x, next.y):
+			if bomb_map.has(cell) or occupied.has(cell):
 				continue
-			if danger_cells.has(next) or _is_lava_cell(next):
+			if danger_cells.has(cell) or _is_lava_cell(cell):
 				continue
-			visited[next] = true
-			queue.append({
-				"pos": next,
-				"first": d if first_step == Vector2i.ZERO else first_step
-			})
-	return Vector2i.ZERO
+			result[cell] = true
+	result[start] = true
+	return result
 
 func _is_lava_cell(cell: Vector2i) -> bool:
 	if cell.x < 0 or cell.x >= GRID_W or cell.y < 0 or cell.y >= GRID_H:
