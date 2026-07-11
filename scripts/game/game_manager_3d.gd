@@ -596,31 +596,41 @@ func _read_player_move_dir() -> Vector2i:
 func _process_ai(delta: float):
 	for i in range(players.size()):
 		var p: Dictionary = players[i]
-		if not p["ai"] or not p["alive"] or p["is_moving"]:
+		if not p["ai"] or not p["alive"]:
 			continue
 
 		_update_ai_target_memory(p)
 		p["move_timer"] += delta
 		p["bomb_timer"] += delta
+		if p["is_moving"]:
+			continue
 
 		var danger_escape := _ai_escape_dir_from_active_bombs(i)
 		if danger_escape != Vector2i.ZERO:
 			p["move_dir"] = danger_escape
-			p["move_timer"] = 0.0
-		elif p["move_timer"] >= p["move_interval"]:
-			p["move_timer"] = 0.0
-			p["move_dir"] = _choose_ai_direction(p)
-
-		if p["move_dir"] != Vector2i.ZERO and not _try_move_player(i, p["move_dir"]):
+			if _try_move_player(i, danger_escape):
+				p["move_timer"] = 0.0
+				continue
 			p["move_dir"] = Vector2i.ZERO
 
-		if danger_escape == Vector2i.ZERO and p["bomb_timer"] >= p["bomb_interval"] and p["bomb_placed_count"] < p["bomb_max"] and _ai_should_place_bomb(i):
+		if p["bomb_timer"] >= p["bomb_interval"] and p["bomb_placed_count"] < p["bomb_max"] and _ai_should_place_bomb(i):
 			p["bomb_timer"] = 0.0
 			var escape_dir := _ai_escape_dir_after_bomb(i)
 			if escape_dir != Vector2i.ZERO:
 				_try_place_bomb(i)
 				p["last_bomb_pos"] = p["grid_pos"]
 				p["move_dir"] = escape_dir
+				if _try_move_player(i, escape_dir):
+					p["move_timer"] = 0.0
+					continue
+
+		if p["move_timer"] < p["move_interval"]:
+			continue
+		p["move_timer"] = 0.0
+		p["move_dir"] = _choose_ai_direction(p)
+		if p["move_dir"] != Vector2i.ZERO and not _try_move_player(i, p["move_dir"]):
+			p["move_dir"] = Vector2i.ZERO
+			p["move_timer"] = float(p["move_interval"]) * 0.75
 
 func _update_ai_target_memory(p: Dictionary):
 	if str(p.get("ai_difficulty", "normal")) != "hard" or players.is_empty():
@@ -964,13 +974,13 @@ func _hard_ai_chase_dir(p: Dictionary, danger_cells: Dictionary) -> Vector2i:
 		head += 1
 		var pos: Vector2i = item["pos"]
 		var first_step: Vector2i = item["first"]
-		if pos == target and first_step != Vector2i.ZERO:
+		if first_step != Vector2i.ZERO and pos.distance_to(target) <= 1.0:
 			return first_step
 		for d in dirs:
 			var next: Vector2i = pos + d
 			if visited.has(next):
 				continue
-			if next != target and not is_cell_walkable(next.x, next.y):
+			if not is_cell_walkable(next.x, next.y):
 				continue
 			if danger_cells.has(next) or _is_lava_cell(next):
 				continue
