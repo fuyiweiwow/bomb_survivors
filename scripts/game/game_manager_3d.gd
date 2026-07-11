@@ -9,6 +9,7 @@ const PLAYER_MAX_HP := 3
 const LAVA_DAMAGE_TIME := 1.35
 const DOWNED_DURATION := 5.0
 const MAX_CONSUMABLES := 3
+const MOVE_HOLD_DELAY := 0.26
 const AI_DECISION_POLICY := preload("res://scripts/character/AIDecisionPolicy.gd")
 const WEATHER_MANAGER := preload("res://scripts/weather/WeatherManager.gd")
 const WAVE_MANAGER := preload("res://scripts/wave/WaveManager.gd")
@@ -479,6 +480,11 @@ func _create_player(id: int, cell: Vector2i, ai: bool, mat: Material, style := "
 		"is_moving": false,
 		"move_tween": null,
 		"state_tween": null,
+		"input_hold_dir": Vector2i.ZERO,
+		"input_hold_time": 0.0,
+		"input_repeat_time": 0.0,
+		"input_repeat_started": false,
+		"queued_move_dir": Vector2i.ZERO,
 		"speed": 5,
 		"bomb_max": 1,
 		"bomb_range": 2,
@@ -627,7 +633,7 @@ func _unhandled_input(event):
 			get_tree().quit()
 		return
 
-	if event is InputEventKey and event.pressed:
+	if event is InputEventKey and event.pressed and not event.echo:
 		match event.physical_keycode:
 			KEY_SPACE: bomb_pressed = true
 			KEY_E: _try_use_player_consumable()
@@ -652,7 +658,7 @@ func _process(delta):
 	_process_downed_players(delta)
 	_process_terrain_effects(delta)
 	_update_hud()
-	_process_player_input()
+	_process_player_input(delta)
 	_process_ai(delta)
 	_update_weather_visibility()
 
@@ -698,35 +704,79 @@ func _process_terrain_effects(delta: float):
 		else:
 			p["status"] = " / ".join(status_parts)
 
-func _process_player_input():
+func _process_player_input(delta: float):
 	if players.is_empty():
 		return
 	var p: Dictionary = players[0]
-	if not p["alive"] or bool(p.get("downed", false)) or p["is_moving"]:
+	if not p["alive"] or bool(p.get("downed", false)):
+		bomb_pressed = false
+		_reset_player_move_input(p, true)
 		return
-
-	var d := _read_player_move_dir()
-
-	if d != Vector2i.ZERO:
-		_try_move_player(0, d)
 
 	if (bomb_pressed or Input.is_action_just_pressed("p1_bomb")) and p["bomb_placed_count"] < p["bomb_max"]:
 		bomb_pressed = false
 		_try_place_bomb(0)
+	else:
+		bomb_pressed = false
 
-func _read_player_move_dir() -> Vector2i:
+	var held_dir := _read_player_move_dir()
+	var pressed_dir := _read_player_move_dir(true)
+	if held_dir == Vector2i.ZERO:
+		_reset_player_move_input(p, false)
+	else:
+		var direction_changed := held_dir != (p["input_hold_dir"] as Vector2i)
+		if pressed_dir != Vector2i.ZERO or direction_changed:
+			p["input_hold_dir"] = held_dir
+			p["input_hold_time"] = 0.0
+			p["input_repeat_time"] = 0.0
+			p["input_repeat_started"] = false
+			p["queued_move_dir"] = held_dir
+		else:
+			p["input_hold_time"] = float(p["input_hold_time"]) + delta
+			if float(p["input_hold_time"]) >= MOVE_HOLD_DELAY:
+				p["input_repeat_time"] = float(p["input_repeat_time"]) + delta
+				var repeat_interval := _player_repeat_interval(p, held_dir)
+				if not bool(p["input_repeat_started"]):
+					p["input_repeat_started"] = true
+					p["input_repeat_time"] = repeat_interval
+				if float(p["input_repeat_time"]) >= repeat_interval:
+					p["input_repeat_time"] = 0.0
+					p["queued_move_dir"] = held_dir
+
+	if not p["is_moving"] and (p["queued_move_dir"] as Vector2i) != Vector2i.ZERO:
+		var move_dir := p["queued_move_dir"] as Vector2i
+		p["queued_move_dir"] = Vector2i.ZERO
+		_try_move_player(0, move_dir)
+
+func _read_player_move_dir(just_pressed := false) -> Vector2i:
 	var d := Vector2i.ZERO
-	if Input.is_action_pressed("p1_up"):
+	if _move_action_active("p1_up", just_pressed):
 		d.y -= 1
-	if Input.is_action_pressed("p1_down"):
+	if _move_action_active("p1_down", just_pressed):
 		d.y += 1
-	if Input.is_action_pressed("p1_left"):
+	if _move_action_active("p1_left", just_pressed):
 		d.x -= 1
-	if Input.is_action_pressed("p1_right"):
+	if _move_action_active("p1_right", just_pressed):
 		d.x += 1
 	if d.x != 0:
 		d.y = 0
 	return d
+
+func _move_action_active(action: StringName, just_pressed: bool) -> bool:
+	return Input.is_action_just_pressed(action) if just_pressed else Input.is_action_pressed(action)
+
+func _reset_player_move_input(p: Dictionary, clear_queue: bool):
+	p["input_hold_dir"] = Vector2i.ZERO
+	p["input_hold_time"] = 0.0
+	p["input_repeat_time"] = 0.0
+	p["input_repeat_started"] = false
+	if clear_queue:
+		p["queued_move_dir"] = Vector2i.ZERO
+
+func _player_repeat_interval(p: Dictionary, direction: Vector2i) -> float:
+	var target: Vector2i = p["grid_pos"] + direction
+	var effective_speed := _effective_move_speed(p, target)
+	return _move_duration_for_speed(effective_speed) + 0.025
 
 func _process_ai(delta: float):
 	for i in range(players.size()):
@@ -832,14 +882,12 @@ func _try_move_player(index: int, dir: Vector2i) -> bool:
 
 	p["grid_pos"] = target
 	p["is_moving"] = true
-	node.look_at(_grid_to_world(target), Vector3.UP, true)
+	node.look_at(_grid_to_world(target), Vector3.UP)
 	var tw := create_tween().bind_node(node)
 	p["move_tween"] = tw
-	var effective_speed := int(p["speed"])
-	if weather_manager:
-		effective_speed = weather_manager.movement_speed(effective_speed, target)
-	var move_duration := clampf(0.72 / float(effective_speed), 0.10, 0.34)
-	tw.tween_property(node, "position", _grid_to_world(target), move_duration)
+	var effective_speed := _effective_move_speed(p, target)
+	var move_duration := _move_duration_for_speed(effective_speed)
+	tw.tween_property(node, "position", _grid_to_world(target), move_duration).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
 	tw.tween_callback(func():
 		p["move_tween"] = null
 		p["is_moving"] = false
@@ -847,6 +895,16 @@ func _try_move_player(index: int, dir: Vector2i) -> bool:
 			_check_powerup_pickup(index)
 	)
 	return true
+
+func _effective_move_speed(p: Dictionary, target: Vector2i) -> int:
+	var effective_speed := int(p["speed"])
+	if weather_manager:
+		effective_speed = weather_manager.movement_speed(effective_speed, target)
+	return effective_speed
+
+func _move_duration_for_speed(speed_value: int) -> float:
+	var normalized_speed := clampi(speed_value, 1, 10) - 1
+	return clampf(0.31 / (1.0 + 0.14 * float(normalized_speed)), 0.12, 0.31)
 
 func is_cell_walkable(x: int, y: int) -> bool:
 	if x < 0 or x >= GRID_W or y < 0 or y >= GRID_H:
@@ -1442,7 +1500,7 @@ func _frost_charge(index: int, direction: Vector2i):
 	boss["grid_pos"] = destination
 	boss["is_moving"] = true
 	var node: Node3D = boss["node"]
-	node.look_at(_grid_to_world(destination), Vector3.UP, true)
+	node.look_at(_grid_to_world(destination), Vector3.UP)
 	var tw := create_tween()
 	tw.tween_property(node, "position", _grid_to_world(destination), 0.18)
 	tw.tween_callback(func(): boss["is_moving"] = false)
@@ -1573,6 +1631,7 @@ func _cancel_player_movement(p: Dictionary):
 		(move_tween as Tween).kill()
 	p["move_tween"] = null
 	p["is_moving"] = false
+	_reset_player_move_input(p, true)
 	var node = p.get("node")
 	if is_instance_valid(node):
 		node.position = _grid_to_world(p["grid_pos"])
