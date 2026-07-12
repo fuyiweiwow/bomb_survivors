@@ -206,23 +206,6 @@ func _handle_player_bomb_action():
 	elif int(p["bomb_placed_count"]) < int(p["bomb_max"]):
 		bomb_manager.try_place_bomb(0)
 
-func _finish_player_move_immediately():
-	if players.is_empty():
-		return
-	var p: Dictionary = players[0]
-	if not p["alive"] or not bool(p.get("is_moving", false)):
-		return
-	var move_tween = p.get("move_tween")
-	if move_tween is Tween and is_instance_valid(move_tween):
-		(move_tween as Tween).kill()
-	p["move_tween"] = null
-	p["is_moving"] = false
-	var node = p.get("node")
-	if is_instance_valid(node):
-		var target_height := 0.92 if float(p.get("wings_timer", 0.0)) > 0.0 else 0.0
-		node.position = Constants.grid_to_world(p["grid_pos"]) + Vector3(0, target_height, 0)
-	powerup_manager.check_powerup_pickup(0)
-
 func _try_use_player_consumable():
 	if players.is_empty():
 		return
@@ -255,7 +238,7 @@ func _cycle_player_consumable():
 	var selected_item := str(inventory_manager.cycle(p))
 	p["status"] = "Selected %s" % powerup_manager._item_display_name(selected_item)
 
-func _try_move_player(index: int, dir: Vector2i) -> bool:
+func _try_move_player(index: int, dir: Vector2i, continuous := false) -> bool:
 	if index < 0 or index >= players.size():
 		return false
 	var p: Dictionary = players[index]
@@ -289,12 +272,22 @@ func _try_move_player(index: int, dir: Vector2i) -> bool:
 	if float(p.get("slow_timer", 0.0)) > 0.0:
 		move_duration *= 3.33
 	var target_height := 0.92 if float(p.get("wings_timer", 0.0)) > 0.0 else 0.0
-	tw.tween_property(node, "position", Constants.grid_to_world(target) + Vector3(0, target_height, 0), move_duration).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN_OUT)
+	var movement_track = tw.tween_property(node, "position", Constants.grid_to_world(target) + Vector3(0, target_height, 0), move_duration)
+	if continuous:
+		movement_track.set_trans(Tween.TRANS_LINEAR)
+	else:
+		movement_track.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
 	tw.tween_callback(func():
 		p["move_tween"] = null
 		p["is_moving"] = false
 		if bool(p.get("alive", false)) and not bool(p.get("downed", false)):
 			powerup_manager.check_powerup_pickup(index)
+		if index == 0 and input_controller and bool(p.get("alive", false)) and not bool(p.get("downed", false)):
+			var next_direction: Vector2i = input_controller.read_move_direction()
+			if next_direction == Vector2i.ZERO:
+				next_direction = input_controller.consume_buffered_direction()
+			if next_direction != Vector2i.ZERO:
+				_try_move_player(index, next_direction, true)
 	)
 	return true
 
