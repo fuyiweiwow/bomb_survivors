@@ -84,6 +84,9 @@ func explode_bomb(cell: Vector2i):
 	if not game.bomb_map.has(cell):
 		return
 	var entry: Dictionary = game.bomb_map[cell]
+	if bool(entry.get("exploded", false)):
+		return
+	entry["exploded"] = true
 	var player_index: int = entry["player_index"]
 	if player_index >= 0 and player_index < game.players.size():
 		game.players[player_index]["bomb_placed_count"] = max(game.players[player_index]["bomb_placed_count"] - 1, 0)
@@ -93,10 +96,17 @@ func explode_bomb(cell: Vector2i):
 		pulse.kill()
 	game.bomb_map.erase(cell)
 	var results: Dictionary = get_explosion_cells(cell, entry["range"], true)
+	var chained_bombs: Array[Vector2i] = []
+	for raw_cell in results["cells"]:
+		var blast_cell := raw_cell as Vector2i
+		if game.bomb_map.has(blast_cell):
+			chained_bombs.append(blast_cell)
 	spawn_explosion(results["cells"])
 	game._apply_explosion_damage(results["cells"], player_index, cell)
 	if is_instance_valid(bomb):
 		bomb.queue_free()
+	for chained_cell in chained_bombs:
+		explode_bomb(chained_cell)
 
 func get_explosion_cells(origin: Vector2i, blast_range: int, apply_weather := false) -> Dictionary:
 	var cells: Array = [origin]

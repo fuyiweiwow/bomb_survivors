@@ -7,9 +7,20 @@ func setup(game_manager: Node):
 
 func create_player(id: int, cell: Vector2i, ai: bool, mat: Material, style := "male") -> Dictionary:
 	var style_data := _player_style_data(style)
-	var root := Node3D.new()
+	var root := Area3D.new()
 	root.name = "Player%d_3D" % id
 	root.position = Constants.grid_to_world(cell)
+	root.collision_layer = 2
+	root.collision_mask = 2
+	root.monitoring = true
+	root.monitorable = true
+	var collision_shape := CollisionShape3D.new()
+	var capsule_shape := CapsuleShape3D.new()
+	capsule_shape.radius = style_data["radius"]
+	capsule_shape.height = style_data["height"]
+	collision_shape.shape = capsule_shape
+	collision_shape.position = Vector3(0, style_data["body_y"], 0)
+	root.add_child(collision_shape)
 
 	var body := MeshHelpers.capsule(style_data["radius"], style_data["height"], mat)
 	body.position = Vector3(0, style_data["body_y"], 0)
@@ -181,6 +192,7 @@ func spawn_ai_wave(count: int, difficulty: String, start_id: int):
 		current_id += 1
 		apply_ai_difficulty(ai_player, difficulty)
 		_game.players.append(ai_player)
+		_play_spawn_effect(spawn_cell, false)
 
 func spawn_boss(boss_id: String, boss_id_val: int):
 	var spawn_cell := find_spawn_cell()
@@ -200,6 +212,8 @@ func spawn_boss(boss_id: String, boss_id_val: int):
 	boss["skill_timer"] = boss_data_dict["skill_interval"]
 	boss["node"].scale = Vector3(1.45, 1.45, 1.45)
 	_game.players.append(boss)
+	_play_spawn_effect(spawn_cell, true)
+	_game.game_ui.flash_boss_spawn()
 
 func spawn_clone_minions(origin: Vector2i, start_id: int):
 	var current_id := start_id
@@ -238,6 +252,31 @@ func _is_clone_spawn_walkable(cell: Vector2i) -> bool:
 		if p["alive"] and p["grid_pos"] == cell:
 			return false
 	return true
+
+func _play_spawn_effect(cell: Vector2i, is_boss: bool):
+	var duration := 1.5 if is_boss else 0.5
+	var color := Color(1.0, 0.16, 0.08) if is_boss else Color(0.20, 0.88, 1.0)
+	var material := MeshHelpers.make_mat(color, true)
+	var effect_root := Node3D.new()
+	effect_root.name = "BossSpawnEffect" if is_boss else "AISpawnEffect"
+	effect_root.position = Constants.grid_to_world(cell)
+	_game.add_child(effect_root)
+
+	var pillar := MeshHelpers.cylinder(0.34 if is_boss else 0.22, 5.5 if is_boss else 3.8, material)
+	pillar.position.y = 2.75 if is_boss else 1.9
+	pillar.transparency = 0.18
+	effect_root.add_child(pillar)
+	var ring := MeshHelpers.cylinder(0.55, 0.05, material)
+	ring.position.y = 0.08
+	effect_root.add_child(ring)
+
+	var tween := _game.create_tween().bind_node(effect_root).set_parallel()
+	tween.tween_property(pillar, "transparency", 1.0, duration)
+	tween.tween_property(pillar, "scale", Vector3(0.45, 1.0, 0.45), duration)
+	tween.tween_property(ring, "scale", Vector3(3.2 if is_boss else 1.8, 1.0, 3.2 if is_boss else 1.8), duration).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	tween.tween_property(ring, "transparency", 1.0, duration)
+	tween.set_parallel(false)
+	tween.tween_callback(effect_root.queue_free)
 
 func _player_style_data(style: String) -> Dictionary:
 	match style:

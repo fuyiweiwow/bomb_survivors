@@ -239,12 +239,6 @@ func _is_ai_escape_walkable(cell: Vector2i, bomb_cell: Vector2i, player_index: i
 		return false
 	if _game.oil_barrels.has(cell):
 		return false
-	for i in range(_game.players.size()):
-		if i == player_index:
-			continue
-		var other: Dictionary = _game.players[i]
-		if other["alive"] and other["grid_pos"] == cell:
-			return false
 	return true
 
 func _process_boss_skill(index: int, delta: float):

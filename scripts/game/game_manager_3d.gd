@@ -121,7 +121,6 @@ func _setup_input_controller():
 	input_controller = load("res://scripts/character/player_input_controller.gd").new()
 	add_child(input_controller)
 	input_controller.action_requested.connect(_on_player_action)
-	input_controller.movement_released.connect(_finish_player_move_immediately)
 
 func _on_player_action(action: String):
 	if game_over:
@@ -170,6 +169,7 @@ func _process(delta):
 	if weather_manager:
 		weather_manager.process_weather(delta)
 	combat_manager.process_downed(delta)
+	combat_manager.process_character_overlaps()
 	combat_manager.process_terrain_effects(delta)
 	wall_mechanics.process(delta)
 	consumable_effects.process(delta)
@@ -192,9 +192,12 @@ func _process_player_input():
 	else:
 		bomb_pressed = false
 
-	var held_dir: Vector2i = input_controller.read_move_direction() if input_controller else Vector2i.ZERO
-	if not p["is_moving"] and held_dir != Vector2i.ZERO:
-		_try_move_player(0, held_dir)
+	if not p["is_moving"] and input_controller:
+		var move_dir: Vector2i = input_controller.read_move_direction()
+		if move_dir == Vector2i.ZERO:
+			move_dir = input_controller.consume_buffered_direction()
+		if move_dir != Vector2i.ZERO:
+			_try_move_player(0, move_dir)
 
 func _handle_player_bomb_action():
 	var p: Dictionary = players[0]
@@ -261,6 +264,10 @@ func _try_move_player(index: int, dir: Vector2i) -> bool:
 	if float(p.get("frozen_timer", 0.0)) > 0.0:
 		return false
 	var target: Vector2i = p["grid_pos"] + dir
+	if target.x < 0 or target.x >= Constants.GRID_W or target.y < 0 or target.y >= Constants.GRID_H:
+		return false
+	if grid[target.y][target.x] == Constants.Cell.WALL:
+		return wall_mechanics.try_wall_hop(index, dir)
 	if not is_cell_walkable(target.x, target.y, index):
 		return false
 	var node: Node3D = p["node"]
@@ -282,7 +289,7 @@ func _try_move_player(index: int, dir: Vector2i) -> bool:
 	if float(p.get("slow_timer", 0.0)) > 0.0:
 		move_duration *= 3.33
 	var target_height := 0.92 if float(p.get("wings_timer", 0.0)) > 0.0 else 0.0
-	tw.tween_property(node, "position", Constants.grid_to_world(target) + Vector3(0, target_height, 0), move_duration).set_trans(Tween.TRANS_LINEAR)
+	tw.tween_property(node, "position", Constants.grid_to_world(target) + Vector3(0, target_height, 0), move_duration).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN_OUT)
 	tw.tween_callback(func():
 		p["move_tween"] = null
 		p["is_moving"] = false
@@ -308,9 +315,6 @@ func is_cell_walkable(x: int, y: int, player_index := -1) -> bool:
 		return false
 	if bomb_map.has(cell) and not has_wings and not _can_player_pass_bomb(player_index, cell):
 		return false
-	for p in players:
-		if p["alive"] and p["grid_pos"] == Vector2i(x, y):
-			return false
 	return true
 
 func _can_player_pass_bomb(player_index: int, cell: Vector2i) -> bool:

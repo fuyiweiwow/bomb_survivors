@@ -101,6 +101,19 @@ func show_result(winner_id: int):
 	quit_btn.pressed.connect(func(): _game.get_tree().quit())
 	box.add_child(quit_btn)
 
+func flash_boss_spawn():
+	var layer := CanvasLayer.new()
+	layer.layer = 90
+	_game.add_child(layer)
+	var flash := ColorRect.new()
+	flash.color = Color(0.85, 0.02, 0.01, 0.34)
+	flash.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	flash.set_anchors_preset(Control.PRESET_FULL_RECT)
+	layer.add_child(flash)
+	var tween := create_tween().bind_node(layer)
+	tween.tween_property(flash, "color:a", 0.0, 1.5).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	tween.tween_callback(layer.queue_free)
+
 func update_weather_visibility():
 	if _game.players.is_empty() or not _game.weather_manager:
 		return

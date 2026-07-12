@@ -87,6 +87,59 @@ func try_bomb_boost(player_index: int) -> bool:
 		game.create_tween().bind_node(node).tween_property(node, "position", Constants.grid_to_world(target) + Vector3(0, height, 0), 0.24).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
 	return true
 
+func try_wall_hop(player_index: int, direction: Vector2i) -> bool:
+	if player_index < 0 or player_index >= game.players.size() or direction == Vector2i.ZERO:
+		return false
+	var player: Dictionary = game.players[player_index]
+	if game.bomb_manager.game_time() > float(player.get("bomb_hop_until", -99.0)):
+		return false
+	var hop_cells := player.get("bomb_hop_cells", {}) as Dictionary
+	if hop_cells.size() < 2:
+		return false
+	var active_hop_bombs := 0
+	for raw_cell in hop_cells.keys():
+		var bomb_cell := raw_cell as Vector2i
+		if game.bomb_map.has(bomb_cell) and int((game.bomb_map[bomb_cell] as Dictionary).get("player_index", -1)) == player_index:
+			active_hop_bombs += 1
+	if active_hop_bombs < 2:
+		return false
+	var origin := player["grid_pos"] as Vector2i
+	var wall_cell := origin + direction
+	if not _is_in_bounds(wall_cell) or game.grid[wall_cell.y][wall_cell.x] != CELL_WALL:
+		return false
+	var perpendicular := Vector2i(-direction.y, direction.x)
+	var required_empty := [origin - perpendicular, origin, origin + perpendicular, wall_cell - perpendicular, wall_cell + perpendicular]
+	for raw_cell in required_empty:
+		var cell := raw_cell as Vector2i
+		if not _is_in_bounds(cell) or game.grid[cell.y][cell.x] != CELL_EMPTY:
+			return false
+	for exit_cell in [wall_cell - perpendicular, wall_cell + perpendicular]:
+		if game.bomb_map.has(exit_cell) or game.oil_barrels.has(exit_cell):
+			return false
+
+	player["grid_pos"] = wall_cell
+	player["last_move_dir"] = direction
+	player["elevated_cell"] = wall_cell
+	player["wall_stay_timer"] = 0.0
+	player["wall_warning"] = false
+	player["bomb_hop_until"] = -99.0
+	player["bomb_hop_cells"] = {}
+	player["is_moving"] = true
+	player["status"] = "Wall Hop"
+	var node = player.get("node")
+	if not is_instance_valid(node):
+		player["is_moving"] = false
+		return false
+	(node as Node3D).look_at(Constants.grid_to_world(wall_cell), Vector3.UP)
+	var tween := game.create_tween().bind_node(node)
+	player["move_tween"] = tween
+	tween.tween_property(node, "position", Constants.grid_to_world(wall_cell) + Vector3(0, 1.30, 0), 0.16).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	tween.tween_callback(func():
+		player["move_tween"] = null
+		player["is_moving"] = false
+	)
+	return true
+
 func clear_wall_warning(player: Dictionary):
 	if not bool(player.get("wall_warning", false)):
 		return
@@ -119,3 +172,6 @@ func _set_wall_warning(cell: Vector2i, enabled: bool):
 	var wall = game.grid_manager.wall_nodes.get(cell)
 	if is_instance_valid(wall):
 		wall.transparency = 0.45 if enabled else 0.0
+
+func _is_in_bounds(cell: Vector2i) -> bool:
+	return cell.x >= 0 and cell.x < Constants.GRID_W and cell.y >= 0 and cell.y < Constants.GRID_H

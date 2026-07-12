@@ -22,14 +22,40 @@ func _run():
 		return
 
 	var player: Dictionary = game.players[0]
-	var bomb_cell := player["grid_pos"] as Vector2i
-	if not _check(game.bomb_manager.try_place_bomb(0), "Bomb placement failed"):
+	if not _check(game.players.size() > 1, "Initial AI wave was not created"):
 		return
-	if not _check(game.bomb_map.has(bomb_cell), "Placed bomb was not registered"):
+	if not _check(game.get_node_or_null("AISpawnEffect") != null, "AI spawn effect was not created"):
 		return
-	if not _check(game.bomb_manager.active_blast_cell_set().has(bomb_cell), "Blast map missed bomb origin"):
+	var key_event := InputEventKey.new()
+	key_event.physical_keycode = KEY_D
+	key_event.pressed = true
+	game.input_controller._unhandled_input(key_event)
+	if not _check(game.input_controller.consume_buffered_direction() == Vector2i.RIGHT, "Movement input was not buffered"):
 		return
-	if not _check(game.wall_mechanics.is_cell_occupied(bomb_cell), "Wall occupancy missed player"):
+
+	var wall_cell := Vector2i(7, 5)
+	var origin := Vector2i(7, 6)
+	var previous := Vector2i(6, 6)
+	for raw_cell in [wall_cell + Vector2i.LEFT, wall_cell + Vector2i.RIGHT, origin + Vector2i.LEFT, origin, origin + Vector2i.RIGHT]:
+		var cell := raw_cell as Vector2i
+		game.grid_manager.set_cell(cell.x, cell.y, Constants.Cell.EMPTY)
+	game.grid_manager.set_cell(wall_cell.x, wall_cell.y, Constants.Cell.WALL)
+	player["bomb_max"] = 2
+	player["grid_pos"] = previous
+	player["node"].position = Constants.grid_to_world(previous)
+	if not _check(game.bomb_manager.try_place_bomb(0), "First hopping bomb placement failed"):
+		return
+	player["grid_pos"] = origin
+	player["node"].position = Constants.grid_to_world(origin)
+	if not _check(game.bomb_manager.try_place_bomb(0), "Second hopping bomb placement failed"):
+		return
+	if not _check(game.wall_mechanics.try_wall_hop(0, Vector2i.UP), "Strict wall hop was rejected"):
+		return
+	if not _check(player["grid_pos"] == wall_cell, "Wall hop did not move player onto wall"):
+		return
+
+	game.bomb_manager.explode_bomb(previous)
+	if not _check(not game.bomb_map.has(previous) and not game.bomb_map.has(origin), "Bomb chain reaction did not detonate both bombs"):
 		return
 
 	var shield_before := int(player["shield"])
@@ -38,7 +64,20 @@ func _run():
 	if not _check(int(player["shield"]) == shield_before + 1, "Shield potion did not change player state"):
 		return
 
-	print("MODULAR_GAMEPLAY_SMOKE_OK modules=3 manager_lines_target=1700")
+	var enemy: Dictionary = game.players[1]
+	game.combat_manager._cancel_player_movement(player)
+	player["alive"] = true
+	player["downed"] = true
+	player["grid_pos"] = enemy["grid_pos"]
+	player["node"].position = enemy["node"].position
+	game.combat_manager.process_character_overlaps()
+	if not _check(not player["alive"], "Hostile overlap did not defeat downed player"):
+		return
+	var occupied_cell := enemy["grid_pos"] as Vector2i
+	if not _check(game.is_cell_walkable(occupied_cell.x, occupied_cell.y, 0), "Living characters still block shared cells"):
+		return
+
+	print("GAME_DESIGN_SMOKE_OK input_buffer wall_hop chain_reaction overlap spawn_fx")
 	quit(0)
 
 

@@ -17,6 +17,32 @@ func process_downed(delta: float):
 		elif float(p["downed_timer"]) <= 0.0:
 			_kill_player(i)
 
+func process_character_overlaps():
+	for downed_index in range(_game.players.size()):
+		var downed_player: Dictionary = _game.players[downed_index]
+		if not downed_player["alive"] or not bool(downed_player.get("downed", false)):
+			continue
+		for other_index in range(_game.players.size()):
+			if other_index == downed_index:
+				continue
+			var other: Dictionary = _game.players[other_index]
+			if not other["alive"] or bool(other.get("downed", false)):
+				continue
+			if bool(other.get("ai", false)) == bool(downed_player.get("ai", false)):
+				continue
+			if other["grid_pos"] == downed_player["grid_pos"] and _character_nodes_overlap(downed_player, other):
+				_kill_player(downed_index)
+				break
+
+func _character_nodes_overlap(first: Dictionary, second: Dictionary) -> bool:
+	var first_node = first.get("node")
+	var second_node = second.get("node")
+	if not is_instance_valid(first_node) or not is_instance_valid(second_node):
+		return false
+	var first_position := (first_node as Node3D).global_position
+	var second_position := (second_node as Node3D).global_position
+	return Vector2(first_position.x, first_position.z).distance_to(Vector2(second_position.x, second_position.z)) <= 0.72
+
 func process_terrain_effects(delta: float):
 	for i in range(_game.players.size()):
 		var p: Dictionary = _game.players[i]
