@@ -4,7 +4,7 @@ const GRID_W := 15
 const GRID_H := 11
 const TILE_SIZE := 1.6
 const FLOOR_Y := 0.0
-const TERRAIN_ART := preload("res://scripts/terrain/TerrainArtFactory.gd")
+const TERRAIN_ART := preload("res://scripts/terrain/terrain_art_factory.gd")
 
 enum Cell { EMPTY, WALL, CRATE, FOREST, LAVA }
 

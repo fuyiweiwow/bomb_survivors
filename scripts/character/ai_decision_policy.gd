@@ -1,7 +1,7 @@
 class_name AIDecisionPolicy
 extends RefCounted
 
-const AI_PATHFINDER := preload("res://scripts/character/AIPathfinder.gd")
+const AI_PATHFINDER := preload("res://scripts/character/ai_pathfinder.gd")
 
 const INVALID_SCORE := -1000000.0
 const EASY_POWERUP_SCORE := 27.0

@@ -25,13 +25,13 @@ func _unhandled_input(event: InputEvent) -> void:
 
 func read_move_direction() -> Vector2i:
 	var direction := Vector2i.ZERO
-	if Input.is_action_pressed("p1_up"):
+	if Input.is_action_pressed("p1_up") or Input.is_key_pressed(KEY_UP):
 		direction.y -= 1
-	if Input.is_action_pressed("p1_down"):
+	if Input.is_action_pressed("p1_down") or Input.is_key_pressed(KEY_DOWN):
 		direction.y += 1
-	if Input.is_action_pressed("p1_left"):
+	if Input.is_action_pressed("p1_left") or Input.is_key_pressed(KEY_LEFT):
 		direction.x -= 1
-	if Input.is_action_pressed("p1_right"):
+	if Input.is_action_pressed("p1_right") or Input.is_key_pressed(KEY_RIGHT):
 		direction.x += 1
 	if direction.x != 0:
 		direction.y = 0

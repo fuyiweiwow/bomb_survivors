@@ -6,7 +6,7 @@
 
 | 类别 | 约定 | 示例 |
 |------|------|------|
-| 文件/类名 | `PascalCase` | `GameManager.gd`, `PlayerController.gd` |
+| 文件/类名 | `snake_case` | `game_manager_3d.gd`, `player_controller.gd` |
 | 变量/函数 | `snake_case` | `player_speed`, `_process_input()` |
 | 常量 | `UPPER_CASE` | `const MAX_BOMB_RANGE := 10` |
 | 枚举 | `PascalCase` | `enum CellType { EMPTY, WALL }` |
