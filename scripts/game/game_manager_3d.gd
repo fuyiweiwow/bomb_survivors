@@ -1867,7 +1867,11 @@ func _update_weather_visibility():
 		var p: Dictionary = players[i]
 		var node = p.get("node")
 		if is_instance_valid(node):
-			(node as Node3D).visible = p["alive"] and weather_manager.can_see(players[0]["grid_pos"], p["grid_pos"])
+			(node as Node3D).visible = (
+				p["alive"]
+				and not _is_player_hidden(i)
+				and weather_manager.can_see(players[0]["grid_pos"], p["grid_pos"])
+			)
 
 func _process_boss_skill(index: int, delta: float):
 	var boss: Dictionary = players[index]
