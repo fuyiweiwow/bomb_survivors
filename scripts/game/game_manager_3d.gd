@@ -9,7 +9,6 @@ const PLAYER_MAX_HP := 3
 const LAVA_DAMAGE_TIME := 1.35
 const DOWNED_DURATION := 5.0
 const MAX_CONSUMABLES := 3
-const MOVE_HOLD_DELAY := 0.26
 const BOMB_HOP_WINDOW := 0.30
 const WALL_WARNING_TIME := 2.0
 const WALL_DESTROY_TIME := 4.0
@@ -310,6 +309,7 @@ func _spawn_players():
 	player["bomb_max"] = config["start_bombs"]
 	player["bomb_range"] = config["start_range"]
 	player["shield"] = config["start_shields"]
+	player["consumables"].append("shield_potion")
 	players.append(player)
 
 func _spawn_ai_wave(count: int):
@@ -463,11 +463,6 @@ func _create_player(id: int, cell: Vector2i, ai: bool, mat: Material, style := "
 		"is_moving": false,
 		"move_tween": null,
 		"state_tween": null,
-		"input_hold_dir": Vector2i.ZERO,
-		"input_hold_time": 0.0,
-		"input_repeat_time": 0.0,
-		"input_repeat_started": false,
-		"queued_move_dir": Vector2i.ZERO,
 		"speed": 5,
 		"bomb_max": 1,
 		"bomb_range": 2,
@@ -645,6 +640,9 @@ func _unhandled_input(event):
 		if event is InputEventKey and event.pressed and event.keycode == KEY_Q:
 			get_tree().quit()
 		return
+	if event is InputEventKey and not event.pressed and event.physical_keycode in [KEY_W, KEY_A, KEY_S, KEY_D]:
+		_finish_player_move_immediately()
+		return
 
 	if event is InputEventKey and event.pressed and not event.echo:
 		match event.physical_keycode:
@@ -652,6 +650,23 @@ func _unhandled_input(event):
 			KEY_E: _try_use_player_consumable()
 			KEY_Q: _cycle_player_consumable()
 			KEY_ESCAPE: get_tree().change_scene_to_file("res://scenes/menu/main_menu.tscn")
+
+func _finish_player_move_immediately():
+	if players.is_empty():
+		return
+	var p: Dictionary = players[0]
+	if not p["alive"] or not bool(p.get("is_moving", false)):
+		return
+	var move_tween = p.get("move_tween")
+	if move_tween is Tween and is_instance_valid(move_tween):
+		(move_tween as Tween).kill()
+	p["move_tween"] = null
+	p["is_moving"] = false
+	var node = p.get("node")
+	if is_instance_valid(node):
+		var target_height := 0.92 if float(p.get("wings_timer", 0.0)) > 0.0 else 0.0
+		node.position = _grid_to_world(p["grid_pos"]) + Vector3(0, target_height, 0)
+	_check_powerup_pickup(0)
 
 func _try_use_player_consumable():
 	if players.is_empty():
@@ -815,7 +830,7 @@ func _process(delta):
 	_process_wall_mechanics(delta)
 	_process_dynamic_items(delta)
 	_update_hud()
-	_process_player_input(delta)
+	_process_player_input()
 	_process_ai(delta)
 	_update_weather_visibility()
 
@@ -906,13 +921,12 @@ func _end_wings(p: Dictionary):
 				node.position = _grid_to_world(target)
 			return
 
-func _process_player_input(delta: float):
+func _process_player_input():
 	if players.is_empty():
 		return
 	var p: Dictionary = players[0]
 	if not p["alive"] or bool(p.get("downed", false)):
 		bomb_pressed = false
-		_reset_player_move_input(p, true)
 		return
 
 	if bomb_pressed or Input.is_action_just_pressed("p1_bomb"):
@@ -922,33 +936,8 @@ func _process_player_input(delta: float):
 		bomb_pressed = false
 
 	var held_dir := _read_player_move_dir()
-	var pressed_dir := _read_player_move_dir(true)
-	if held_dir == Vector2i.ZERO:
-		_reset_player_move_input(p, false)
-	else:
-		var direction_changed := held_dir != (p["input_hold_dir"] as Vector2i)
-		if pressed_dir != Vector2i.ZERO or direction_changed:
-			p["input_hold_dir"] = held_dir
-			p["input_hold_time"] = 0.0
-			p["input_repeat_time"] = 0.0
-			p["input_repeat_started"] = false
-			p["queued_move_dir"] = held_dir
-		else:
-			p["input_hold_time"] = float(p["input_hold_time"]) + delta
-			if float(p["input_hold_time"]) >= MOVE_HOLD_DELAY:
-				p["input_repeat_time"] = float(p["input_repeat_time"]) + delta
-				var repeat_interval := _player_repeat_interval(p, held_dir)
-				if not bool(p["input_repeat_started"]):
-					p["input_repeat_started"] = true
-					p["input_repeat_time"] = repeat_interval
-				if float(p["input_repeat_time"]) >= repeat_interval:
-					p["input_repeat_time"] = 0.0
-					p["queued_move_dir"] = held_dir
-
-	if not p["is_moving"] and (p["queued_move_dir"] as Vector2i) != Vector2i.ZERO:
-		var move_dir := p["queued_move_dir"] as Vector2i
-		p["queued_move_dir"] = Vector2i.ZERO
-		_try_move_player(0, move_dir)
+	if not p["is_moving"] and held_dir != Vector2i.ZERO:
+		_try_move_player(0, held_dir)
 
 func _handle_player_bomb_action():
 	var p: Dictionary = players[0]
@@ -957,35 +946,19 @@ func _handle_player_bomb_action():
 	elif int(p["bomb_placed_count"]) < int(p["bomb_max"]):
 		_try_place_bomb(0)
 
-func _read_player_move_dir(just_pressed := false) -> Vector2i:
+func _read_player_move_dir() -> Vector2i:
 	var d := Vector2i.ZERO
-	if _move_action_active("p1_up", just_pressed):
+	if Input.is_action_pressed("p1_up"):
 		d.y -= 1
-	if _move_action_active("p1_down", just_pressed):
+	if Input.is_action_pressed("p1_down"):
 		d.y += 1
-	if _move_action_active("p1_left", just_pressed):
+	if Input.is_action_pressed("p1_left"):
 		d.x -= 1
-	if _move_action_active("p1_right", just_pressed):
+	if Input.is_action_pressed("p1_right"):
 		d.x += 1
 	if d.x != 0:
 		d.y = 0
 	return d
-
-func _move_action_active(action: StringName, just_pressed: bool) -> bool:
-	return Input.is_action_just_pressed(action) if just_pressed else Input.is_action_pressed(action)
-
-func _reset_player_move_input(p: Dictionary, clear_queue: bool):
-	p["input_hold_dir"] = Vector2i.ZERO
-	p["input_hold_time"] = 0.0
-	p["input_repeat_time"] = 0.0
-	p["input_repeat_started"] = false
-	if clear_queue:
-		p["queued_move_dir"] = Vector2i.ZERO
-
-func _player_repeat_interval(p: Dictionary, direction: Vector2i) -> float:
-	var target: Vector2i = p["grid_pos"] + direction
-	var effective_speed := _effective_move_speed(p, target)
-	return _move_duration_for_speed(effective_speed) + 0.025
 
 func _process_ai(delta: float):
 	for i in range(players.size()):
@@ -1104,7 +1077,7 @@ func _try_move_player(index: int, dir: Vector2i) -> bool:
 	if float(p.get("slow_timer", 0.0)) > 0.0:
 		move_duration *= 3.33
 	var target_height := 0.92 if float(p.get("wings_timer", 0.0)) > 0.0 else 0.0
-	tw.tween_property(node, "position", _grid_to_world(target) + Vector3(0, target_height, 0), move_duration).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	tw.tween_property(node, "position", _grid_to_world(target) + Vector3(0, target_height, 0), move_duration).set_trans(Tween.TRANS_LINEAR)
 	tw.tween_callback(func():
 		p["move_tween"] = null
 		p["is_moving"] = false
@@ -2083,7 +2056,6 @@ func _cancel_player_movement(p: Dictionary):
 		(move_tween as Tween).kill()
 	p["move_tween"] = null
 	p["is_moving"] = false
-	_reset_player_move_input(p, true)
 	var node = p.get("node")
 	if is_instance_valid(node):
 		node.position = _grid_to_world(p["grid_pos"])
