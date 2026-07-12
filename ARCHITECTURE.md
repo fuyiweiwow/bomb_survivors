@@ -466,6 +466,15 @@ GameManager (Node3D)
 
 ## 七、重构步骤（P0 具体计划）
 
+### 当前落地状态
+
+- `game_manager_3d.gd` 只保留场景编排、地图生成、玩家/AI/Boss 和伤害结算。
+- `BombManager.gd` 负责炸弹放置、踢动、引爆、火焰表现和爆炸危险格计算。
+- `WallMechanics.gd` 负责炸弹上墙、墙体预警、自毁和恢复。
+- `ConsumableEffects.gd` 负责主动消耗品、胶水区域、油桶连锁和翅膀落点。
+- `InventoryManager.gd`、`PlayerInputController.gd`、`GameHUD.gd` 分别负责背包、输入与 HUD。
+- 当前子系统通过注入游戏场景引用共享运行时网格；后续可继续迁移 AI 与角色状态，并收窄为信号接口。
+
 | 步骤 | 操作 | 涉及文件 |
 |------|------|----------|
 | 1 | 创建 `Constants.gd`，从 `game_manager_3d.gd` 提取所有常量 | 新建 |

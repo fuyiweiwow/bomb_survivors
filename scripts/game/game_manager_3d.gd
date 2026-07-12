@@ -4,22 +4,20 @@ const GRID_W := 15
 const GRID_H := 11
 const TILE_SIZE := 1.6
 const FLOOR_Y := 0.0
-const BOMB_FUSE := 2.5
 const PLAYER_MAX_HP := 3
 const LAVA_DAMAGE_TIME := 1.35
 const DOWNED_DURATION := 5.0
 const INVENTORY_MANAGER := preload("res://scripts/item/InventoryManager.gd")
 const MAX_CONSUMABLES := INVENTORY_MANAGER.MAX_ITEMS
-const BOMB_HOP_WINDOW := 0.30
-const WALL_WARNING_TIME := 2.0
-const WALL_DESTROY_TIME := 4.0
-const WALL_RESTORE_TIME := 8.0
 const AI_DECISION_POLICY := preload("res://scripts/character/AIDecisionPolicy.gd")
 const WEATHER_MANAGER := preload("res://scripts/weather/WeatherManager.gd")
 const WAVE_MANAGER := preload("res://scripts/wave/WaveManager.gd")
 const TERRAIN_ART := preload("res://scripts/terrain/TerrainArtFactory.gd")
 const PLAYER_INPUT_CONTROLLER := preload("res://scripts/character/PlayerInputController.gd")
 const GAME_HUD := preload("res://scripts/ui/GameHUD.gd")
+const BOMB_MANAGER := preload("res://scripts/bomb/BombManager.gd")
+const WALL_MECHANICS := preload("res://scripts/terrain/WallMechanics.gd")
+const CONSUMABLE_EFFECTS := preload("res://scripts/item/ConsumableEffects.gd")
 const CONSUMABLE_IDS := ["detonator", "glue", "shield_potion", "invincible_star", "dummy", "oil_barrel", "wings", "football_shoes", "tianlao"]
 
 enum Cell { EMPTY, WALL, CRATE, FOREST, LAVA }
@@ -41,6 +39,9 @@ var world_environment: Environment = null
 var weather_visuals := Node3D.new()
 var input_controller: Node = null
 var inventory_manager: RefCounted = INVENTORY_MANAGER.new()
+var bomb_manager: Node = null
+var wall_mechanics: Node = null
+var consumable_effects: Node = null
 
 var bomb_pressed := false
 var game_camera: Camera3D = null
@@ -83,6 +84,7 @@ func _ready():
 	add_to_group("game")
 	randomize()
 	ai_difficulty = _load_ai_difficulty()
+	_setup_gameplay_systems()
 	_init_grid()
 	_create_world()
 	_spawn_players()
@@ -90,6 +92,17 @@ func _ready():
 	_setup_hud()
 	_setup_input_controller()
 	_setup_progression()
+
+func _setup_gameplay_systems():
+	bomb_manager = BOMB_MANAGER.new()
+	add_child(bomb_manager)
+	bomb_manager.setup(self)
+	wall_mechanics = WALL_MECHANICS.new()
+	add_child(wall_mechanics)
+	wall_mechanics.setup(self)
+	consumable_effects = CONSUMABLE_EFFECTS.new()
+	add_child(consumable_effects)
+	consumable_effects.setup(self)
 
 func _setup_input_controller():
 	input_controller = PLAYER_INPUT_CONTROLLER.new()
@@ -607,7 +620,7 @@ func _try_use_player_consumable():
 	if item_id == "dummy":
 		p["status"] = "Dummy is passive"
 		return
-	if _use_consumable(0, item_id):
+	if consumable_effects.use(0, item_id):
 		inventory_manager.consume_selected(p)
 
 func _cycle_player_consumable():
@@ -620,109 +633,6 @@ func _cycle_player_consumable():
 		return
 	var selected_item := str(inventory_manager.cycle(p))
 	p["status"] = "Selected %s" % _item_display_name(selected_item)
-
-func _use_consumable(player_index: int, item_id: String) -> bool:
-	var p: Dictionary = players[player_index]
-	match item_id:
-		"detonator":
-			return _use_detonator(p)
-		"glue":
-			_place_glue(player_index)
-			return true
-		"shield_potion":
-			p["shield"] = clampi(int(p["shield"]) + 1, 0, 5)
-			p["status"] = "Shield gained"
-			return true
-		"invincible_star":
-			p["invincible_timer"] = 5.0
-			p["status"] = "Invincible 5s"
-			return true
-		"oil_barrel":
-			return _place_oil_barrel(player_index)
-		"wings":
-			p["wings_timer"] = 8.0
-			p["status"] = "Wings 8s"
-			return true
-		"football_shoes":
-			p["football_timer"] = 8.0
-			p["status"] = "Football shoes 8s"
-			return true
-		"tianlao":
-			_cast_tianlao(player_index)
-			return true
-	return false
-
-func _use_detonator(p: Dictionary) -> bool:
-	var direction := p["last_move_dir"] as Vector2i
-	for distance in range(1, 7):
-		var cell: Vector2i = p["grid_pos"] + direction * distance
-		if cell.x < 0 or cell.x >= GRID_W or cell.y < 0 or cell.y >= GRID_H or grid[cell.y][cell.x] == Cell.WALL:
-			break
-		if bomb_map.has(cell):
-			_explode_bomb(cell)
-			return true
-	p["status"] = "No bomb in sight"
-	return false
-
-func _place_glue(player_index: int):
-	var p: Dictionary = players[player_index]
-	var cell := p["grid_pos"] as Vector2i
-	if glue_areas.has(cell):
-		var old_node = (glue_areas[cell] as Dictionary).get("node")
-		if is_instance_valid(old_node):
-			old_node.queue_free()
-	var node := _cylinder(TILE_SIZE * 0.38, 0.035, mat_glue)
-	node.position = _grid_to_world(cell) + Vector3(0, 0.07, 0)
-	add_child(node)
-	glue_areas[cell] = {"node": node, "time": 5.0, "owner": player_index}
-	p["status"] = "Glue placed"
-
-func _place_oil_barrel(player_index: int) -> bool:
-	var p: Dictionary = players[player_index]
-	var cell: Vector2i = p["grid_pos"] + (p["last_move_dir"] as Vector2i)
-	if cell.x < 0 or cell.x >= GRID_W or cell.y < 0 or cell.y >= GRID_H:
-		return false
-	if not _is_walkable_cell(grid[cell.y][cell.x]) or bomb_map.has(cell) or oil_barrels.has(cell) or _is_cell_occupied(cell):
-		p["status"] = "No room for barrel"
-		return false
-	var root := Node3D.new()
-	root.position = _grid_to_world(cell)
-	var body := _cylinder(0.48, 0.92, mat_oil)
-	body.position = Vector3(0, 0.46, 0)
-	root.add_child(body)
-	var band := _cylinder(0.50, 0.10, mat_bomb_power)
-	band.position = Vector3(0, 0.48, 0)
-	root.add_child(band)
-	add_child(root)
-	oil_barrels[cell] = {"node": root, "hp": 4, "owner": player_index}
-	p["status"] = "Oil barrel placed"
-	return true
-
-func _cast_tianlao(player_index: int):
-	var p: Dictionary = players[player_index]
-	var origin := p["grid_pos"] as Vector2i
-	var cells: Array = [origin]
-	var directions := [Vector2i.UP, Vector2i.DOWN, Vector2i.LEFT, Vector2i.RIGHT]
-	for direction in directions:
-		for distance in range(1, 6):
-			var cell: Vector2i = origin + direction * distance
-			if cell.x < 0 or cell.x >= GRID_W or cell.y < 0 or cell.y >= GRID_H or grid[cell.y][cell.x] == Cell.WALL:
-				break
-			cells.append(cell)
-	for raw_cell in cells:
-		var marker := _box(Vector3(TILE_SIZE * 0.72, 0.06, TILE_SIZE * 0.72), mat_bomb_power)
-		marker.position = _grid_to_world(raw_cell as Vector2i) + Vector3(0, 0.10, 0)
-		add_child(marker)
-		var marker_tw := create_tween().bind_node(marker).set_loops()
-		marker_tw.tween_property(marker, "transparency", 0.75, 0.18)
-		marker_tw.tween_property(marker, "transparency", 0.05, 0.18)
-		var timer := get_tree().create_timer(1.5)
-		timer.timeout.connect(marker.queue_free)
-	get_tree().create_timer(1.5).timeout.connect(func():
-		_spawn_explosion(cells)
-		_apply_explosion_damage(cells, player_index)
-	)
-	p["status"] = "Tianlao armed"
 
 func _item_display_name(item_id: String) -> String:
 	match item_id:
@@ -746,8 +656,8 @@ func _process(delta):
 		weather_manager.process_weather(delta)
 	_process_downed_players(delta)
 	_process_terrain_effects(delta)
-	_process_wall_mechanics(delta)
-	_process_dynamic_items(delta)
+	wall_mechanics.process(delta)
+	consumable_effects.process(delta)
 	_update_hud()
 	_process_player_input()
 	_process_ai(delta)
@@ -776,7 +686,7 @@ func _process_terrain_effects(delta: float):
 		p["football_timer"] = maxf(float(p.get("football_timer", 0.0)) - delta, 0.0)
 		p["slow_timer"] = maxf(float(p.get("slow_timer", 0.0)) - delta, 0.0)
 		if had_wings and float(p["wings_timer"]) <= 0.0:
-			_end_wings(p)
+			consumable_effects.end_wings(p)
 		p["frozen_timer"] = maxf(float(p.get("frozen_timer", 0.0)) - delta, 0.0)
 		var cell: Vector2i = p["grid_pos"]
 		var cell_type: int = grid[cell.y][cell.x]
@@ -810,36 +720,6 @@ func _process_terrain_effects(delta: float):
 		else:
 			p["status"] = " / ".join(status_parts)
 
-func _process_dynamic_items(delta: float):
-	for raw_cell in glue_areas.keys():
-		var cell := raw_cell as Vector2i
-		var data: Dictionary = glue_areas[cell]
-		data["time"] = float(data["time"]) - delta
-		if float(data["time"]) <= 0.0:
-			var node = data.get("node")
-			if is_instance_valid(node):
-				node.queue_free()
-			glue_areas.erase(cell)
-			continue
-		for i in range(players.size()):
-			if i != int(data["owner"]) and players[i]["alive"] and players[i]["grid_pos"] == cell:
-				players[i]["slow_timer"] = 3.0
-
-func _end_wings(p: Dictionary):
-	var cell := p["grid_pos"] as Vector2i
-	if _is_walkable_cell(grid[cell.y][cell.x]) and not bomb_map.has(cell) and not oil_barrels.has(cell):
-		return
-	for direction in [Vector2i.UP, Vector2i.DOWN, Vector2i.LEFT, Vector2i.RIGHT]:
-		var target: Vector2i = cell + direction
-		if target.x < 0 or target.x >= GRID_W or target.y < 0 or target.y >= GRID_H:
-			continue
-		if _is_walkable_cell(grid[target.y][target.x]) and not bomb_map.has(target) and not oil_barrels.has(target) and not _is_cell_occupied(target):
-			p["grid_pos"] = target
-			var node = p.get("node")
-			if is_instance_valid(node):
-				node.position = _grid_to_world(target)
-			return
-
 func _process_player_input():
 	if players.is_empty():
 		return
@@ -861,9 +741,9 @@ func _process_player_input():
 func _handle_player_bomb_action():
 	var p: Dictionary = players[0]
 	if float(p.get("football_timer", 0.0)) > 0.0:
-		_kick_bomb_in_direction(p)
+		bomb_manager.kick_bomb_in_direction(p)
 	elif int(p["bomb_placed_count"]) < int(p["bomb_max"]):
-		_try_place_bomb(0)
+		bomb_manager.try_place_bomb(0)
 
 func _process_ai(delta: float):
 	for i in range(players.size()):
@@ -897,7 +777,7 @@ func _process_ai(delta: float):
 			p["bomb_timer"] = 0.0
 			var escape_dir := _ai_escape_dir_after_bomb(i)
 			if escape_dir != Vector2i.ZERO:
-				_try_place_bomb(i)
+				bomb_manager.try_place_bomb(i)
 				p["last_bomb_pos"] = p["grid_pos"]
 				p["move_dir"] = escape_dir
 				if _try_move_player(i, escape_dir):
@@ -923,7 +803,7 @@ func _update_ai_target_memory(p: Dictionary):
 func _ai_should_place_bomb(player_index: int) -> bool:
 	var p: Dictionary = players[player_index]
 	var difficulty := str(p.get("ai_difficulty", "normal"))
-	var blast_cells := _blast_cell_set(p["grid_pos"], p["bomb_range"])
+	var blast_cells: Dictionary = bomb_manager.blast_cell_set(p["grid_pos"], p["bomb_range"])
 	if difficulty == "hard" and _is_player_hidden(0) and blast_cells.has(players[0]["grid_pos"]):
 		return true
 	for i: int in range(players.size()):
@@ -970,7 +850,7 @@ func _try_move_player(index: int, dir: Vector2i) -> bool:
 	p["grid_pos"] = target
 	p["last_move_dir"] = dir
 	if (p["elevated_cell"] as Vector2i) != Vector2i(-1, -1):
-		_clear_wall_warning(p)
+		wall_mechanics.clear_wall_warning(p)
 		p["elevated_cell"] = Vector2i(-1, -1)
 		p["wall_stay_timer"] = 0.0
 	p["is_moving"] = true
@@ -1024,139 +904,10 @@ func _can_player_pass_bomb(player_index: int, cell: Vector2i) -> bool:
 	if int(entry.get("player_index", -1)) != player_index:
 		return false
 	var p: Dictionary = players[player_index]
-	return _game_time() <= float(p.get("bomb_hop_until", -99.0)) and (p.get("bomb_hop_cells", {}) as Dictionary).has(cell)
+	return bomb_manager.game_time() <= float(p.get("bomb_hop_until", -99.0)) and (p.get("bomb_hop_cells", {}) as Dictionary).has(cell)
 
 func _is_walkable_cell(cell_value: int) -> bool:
 	return cell_value == Cell.EMPTY or cell_value == Cell.FOREST or cell_value == Cell.LAVA
-
-func _try_place_bomb(player_index: int) -> bool:
-	if player_index < 0 or player_index >= players.size():
-		return false
-	var p: Dictionary = players[player_index]
-	var cell: Vector2i = p["grid_pos"]
-	if bomb_map.has(cell):
-		return false
-
-	var placed_at := _game_time()
-	var previous_cell := p["last_bomb_pos"] as Vector2i
-	if previous_cell != Vector2i(-1, -1) and _grid_distance(previous_cell, cell) == 1 and placed_at - float(p["last_bomb_place_time"]) <= BOMB_HOP_WINDOW:
-		p["bomb_hop_until"] = placed_at + BOMB_HOP_WINDOW
-		p["bomb_hop_cells"] = {previous_cell: true, cell: true}
-	p["last_bomb_pos"] = cell
-	p["last_bomb_place_time"] = placed_at
-
-	p["bomb_placed_count"] += 1
-	var bomb := Node3D.new()
-	bomb.name = "Bomb_%d_%d" % [cell.x, cell.y]
-	bomb.position = _grid_to_world(cell) + Vector3(0, 0.38, 0)
-	var shell := _sphere(0.42, mat_bomb)
-	bomb.add_child(shell)
-	add_child(bomb)
-
-	var timer := Timer.new()
-	timer.one_shot = true
-	timer.wait_time = BOMB_FUSE
-	timer.timeout.connect(func(): _explode_bomb_by_node(bomb))
-	bomb.add_child(timer)
-	timer.start()
-
-	var pulse := create_tween().set_loops()
-	pulse.tween_property(bomb, "scale", Vector3(1.12, 1.12, 1.12), 0.35)
-	pulse.tween_property(bomb, "scale", Vector3.ONE, 0.35)
-
-	bomb_map[cell] = {"node": bomb, "player_index": player_index, "range": p["bomb_range"], "pulse": pulse, "timer": timer, "placed_at": placed_at}
-	return true
-
-func _game_time() -> float:
-	return Time.get_ticks_msec() / 1000.0
-
-func _explode_bomb_by_node(bomb_node: Node3D):
-	for raw_cell in bomb_map.keys():
-		var cell := raw_cell as Vector2i
-		if (bomb_map[cell] as Dictionary).get("node") == bomb_node:
-			_explode_bomb(cell)
-			return
-
-func _kick_bomb_in_direction(p: Dictionary):
-	var direction := p["last_move_dir"] as Vector2i
-	var origin: Vector2i = p["grid_pos"] + direction
-	if not bomb_map.has(origin):
-		p["status"] = "No bomb to kick"
-		return
-	var destination := origin
-	var hit_obstacle := false
-	for step in range(4):
-		var target: Vector2i = destination + direction
-		if target.x < 0 or target.x >= GRID_W or target.y < 0 or target.y >= GRID_H:
-			hit_obstacle = true
-			break
-		if grid[target.y][target.x] in [Cell.WALL, Cell.CRATE] or oil_barrels.has(target) or bomb_map.has(target):
-			hit_obstacle = true
-			break
-		destination = target
-	if destination == origin:
-		_explode_bomb(origin)
-		return
-	var entry: Dictionary = bomb_map[origin]
-	bomb_map.erase(origin)
-	bomb_map[destination] = entry
-	var node = entry.get("node")
-	if is_instance_valid(node):
-		var tw := create_tween().bind_node(node)
-		tw.tween_property(node, "position", _grid_to_world(destination) + Vector3(0, 0.38, 0), 0.18)
-		if hit_obstacle:
-			tw.tween_callback(func(): _explode_bomb(destination))
-	p["status"] = "Bomb kicked"
-
-func _explode_bomb(cell: Vector2i):
-	if not bomb_map.has(cell):
-		return
-	var entry: Dictionary = bomb_map[cell]
-	var player_index: int = entry["player_index"]
-	if player_index >= 0 and player_index < players.size():
-		players[player_index]["bomb_placed_count"] = max(players[player_index]["bomb_placed_count"] - 1, 0)
-
-	var bomb: Node3D = entry["node"]
-	var pulse: Tween = entry["pulse"]
-	if is_instance_valid(pulse):
-		pulse.kill()
-	bomb_map.erase(cell)
-
-	var results: Dictionary = _get_explosion_cells(cell, entry["range"], true)
-	_spawn_explosion(results["cells"])
-	_apply_explosion_damage(results["cells"], player_index, cell)
-	if is_instance_valid(bomb):
-		bomb.queue_free()
-
-func _get_explosion_cells(origin: Vector2i, blast_range: int, apply_weather := false) -> Dictionary:
-	var cells: Array = [origin]
-	var directions: Array = [Vector2i(0, -1), Vector2i(0, 1), Vector2i(-1, 0), Vector2i(1, 0)]
-	for dir in directions:
-		var direction_range := blast_range
-		if apply_weather and weather_manager and weather_manager.should_extend_wind(dir as Vector2i):
-			direction_range += 1
-		for i in range(1, direction_range + 1):
-			var check: Vector2i = origin + (dir as Vector2i) * i
-			if check.x < 0 or check.x >= GRID_W or check.y < 0 or check.y >= GRID_H:
-				break
-			if grid[check.y][check.x] == Cell.WALL:
-				break
-			cells.append(check)
-			if grid[check.y][check.x] == Cell.CRATE or oil_barrels.has(check):
-				break
-	return {"cells": cells}
-
-func _spawn_explosion(cells: Array):
-	for raw_cell in cells:
-		var cell := raw_cell as Vector2i
-		var flame := _box(Vector3(TILE_SIZE * 0.86, 0.16, TILE_SIZE * 0.86), mat_fire)
-		flame.position = _grid_to_world(cell) + Vector3(0, 0.12, 0)
-		add_child(flame)
-		var tw := create_tween().set_parallel()
-		tw.tween_property(flame, "scale", Vector3(1.12, 1.0, 1.12), 0.08)
-		tw.tween_property(flame, "transparency", 1.0, 0.35).set_delay(0.18)
-		tw.set_parallel(false)
-		tw.tween_callback(flame.queue_free).set_delay(0.35)
 
 func _apply_explosion_damage(cells: Array, explosion_owner := -1, exploding_cell := Vector2i(-1, -1)):
 	for raw_cell in cells:
@@ -1171,153 +922,14 @@ func _apply_explosion_damage(cells: Array, explosion_owner := -1, exploding_cell
 				crate_nodes.erase(cell)
 			_spawn_powerup(cell)
 		if oil_barrels.has(cell):
-			_damage_oil_barrel(cell)
+			consumable_effects.damage_oil_barrel(cell)
 
 		for i in range(players.size()):
 			var p: Dictionary = players[i]
 			if p["alive"] and p["grid_pos"] == cell:
-				if i == explosion_owner and _try_bomb_boost(i, exploding_cell):
+				if i == explosion_owner and wall_mechanics.try_bomb_boost(i):
 					continue
 				_damage_player(i, 1, "blast")
-
-func _damage_oil_barrel(cell: Vector2i):
-	if not oil_barrels.has(cell):
-		return
-	var data: Dictionary = oil_barrels[cell]
-	data["hp"] = int(data["hp"]) - 1
-	if int(data["hp"]) > 0:
-		var node = data.get("node")
-		if is_instance_valid(node):
-			var tw := create_tween().bind_node(node)
-			tw.tween_property(node, "scale", Vector3(1.12, 0.86, 1.12), 0.07)
-			tw.tween_property(node, "scale", Vector3.ONE, 0.09)
-		return
-	var owner := int(data.get("owner", -1))
-	var node = data.get("node")
-	oil_barrels.erase(cell)
-	if is_instance_valid(node):
-		node.queue_free()
-	var result := _get_explosion_cells(cell, 2, true)
-	_spawn_explosion(result["cells"])
-	_apply_explosion_damage(result["cells"], owner, cell)
-
-func _try_bomb_boost(player_index: int, _exploding_cell: Vector2i) -> bool:
-	if player_index < 0 or player_index >= players.size():
-		return false
-	var p: Dictionary = players[player_index]
-	if bool(p.get("downed", false)) or (p["elevated_cell"] as Vector2i) != Vector2i(-1, -1):
-		return false
-	var covering_bombs := 1
-	for raw_cell in bomb_map.keys():
-		var bomb_cell := raw_cell as Vector2i
-		var entry: Dictionary = bomb_map[bomb_cell]
-		if int(entry.get("player_index", -1)) != player_index:
-			continue
-		if _blast_cell_set(bomb_cell, int(entry["range"])).has(p["grid_pos"]):
-			covering_bombs += 1
-	if covering_bombs < 2:
-		return false
-
-	var directions := [p["last_move_dir"] as Vector2i, Vector2i.UP, Vector2i.DOWN, Vector2i.LEFT, Vector2i.RIGHT]
-	var target := Vector2i(-1, -1)
-	for direction in directions:
-		var candidate: Vector2i = p["grid_pos"] + direction
-		if candidate.x < 0 or candidate.x >= GRID_W or candidate.y < 0 or candidate.y >= GRID_H:
-			continue
-		if grid[candidate.y][candidate.x] not in [Cell.WALL, Cell.CRATE]:
-			continue
-		var occupied := false
-		for other: Dictionary in players:
-			if other != p and other["alive"] and other["grid_pos"] == candidate:
-				occupied = true
-				break
-		if not occupied:
-			target = candidate
-			break
-	if target == Vector2i(-1, -1):
-		return false
-
-	_cancel_player_movement(p)
-	p["grid_pos"] = target
-	p["elevated_cell"] = target
-	p["wall_stay_timer"] = 0.0
-	p["wall_warning"] = false
-	p["status"] = "Bomb Boost"
-	var node = p.get("node")
-	if is_instance_valid(node):
-		var height := 1.30 if grid[target.y][target.x] == Cell.WALL else 0.98
-		var tw := create_tween().bind_node(node)
-		tw.tween_property(node, "position", _grid_to_world(target) + Vector3(0, height, 0), 0.24).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
-	return true
-
-func _process_wall_mechanics(delta: float):
-	for p: Dictionary in players:
-		if not p["alive"]:
-			continue
-		var cell := p["elevated_cell"] as Vector2i
-		if cell == Vector2i(-1, -1):
-			continue
-		if grid[cell.y][cell.x] == Cell.CRATE:
-			continue
-		if grid[cell.y][cell.x] != Cell.WALL:
-			_drop_player_from_block(p)
-			continue
-		p["wall_stay_timer"] = float(p["wall_stay_timer"]) + delta
-		if float(p["wall_stay_timer"]) >= WALL_WARNING_TIME and not bool(p["wall_warning"]):
-			p["wall_warning"] = true
-			p["status"] = "Wall unstable"
-			_set_wall_warning(cell, true)
-		if float(p["wall_stay_timer"]) >= WALL_DESTROY_TIME:
-			_destroy_wall(cell)
-			_drop_player_from_block(p)
-
-	for raw_cell in destroyed_walls.keys():
-		var cell := raw_cell as Vector2i
-		destroyed_walls[cell] = float(destroyed_walls[cell]) + delta
-		if float(destroyed_walls[cell]) < WALL_RESTORE_TIME:
-			continue
-		if bomb_map.has(cell) or _is_cell_occupied(cell):
-			continue
-		grid[cell.y][cell.x] = Cell.WALL
-		var wall = wall_nodes.get(cell)
-		if is_instance_valid(wall):
-			wall.visible = true
-			wall.transparency = 0.0
-		destroyed_walls.erase(cell)
-
-func _destroy_wall(cell: Vector2i):
-	grid[cell.y][cell.x] = Cell.EMPTY
-	destroyed_walls[cell] = 0.0
-	var wall = wall_nodes.get(cell)
-	if is_instance_valid(wall):
-		wall.transparency = 0.0
-		wall.visible = false
-
-func _drop_player_from_block(p: Dictionary):
-	_clear_wall_warning(p)
-	p["elevated_cell"] = Vector2i(-1, -1)
-	p["wall_stay_timer"] = 0.0
-	var node = p.get("node")
-	if is_instance_valid(node):
-		var tw := create_tween().bind_node(node)
-		tw.tween_property(node, "position", _grid_to_world(p["grid_pos"]), 0.18).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
-
-func _clear_wall_warning(p: Dictionary):
-	if not bool(p.get("wall_warning", false)):
-		return
-	_set_wall_warning(p["elevated_cell"] as Vector2i, false)
-	p["wall_warning"] = false
-
-func _set_wall_warning(cell: Vector2i, enabled: bool):
-	var wall = wall_nodes.get(cell)
-	if is_instance_valid(wall):
-		wall.transparency = 0.45 if enabled else 0.0
-
-func _is_cell_occupied(cell: Vector2i) -> bool:
-	for p: Dictionary in players:
-		if p["alive"] and p["grid_pos"] == cell:
-			return true
-	return false
 
 func _spawn_powerup(cell: Vector2i):
 	var r := randf()
@@ -1492,7 +1104,7 @@ func _consume_dummy_if_available(p: Dictionary) -> bool:
 func _choose_ai_direction(p: Dictionary) -> Vector2i:
 	var dirs := [Vector2i(0, -1), Vector2i(0, 1), Vector2i(-1, 0), Vector2i(1, 0)]
 	dirs.shuffle()
-	var danger_cells := _active_blast_cell_set()
+	var danger_cells: Dictionary = bomb_manager.active_blast_cell_set()
 	var walkable_cells: Dictionary = _ai_navigation_cells(p, danger_cells)
 	var difficulty: String = str(p.get("ai_difficulty", "normal"))
 	var can_target_player: bool = (
@@ -1571,7 +1183,7 @@ func _filter_away(dirs: Array, pos: Vector2i, away_from: Vector2i) -> Array:
 func _ai_escape_dir_after_bomb(player_index: int) -> Vector2i:
 	var p: Dictionary = players[player_index]
 	var bomb_cell: Vector2i = p["grid_pos"]
-	var blast_cells := _blast_cell_set(bomb_cell, p["bomb_range"])
+	var blast_cells: Dictionary = bomb_manager.blast_cell_set(bomb_cell, p["bomb_range"])
 	var queue: Array = [{"pos": bomb_cell, "first": Vector2i.ZERO}]
 	var visited := {bomb_cell: true}
 	var head := 0
@@ -1604,7 +1216,7 @@ func _ai_escape_dir_after_bomb(player_index: int) -> Vector2i:
 func _ai_escape_dir_from_active_bombs(player_index: int) -> Vector2i:
 	var p: Dictionary = players[player_index]
 	var start: Vector2i = p["grid_pos"]
-	var danger_cells := _active_blast_cell_set()
+	var danger_cells: Dictionary = bomb_manager.active_blast_cell_set()
 	if not danger_cells.has(start):
 		return Vector2i.ZERO
 
@@ -1636,22 +1248,6 @@ func _ai_escape_dir_from_active_bombs(player_index: int) -> Vector2i:
 			})
 
 	return Vector2i.ZERO
-
-func _active_blast_cell_set() -> Dictionary:
-	var result := {}
-	for cell in bomb_map.keys():
-		var entry: Dictionary = bomb_map[cell]
-		var data: Dictionary = _get_explosion_cells(cell as Vector2i, entry["range"])
-		for raw_cell in data["cells"]:
-			result[raw_cell as Vector2i] = true
-	return result
-
-func _blast_cell_set(origin: Vector2i, blast_range_value: int) -> Dictionary:
-	var result := {}
-	var data: Dictionary = _get_explosion_cells(origin, blast_range_value)
-	for raw_cell in data["cells"]:
-		result[raw_cell as Vector2i] = true
-	return result
 
 func _is_ai_escape_walkable(cell: Vector2i, bomb_cell: Vector2i, player_index: int, simulated_bomb := false) -> bool:
 	if cell.x < 0 or cell.x >= GRID_W or cell.y < 0 or cell.y >= GRID_H:
@@ -1778,7 +1374,7 @@ func _process_boss_skill(index: int, delta: float):
 		"blast_king":
 			boss["skill_timer"] = 3.5
 			if int(boss["bomb_placed_count"]) < int(boss["bomb_max"]):
-				_try_place_bomb(index)
+				bomb_manager.try_place_bomb(index)
 			boss["bomb_timer"] = float(boss["bomb_interval"])
 		"frost_giant":
 			boss["skill_timer"] = 4.5
@@ -1854,8 +1450,8 @@ func _spawn_clone_minions(origin: Vector2i):
 
 func _explode_clone_minion(index: int):
 	var minion: Dictionary = players[index]
-	var data := _get_explosion_cells(minion["grid_pos"], 1, true)
-	_spawn_explosion(data["cells"])
+	var data: Dictionary = bomb_manager.get_explosion_cells(minion["grid_pos"], 1, true)
+	bomb_manager.spawn_explosion(data["cells"])
 	_apply_explosion_damage(data["cells"])
 	if minion["alive"]:
 		_kill_player(index)
