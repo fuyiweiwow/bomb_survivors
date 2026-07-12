@@ -1,9 +1,9 @@
 extends Node3D
 
-const GRID_W := 15
-const GRID_H := 11
-const TILE_SIZE := 1.6
-const FLOOR_Y := 0.0
+const GRID_W := Constants.GRID_W
+const GRID_H := Constants.GRID_H
+const TILE_SIZE := Constants.TILE_SIZE
+const FLOOR_Y := Constants.FLOOR_Y
 const TERRAIN_ART := preload("res://scripts/terrain/terrain_art_factory.gd")
 
 enum Cell { EMPTY, WALL, CRATE, FOREST, LAVA }
@@ -70,7 +70,7 @@ func _setup_scene():
 
 	camera = Camera3D.new()
 	camera.projection = Camera3D.PROJECTION_ORTHOGONAL
-	camera.size = 19.0
+	camera.size = 20.0
 	camera.position = Vector3(0, 16, 12)
 	camera.rotation_degrees = Vector3(-58, 0, 0)
 	camera.current = true

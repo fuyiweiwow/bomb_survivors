@@ -153,7 +153,17 @@ func _featured_enemy(players: Array) -> Dictionary:
 func _position_status_cards(camera: Camera3D, grid_width: int, grid_to_world: Callable):
 	if camera == null:
 		return
+	var viewport_size := camera.get_viewport().get_visible_rect().size
 	var player_pos := camera.unproject_position(grid_to_world.call(Vector2i(2, 0)) + Vector3(0, 1.05, 0))
-	player_card_panel.position = player_pos + Vector2(-78, -22)
+	player_card_panel.position = _clamp_panel_position(player_pos + Vector2(-78, -22), player_card_panel, viewport_size)
 	var enemy_pos := camera.unproject_position(grid_to_world.call(Vector2i(grid_width - 3, 0)) + Vector3(0, 1.05, 0))
-	enemy_card_panel.position = enemy_pos + Vector2(-78, -22)
+	enemy_card_panel.position = _clamp_panel_position(enemy_pos + Vector2(-78, -22), enemy_card_panel, viewport_size)
+
+func _clamp_panel_position(desired: Vector2, panel: Control, viewport_size: Vector2) -> Vector2:
+	var panel_size := panel.size
+	if panel_size.x <= 0.0 or panel_size.y <= 0.0:
+		panel_size = panel.get_combined_minimum_size()
+	return Vector2(
+		clampf(desired.x, 8.0, maxf(viewport_size.x - panel_size.x - 8.0, 8.0)),
+		clampf(desired.y, 8.0, maxf(viewport_size.y - panel_size.y - 8.0, 8.0))
+	)

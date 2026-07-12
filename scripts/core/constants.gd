@@ -5,7 +5,7 @@ enum Cell { EMPTY, WALL, CRATE, FOREST, LAVA }
 
 const GRID_W := 15
 const GRID_H := 11
-const TILE_SIZE := 1.6
+const TILE_SIZE := 1.8
 const FLOOR_Y := 0.0
 const PLAYER_MAX_HP := 3
 const LAVA_DAMAGE_TIME := 1.35
