@@ -96,7 +96,8 @@ const MAX_CONSUMABLES := 3          # 背包上限
 ```
 scripts/character/
   CharacterController.gd       # 基础角色节点（场景树 Node）
-  PlayerController.gd          # 玩家输入 → 继承 CharacterController
+  PlayerInputController.gd     # 键盘输入 → 发出移动/炸弹/道具指令信号
+  PlayerController.gd          # 目标角色控制器 → 继承 CharacterController
   AIController.gd              # AI 决策 → 继承 CharacterController
   BossController.gd            # Boss 行为 → 继承 AIController
   CharacterStats.gd            # Resource — 纯数据结构，无逻辑
@@ -202,6 +203,7 @@ func is_cell_occupied(cell: Vector2i) -> bool
 
 ```
 scripts/item/
+  InventoryManager.gd       # 三格背包、选中槽、添加与消费
   ItemManager.gd            # 道具掉落、拾取、使用
   BaseItem.gd               # 道具 Resource 基类
   AttributeItem.gd          # 属性道具（speed/bomb/range/shield）
@@ -354,6 +356,7 @@ func remove_overlay(cell: Vector2i, overlay_id: String) -> void
 
 ```
 scripts/ui/
+  GameHUD.gd                # 当前 3D 游戏 HUD、状态卡与背包槽
   HUD.gd                    # 状态显示（速度/炸弹/范围/道具）
   GameOverUI.gd             # 结算界面
   StatusIndicator.gd        # 状态效果图标（翅膀/无敌等）
@@ -369,7 +372,7 @@ scripts/ui/
 用户输入 (WASD/Space/E)
 	│
 	▼
-PlayerController._process_input()
+PlayerInputController._unhandled_input()
 	│  emit → EventBus.player_moved / EventBus.bomb_placed
 	▼
 GameManager._process(delta)   ← 协调器，delta 分发给各子系统

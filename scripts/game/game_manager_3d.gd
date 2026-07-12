@@ -8,7 +8,8 @@ const BOMB_FUSE := 2.5
 const PLAYER_MAX_HP := 3
 const LAVA_DAMAGE_TIME := 1.35
 const DOWNED_DURATION := 5.0
-const MAX_CONSUMABLES := 3
+const INVENTORY_MANAGER := preload("res://scripts/item/InventoryManager.gd")
+const MAX_CONSUMABLES := INVENTORY_MANAGER.MAX_ITEMS
 const BOMB_HOP_WINDOW := 0.30
 const WALL_WARNING_TIME := 2.0
 const WALL_DESTROY_TIME := 4.0
@@ -17,6 +18,8 @@ const AI_DECISION_POLICY := preload("res://scripts/character/AIDecisionPolicy.gd
 const WEATHER_MANAGER := preload("res://scripts/weather/WeatherManager.gd")
 const WAVE_MANAGER := preload("res://scripts/wave/WaveManager.gd")
 const TERRAIN_ART := preload("res://scripts/terrain/TerrainArtFactory.gd")
+const PLAYER_INPUT_CONTROLLER := preload("res://scripts/character/PlayerInputController.gd")
+const GAME_HUD := preload("res://scripts/ui/GameHUD.gd")
 const CONSUMABLE_IDS := ["detonator", "glue", "shield_potion", "invincible_star", "dummy", "oil_barrel", "wings", "football_shoes", "tianlao"]
 
 enum Cell { EMPTY, WALL, CRATE, FOREST, LAVA }
@@ -36,15 +39,12 @@ var weather_manager: Node = null
 var wave_manager: Node = null
 var world_environment: Environment = null
 var weather_visuals := Node3D.new()
+var input_controller: Node = null
+var inventory_manager: RefCounted = INVENTORY_MANAGER.new()
 
 var bomb_pressed := false
-var hud_label: Label = null
 var game_camera: Camera3D = null
-var player_card_panel: PanelContainer = null
-var player_card_label: Label = null
-var enemy_card_panel: PanelContainer = null
-var enemy_card_label: Label = null
-var inventory_slot_labels: Array[Label] = []
+var game_hud: Node = null
 var ai_difficulty := "normal"
 
 var tex_floor: Texture2D = load("res://assets/art/3d/floor_tile.png")
@@ -88,7 +88,27 @@ func _ready():
 	_spawn_players()
 	_setup_camera()
 	_setup_hud()
+	_setup_input_controller()
 	_setup_progression()
+
+func _setup_input_controller():
+	input_controller = PLAYER_INPUT_CONTROLLER.new()
+	add_child(input_controller)
+	input_controller.action_requested.connect(_on_player_action)
+	input_controller.movement_released.connect(_finish_player_move_immediately)
+
+func _on_player_action(action: String):
+	if game_over:
+		match action:
+			"restart": get_tree().reload_current_scene()
+			"menu": get_tree().change_scene_to_file("res://scenes/menu/main_menu.tscn")
+			"cycle_item": get_tree().quit()
+		return
+	match action:
+		"bomb": bomb_pressed = true
+		"use_item": _try_use_player_consumable()
+		"cycle_item": _cycle_player_consumable()
+		"menu": get_tree().change_scene_to_file("res://scenes/menu/main_menu.tscn")
 
 func _setup_progression():
 	weather_manager = WEATHER_MANAGER.new()
@@ -309,7 +329,7 @@ func _spawn_players():
 	player["bomb_max"] = config["start_bombs"]
 	player["bomb_range"] = config["start_range"]
 	player["shield"] = config["start_shields"]
-	player["consumables"].append("shield_potion")
+	inventory_manager.add_item(player, "shield_potion")
 	players.append(player)
 
 func _spawn_ai_wave(count: int):
@@ -548,108 +568,9 @@ func _setup_camera():
 	add_child(game_camera)
 
 func _setup_hud():
-	var layer := CanvasLayer.new()
-	add_child(layer)
-
-	var player_card := _make_status_card(layer, "YOU", Color(0.18, 0.48, 0.95))
-	player_card_panel = player_card["panel"]
-	player_card_label = player_card["label"]
-
-	var enemy_card := _make_status_card(layer, "AI", Color(0.95, 0.27, 0.22))
-	enemy_card_panel = enemy_card["panel"]
-	enemy_card_label = enemy_card["label"]
-
-	var bg := ColorRect.new()
-	bg.color = Color(0, 0, 0, 0.5)
-	bg.position = Vector2(0, 548)
-	bg.size = Vector2(800, 52)
-	layer.add_child(bg)
-
-	hud_label = Label.new()
-	hud_label.position = Vector2(12, 560)
-	hud_label.size = Vector2(780, 30)
-	hud_label.add_theme_font_size_override("font_size", 16)
-	hud_label.add_theme_color_override("font_color", Color.WHITE)
-	layer.add_child(hud_label)
-	_setup_inventory_bar(layer)
+	game_hud = GAME_HUD.new()
+	add_child(game_hud)
 	_update_hud()
-
-func _setup_inventory_bar(layer: CanvasLayer):
-	var panel := PanelContainer.new()
-	panel.position = Vector2(446, 500)
-	panel.custom_minimum_size = Vector2(342, 42)
-	layer.add_child(panel)
-	var row := HBoxContainer.new()
-	row.add_theme_constant_override("separation", 4)
-	panel.add_child(row)
-	for i in range(MAX_CONSUMABLES):
-		var slot := Label.new()
-		slot.custom_minimum_size = Vector2(110, 36)
-		slot.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		slot.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-		slot.add_theme_font_size_override("font_size", 11)
-		row.add_child(slot)
-		inventory_slot_labels.append(slot)
-
-func _make_status_card(parent: Node, avatar_text: String, color: Color) -> Dictionary:
-	var panel := PanelContainer.new()
-	panel.custom_minimum_size = Vector2(156, 46)
-	parent.add_child(panel)
-
-	var margin := MarginContainer.new()
-	margin.add_theme_constant_override("margin_left", 6)
-	margin.add_theme_constant_override("margin_top", 4)
-	margin.add_theme_constant_override("margin_right", 6)
-	margin.add_theme_constant_override("margin_bottom", 4)
-	panel.add_child(margin)
-
-	var row := HBoxContainer.new()
-	row.add_theme_constant_override("separation", 10)
-	margin.add_child(row)
-
-	var avatar := Label.new()
-	avatar.text = avatar_text
-	avatar.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	avatar.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	avatar.custom_minimum_size = Vector2(34, 34)
-	avatar.add_theme_font_size_override("font_size", 13)
-	avatar.add_theme_color_override("font_color", Color.WHITE)
-	avatar.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.8))
-	var avatar_style := StyleBoxFlat.new()
-	avatar_style.bg_color = color
-	avatar_style.corner_radius_top_left = 6
-	avatar_style.corner_radius_top_right = 6
-	avatar_style.corner_radius_bottom_left = 6
-	avatar_style.corner_radius_bottom_right = 6
-	avatar.add_theme_stylebox_override("normal", avatar_style)
-	row.add_child(avatar)
-
-	var label := Label.new()
-	label.add_theme_font_size_override("font_size", 11)
-	label.add_theme_color_override("font_color", Color.WHITE)
-	label.custom_minimum_size = Vector2(92, 36)
-	row.add_child(label)
-	return {"panel": panel, "label": label}
-
-func _unhandled_input(event):
-	if game_over:
-		if event is InputEventKey and event.pressed and event.keycode == KEY_R:
-			get_tree().reload_current_scene()
-		if event is InputEventKey and event.pressed and event.keycode == KEY_ESCAPE:
-			get_tree().change_scene_to_file("res://scenes/menu/main_menu.tscn")
-		if event is InputEventKey and event.pressed and event.keycode == KEY_Q:
-			get_tree().quit()
-		return
-	if event is InputEventKey and not event.pressed and event.physical_keycode in [KEY_W, KEY_A, KEY_S, KEY_D]:
-		_finish_player_move_immediately()
-		return
-
-	if event is InputEventKey and event.pressed and not event.echo:
-		match event.physical_keycode:
-			KEY_SPACE: bomb_pressed = true
-			KEY_E: _try_use_player_consumable()
-			KEY_Q: _cycle_player_consumable()
-			KEY_ESCAPE: get_tree().change_scene_to_file("res://scenes/menu/main_menu.tscn")
 
 func _finish_player_move_immediately():
 	if players.is_empty():
@@ -682,14 +603,12 @@ func _try_use_player_consumable():
 	if items.is_empty():
 		p["status"] = "Bag empty"
 		return
-	var selected := clampi(int(p["selected_consumable_index"]), 0, items.size() - 1)
-	var item_id := str(items[selected])
+	var item_id := str(inventory_manager.selected_item(p))
 	if item_id == "dummy":
 		p["status"] = "Dummy is passive"
 		return
 	if _use_consumable(0, item_id):
-		items.remove_at(selected)
-		p["selected_consumable_index"] = clampi(selected, 0, maxi(items.size() - 1, 0))
+		inventory_manager.consume_selected(p)
 
 func _cycle_player_consumable():
 	if players.is_empty() or not players[0]["alive"]:
@@ -699,8 +618,8 @@ func _cycle_player_consumable():
 	if items.is_empty():
 		p["status"] = "Bag empty"
 		return
-	p["selected_consumable_index"] = (int(p["selected_consumable_index"]) + 1) % items.size()
-	p["status"] = "Selected %s" % _item_display_name(str(items[p["selected_consumable_index"]]))
+	var selected_item := str(inventory_manager.cycle(p))
+	p["status"] = "Selected %s" % _item_display_name(selected_item)
 
 func _use_consumable(player_index: int, item_id: String) -> bool:
 	var p: Dictionary = players[player_index]
@@ -935,7 +854,7 @@ func _process_player_input():
 	else:
 		bomb_pressed = false
 
-	var held_dir := _read_player_move_dir()
+	var held_dir: Vector2i = input_controller.read_move_direction() if input_controller else Vector2i.ZERO
 	if not p["is_moving"] and held_dir != Vector2i.ZERO:
 		_try_move_player(0, held_dir)
 
@@ -945,20 +864,6 @@ func _handle_player_bomb_action():
 		_kick_bomb_in_direction(p)
 	elif int(p["bomb_placed_count"]) < int(p["bomb_max"]):
 		_try_place_bomb(0)
-
-func _read_player_move_dir() -> Vector2i:
-	var d := Vector2i.ZERO
-	if Input.is_action_pressed("p1_up"):
-		d.y -= 1
-	if Input.is_action_pressed("p1_down"):
-		d.y += 1
-	if Input.is_action_pressed("p1_left"):
-		d.x -= 1
-	if Input.is_action_pressed("p1_right"):
-		d.x += 1
-	if d.x != 0:
-		d.y = 0
-	return d
 
 func _process_ai(delta: float):
 	for i in range(players.size()):
@@ -1575,23 +1480,14 @@ func _check_powerup_pickup(index: int):
 	powerups.erase(cell)
 
 func _add_consumable(p: Dictionary, item_id: String) -> bool:
-	var items: Array = p["consumables"]
-	if items.size() >= MAX_CONSUMABLES:
+	if not inventory_manager.add_item(p, item_id):
 		p["status"] = "Bag full"
 		return false
-	items.append(item_id)
-	p["selected_consumable_index"] = clampi(int(p["selected_consumable_index"]), 0, items.size() - 1)
 	p["status"] = "Picked %s" % _item_display_name(item_id)
 	return true
 
 func _consume_dummy_if_available(p: Dictionary) -> bool:
-	var items: Array = p["consumables"]
-	var index := items.find("dummy")
-	if index == -1:
-		return false
-	items.remove_at(index)
-	p["selected_consumable_index"] = clampi(int(p["selected_consumable_index"]), 0, maxi(items.size() - 1, 0))
-	return true
+	return inventory_manager.consume_item(p, "dummy")
 
 func _choose_ai_direction(p: Dictionary) -> Vector2i:
 	var dirs := [Vector2i(0, -1), Vector2i(0, 1), Vector2i(-1, 0), Vector2i(1, 0)]
@@ -2174,78 +2070,27 @@ func _make_result_button(text: String) -> Button:
 	return btn
 
 func _update_hud():
-	if hud_label == null or players.is_empty():
+	if game_hud == null or players.is_empty():
 		return
-	_position_status_cards()
-	var p: Dictionary = players[0]
-	var wave_text := "Wave -"
+	var wave_number := 0
+	var wave_time := 0.0
 	var weather_text := "Clear"
 	if wave_manager:
-		wave_text = "Wave %d/7  %.0fs" % [wave_manager.current_wave, wave_manager.time_remaining()]
+		wave_number = int(wave_manager.current_wave)
+		wave_time = float(wave_manager.time_remaining())
 	if weather_manager:
-		weather_text = weather_manager.display_name()
-	hud_label.text = "%s  |  %s  |  AI %s  |  SPD %d  BOMB %d/%d  RNG %d  SH %d  BAG %d/%d" % [wave_text, weather_text, _difficulty_label(), p["speed"], p["bomb_placed_count"], p["bomb_max"], p["bomb_range"], p["shield"], (p["consumables"] as Array).size(), MAX_CONSUMABLES]
-	_update_inventory_bar(p)
-	if player_card_label:
-		player_card_label.text = _player_card_text(players[0])
-	if enemy_card_label:
-		var featured := _featured_enemy()
-		enemy_card_label.text = _player_card_text(featured) if not featured.is_empty() else "No enemies\nNext wave"
-
-func _player_card_text(p: Dictionary) -> String:
-	if not p["alive"]:
-		return "HP 0/%d\nDown" % int(p["max_hp"])
-	if bool(p.get("downed", false)):
-		return "HP %d/%d\nDown %.1fs" % [int(p["hp"]), int(p["max_hp"]), float(p["downed_timer"])]
-	var title := str(p.get("boss_name", ""))
-	if title != "":
-		return "%s  HP %d/%d\n%s" % [title, int(p["hp"]), int(p["max_hp"]), str(p["status"])]
-	return "HP %d/%d\n%s" % [int(p["hp"]), int(p["max_hp"]), str(p["status"])]
-
-func _featured_enemy() -> Dictionary:
-	for i in range(1, players.size()):
-		if players[i]["alive"] and str(players[i].get("boss_id", "")) != "":
-			return players[i]
-	for i in range(1, players.size()):
-		if players[i]["alive"]:
-			return players[i]
-	return {}
-
-func _bag_text(p: Dictionary) -> String:
-	var items: Array = p.get("consumables", [])
-	if items.is_empty():
-		return "-"
-	var names: Array[String] = []
-	var selected := clampi(int(p.get("selected_consumable_index", 0)), 0, items.size() - 1)
-	for i in range(items.size()):
-		var item_name := _item_display_name(str(items[i]))
-		names.append("[%s]" % item_name if i == selected else item_name)
-	return ", ".join(names)
-
-func _update_inventory_bar(p: Dictionary):
-	var items: Array = p.get("consumables", [])
-	var selected := clampi(int(p.get("selected_consumable_index", 0)), 0, maxi(items.size() - 1, 0))
-	for i in range(inventory_slot_labels.size()):
-		var slot := inventory_slot_labels[i]
-		slot.text = _item_display_name(str(items[i])) if i < items.size() else "-"
-		var style := StyleBoxFlat.new()
-		style.bg_color = Color(0.16, 0.42, 0.50, 0.92) if i == selected and i < items.size() else Color(0.08, 0.09, 0.11, 0.86)
-		style.border_width_left = 2
-		style.border_width_top = 2
-		style.border_width_right = 2
-		style.border_width_bottom = 2
-		style.border_color = Color(0.40, 0.95, 0.78) if i == selected and i < items.size() else Color(0.25, 0.28, 0.32)
-		slot.add_theme_stylebox_override("normal", style)
-
-func _position_status_cards():
-	if game_camera == null:
-		return
-	if player_card_panel:
-		var player_pos := game_camera.unproject_position(_grid_to_world(Vector2i(2, 0)) + Vector3(0, 1.05, 0))
-		player_card_panel.position = player_pos + Vector2(-78, -22)
-	if enemy_card_panel:
-		var enemy_pos := game_camera.unproject_position(_grid_to_world(Vector2i(GRID_W - 3, 0)) + Vector3(0, 1.05, 0))
-		enemy_card_panel.position = enemy_pos + Vector2(-78, -22)
+		weather_text = str(weather_manager.display_name())
+	game_hud.update_display(
+		players,
+		wave_number,
+		wave_time,
+		weather_text,
+		_difficulty_label(),
+		game_camera,
+		GRID_W,
+		_grid_to_world,
+		_item_display_name
+	)
 
 func _difficulty_label() -> String:
 	match ai_difficulty:
