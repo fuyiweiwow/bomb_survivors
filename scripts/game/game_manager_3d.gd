@@ -6,6 +6,7 @@ const GAME_HUD := preload("res://scripts/ui/game_hud.gd")
 
 var grid_manager: Node
 var player_manager: Node
+var movement_controller: Node
 var ai_controller: Node
 var combat_manager: Node
 var powerup_manager: Node
@@ -94,12 +95,17 @@ func _setup_gameplay_systems():
 	add_child(grid_manager)
 	grid_manager.setup(self, {
 		"floor_a": mat_floor_a, "floor_b": mat_floor_b, "wall": mat_wall,
-		"crate": mat_crate, "forest_floor": mat_forest_floor, "lava": mat_lava_glow
+		"crate": mat_crate, "forest_floor": mat_forest_floor, "trunk": mat_trunk,
+		"leaf": mat_leaf, "lava": mat_lava_glow
 	})
 
 	player_manager = load("res://scripts/character/player_manager.gd").new()
 	add_child(player_manager)
 	player_manager.setup(self)
+
+	movement_controller = load("res://scripts/character/grid_movement_controller.gd").new()
+	add_child(movement_controller)
+	movement_controller.setup(self)
 
 	ai_controller = load("res://scripts/character/ai_controller.gd").new()
 	add_child(ai_controller)
@@ -193,11 +199,17 @@ func _process_player_input():
 		bomb_pressed = false
 
 	if not p["is_moving"] and input_controller:
-		var move_dir: Vector2i = input_controller.read_move_direction()
-		if move_dir == Vector2i.ZERO:
-			move_dir = input_controller.consume_buffered_direction()
+		var move_dir := read_player_move_direction()
 		if move_dir != Vector2i.ZERO:
 			_try_move_player(0, move_dir)
+
+func read_player_move_direction() -> Vector2i:
+	if input_controller == null:
+		return Vector2i.ZERO
+	var move_direction: Vector2i = input_controller.read_move_direction()
+	if move_direction == Vector2i.ZERO:
+		move_direction = input_controller.consume_buffered_direction()
+	return move_direction
 
 func _handle_player_bomb_action():
 	var p: Dictionary = players[0]
@@ -238,7 +250,7 @@ func _cycle_player_consumable():
 	var selected_item := str(inventory_manager.cycle(p))
 	p["status"] = "Selected %s" % powerup_manager._item_display_name(selected_item)
 
-func _try_move_player(index: int, dir: Vector2i, continuous := false) -> bool:
+func _try_move_player(index: int, dir: Vector2i) -> bool:
 	if index < 0 or index >= players.size():
 		return false
 	var p: Dictionary = players[index]
@@ -265,30 +277,12 @@ func _try_move_player(index: int, dir: Vector2i, continuous := false) -> bool:
 		p["wall_stay_timer"] = 0.0
 	p["is_moving"] = true
 	node.look_at(Constants.grid_to_world(target), Vector3.UP)
-	var tw := create_tween().bind_node(node)
-	p["move_tween"] = tw
 	var effective_speed: int = _effective_move_speed(p, target)
 	var move_duration: float = Constants.move_duration_for_speed(effective_speed)
 	if float(p.get("slow_timer", 0.0)) > 0.0:
 		move_duration *= 3.33
 	var target_height := 0.92 if float(p.get("wings_timer", 0.0)) > 0.0 else 0.0
-	var movement_track = tw.tween_property(node, "position", Constants.grid_to_world(target) + Vector3(0, target_height, 0), move_duration)
-	if continuous:
-		movement_track.set_trans(Tween.TRANS_LINEAR)
-	else:
-		movement_track.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
-	tw.tween_callback(func():
-		p["move_tween"] = null
-		p["is_moving"] = false
-		if bool(p.get("alive", false)) and not bool(p.get("downed", false)):
-			powerup_manager.check_powerup_pickup(index)
-		if index == 0 and input_controller and bool(p.get("alive", false)) and not bool(p.get("downed", false)):
-			var next_direction: Vector2i = input_controller.read_move_direction()
-			if next_direction == Vector2i.ZERO:
-				next_direction = input_controller.consume_buffered_direction()
-			if next_direction != Vector2i.ZERO:
-				_try_move_player(index, next_direction, true)
-	)
+	movement_controller.start_move(index, Constants.grid_to_world(target) + Vector3(0, target_height, 0), move_duration)
 	return true
 
 func _effective_move_speed(p: Dictionary, target: Vector2i) -> int:

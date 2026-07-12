@@ -11,6 +11,8 @@ var _mat_floor_b: Material
 var _mat_wall: Material
 var _mat_crate: Material
 var _mat_forest_floor: Material
+var _mat_trunk: Material
+var _mat_leaf: Material
 var _mat_lava: Material
 
 func setup(game_manager: Node, mats: Dictionary):
@@ -20,6 +22,8 @@ func setup(game_manager: Node, mats: Dictionary):
 	_mat_wall = mats["wall"]
 	_mat_crate = mats["crate"]
 	_mat_forest_floor = mats["forest_floor"]
+	_mat_trunk = mats["trunk"]
+	_mat_leaf = mats["leaf"]
 	_mat_lava = mats["lava"]
 
 func init_grid():
@@ -210,7 +214,7 @@ func _floor_mat_for_cell(x: int, y: int) -> Material:
 			return _mat_floor_a if (x + y) % 2 == 0 else _mat_floor_b
 
 func _create_forest_tile(cell: Vector2i) -> Node3D:
-	return TerrainArtFactory.create_forest_tile(cell, Constants.grid_to_world(cell), Constants.TILE_SIZE, _mat_forest_floor, null, null)
+	return TerrainArtFactory.create_forest_tile(cell, Constants.grid_to_world(cell), Constants.TILE_SIZE, _mat_forest_floor, _mat_trunk, _mat_leaf)
 
 func _create_lava_tile(cell: Vector2i) -> Node3D:
 	return TerrainArtFactory.create_lava_tile(cell, Constants.grid_to_world(cell), Constants.TILE_SIZE, _mat_lava)

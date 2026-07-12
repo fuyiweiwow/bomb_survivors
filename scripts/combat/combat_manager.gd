@@ -210,11 +210,7 @@ func _cancel_player_movement(p: Dictionary):
 	var move_tween = p.get("move_tween")
 	if move_tween is Tween and is_instance_valid(move_tween):
 		(move_tween as Tween).kill()
-	p["move_tween"] = null
-	p["is_moving"] = false
-	var node = p.get("node")
-	if is_instance_valid(node):
-		node.position = Constants.grid_to_world(p["grid_pos"])
+	_game.movement_controller.cancel_move(p)
 
 func _cancel_player_state_animation(p: Dictionary):
 	var state_tween = p.get("state_tween")

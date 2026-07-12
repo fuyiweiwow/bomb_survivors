@@ -97,6 +97,7 @@ const MAX_CONSUMABLES := 3          # 背包上限
 scripts/character/
   CharacterController.gd       # 基础角色节点（场景树 Node）
   PlayerInputController.gd     # 键盘输入 → 发出移动/炸弹/道具指令信号
+  grid_movement_controller.gd  # 物理帧连续移动、跨格剩余路程与格点校正
   PlayerController.gd          # 目标角色控制器 → 继承 CharacterController
   AIController.gd              # AI 决策 → 继承 CharacterController
   BossController.gd            # Boss 行为 → 继承 AIController
@@ -472,7 +473,7 @@ GameManager (Node3D)
 - `BombManager.gd` 负责炸弹放置、踢动、引爆、火焰表现和爆炸危险格计算。
 - `WallMechanics.gd` 负责炸弹上墙、墙体预警、自毁和恢复。
 - `ConsumableEffects.gd` 负责主动消耗品、胶水区域、油桶连锁和翅膀落点。
-- `InventoryManager.gd`、`PlayerInputController.gd`、`GameHUD.gd` 分别负责背包、输入与 HUD。
+- `inventory_manager.gd`、`player_input_controller.gd`、`grid_movement_controller.gd`、`game_hud.gd` 分别负责背包、输入、连续格子移动与 HUD。
 - 当前子系统通过注入游戏场景引用共享运行时网格；后续可继续迁移 AI 与角色状态，并收窄为信号接口。
 
 | 步骤 | 操作 | 涉及文件 |

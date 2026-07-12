@@ -18,6 +18,8 @@ func _run():
 		return
 	if not _check(game.consumable_effects != null, "ConsumableEffects was not initialized"):
 		return
+	if not _check(game.movement_controller != null, "GridMovementController was not initialized"):
+		return
 	if not _check(not game.players.is_empty(), "Game did not create a player"):
 		return
 
@@ -32,6 +34,21 @@ func _run():
 	game.input_controller._unhandled_input(key_event)
 	if not _check(game.input_controller.consume_buffered_direction() == Vector2i.RIGHT, "Movement input was not buffered"):
 		return
+	game.grid_manager.set_cell(2, 1, Constants.Cell.EMPTY)
+	if not _check(game._try_move_player(0, Vector2i.RIGHT), "Physics grid movement did not start"):
+		return
+	if not _check(player["move_tween"] == null and bool(player["grid_motion_active"]), "Grid movement still depends on a Tween"):
+		return
+	game.movement_controller._physics_process(1.0)
+	if not _check(not player["is_moving"] and player["node"].position.is_equal_approx(Constants.grid_to_world(Vector2i(2, 1))), "Physics grid movement did not finish on the cell center"):
+		return
+
+	var forest_tile = game.grid_manager._create_forest_tile(Vector2i(5, 5))
+	var trunk = forest_tile.get_child(0)
+	var crown = forest_tile.get_child(1)
+	if not _check(trunk.material_override != null and crown.material_override != null, "Forest trunk or leaf material is missing"):
+		return
+	forest_tile.free()
 
 	var wall_cell := Vector2i(7, 5)
 	var origin := Vector2i(7, 6)
@@ -77,7 +94,7 @@ func _run():
 	if not _check(game.is_cell_walkable(occupied_cell.x, occupied_cell.y, 0), "Living characters still block shared cells"):
 		return
 
-	print("GAME_DESIGN_SMOKE_OK input_buffer wall_hop chain_reaction overlap spawn_fx")
+	print("GAME_DESIGN_SMOKE_OK physics_movement forest_materials wall_hop chain_reaction overlap spawn_fx")
 	quit(0)
 
 
