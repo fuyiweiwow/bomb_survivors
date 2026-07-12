@@ -26,6 +26,9 @@ func _run():
 	var player: Dictionary = game.players[0]
 	if not _check(game.players.size() > 1, "Initial AI wave was not created"):
 		return
+	game.game_ui.update_hud()
+	if not _check(game.game_hud.inventory_slot_labels[0].text.contains("Shield Potion"), "Backpack HUD does not show the starter item"):
+		return
 	if not _check(game.get_node_or_null("AISpawnEffect") != null, "AI spawn effect was not created"):
 		return
 	var key_event := InputEventKey.new()
@@ -94,7 +97,7 @@ func _run():
 	if not _check(game.is_cell_walkable(occupied_cell.x, occupied_cell.y, 0), "Living characters still block shared cells"):
 		return
 
-	print("GAME_DESIGN_SMOKE_OK physics_movement forest_materials wall_hop chain_reaction overlap spawn_fx")
+	print("GAME_DESIGN_SMOKE_OK physics_movement forest_materials backpack_hud wall_hop chain_reaction overlap spawn_fx")
 	quit(0)
 
 
