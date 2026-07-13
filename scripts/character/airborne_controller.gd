@@ -66,7 +66,8 @@ func _physics_process(delta: float):
 			continue
 
 		var previous_height := (node as Node3D).position.y
-		player["vertical_velocity"] = float(player.get("vertical_velocity", 0.0)) - Constants.AIR_GRAVITY * delta
+		var gravity := Constants.WINGS_AIR_GRAVITY if float(player.get("wings_timer", 0.0)) > 0.0 else Constants.AIR_GRAVITY
+		player["vertical_velocity"] = float(player.get("vertical_velocity", 0.0)) - gravity * delta
 		(node as Node3D).position.y += float(player["vertical_velocity"]) * delta
 		_update_shadow(player_index, node as Node3D)
 		if float(player["vertical_velocity"]) <= 0.0:

@@ -323,6 +323,15 @@ func _run():
 	game.airborne_controller.force_land(1)
 	enemy["shield"] = 0
 	enemy["shield_timer"] = 0.0
+	enemy["grid_pos"] = ai_lava_start
+	enemy["node"].position = Constants.grid_to_world(ai_lava_start)
+	enemy["wings_timer"] = Constants.WINGS_DURATION
+	lava_strategy.notify_protection_granted(enemy)
+	lava_action = lava_strategy.choose_action(1, {}, 0.0)
+	if not _check(bool(lava_action["active"]) and lava_action["target"] == ai_lava_target, "Winged AI did not reuse the lava flight strategy"):
+		return
+	lava_strategy.cancel(enemy, true)
+	enemy["wings_timer"] = 0.0
 
 	var stomp_cell := Vector2i(8, 9)
 	game.grid_manager.set_cell(stomp_cell.x, stomp_cell.y, Constants.Cell.EMPTY)
@@ -530,6 +539,34 @@ func _run():
 	if not _check(not bool(player["airborne"]) and is_equal_approx(player["node"].position.y, Constants.FLOOR_Y), "Airborne player did not descend and land"):
 		return
 
+	player["grid_pos"] = eruption_cell
+	player["node"].position = Constants.grid_to_world(eruption_cell) + Vector3(0.0, 0.92, 0.0)
+	player["shield"] = 0
+	player["shield_timer"] = 0.0
+	player["wings_timer"] = Constants.WINGS_DURATION
+	game.combat_manager.process_terrain_effects(Constants.LAVA_ERUPTION_TIME + 0.01)
+	if not _check(bool(player["airborne"]) and player["node"].position.y >= Constants.AIR_LAUNCH_HEIGHT - 0.001, "Wings did not allow lava to launch the player"):
+		return
+	var wing_launch_velocity := float(player["vertical_velocity"])
+	game.airborne_controller._physics_process(1.0)
+	if not _check(
+		is_equal_approx(float(player["vertical_velocity"]), wing_launch_velocity - Constants.WINGS_AIR_GRAVITY)
+		and Constants.WINGS_AIR_GRAVITY < Constants.AIR_GRAVITY,
+		"Wings did not extend airborne time with reduced gravity"
+	):
+		return
+	game.combat_manager.process_terrain_effects(Constants.LAVA_DAMAGE_TIME + 0.01)
+	if not _check(float(player["lava_time"]) == 0.0 and not player["downed"], "Airborne wings user was burned by lava"):
+		return
+	var airborne_height_before_expiry := float(player["node"].position.y)
+	player["wings_timer"] = 0.05
+	game.combat_manager.process_terrain_effects(0.10)
+	if not _check(bool(player["airborne"]) and is_equal_approx(float(player["node"].position.y), airborne_height_before_expiry), "Wings expiry pulled an airborne player back to the ground"):
+		return
+	player["node"].position.y = 0.02
+	player["vertical_velocity"] = -1.0
+	game.airborne_controller._physics_process(0.05)
+
 	var impact_crate_cell := Vector2i(9, 7)
 	game.grid_manager.set_cell(impact_crate_cell.x, impact_crate_cell.y, Constants.Cell.CRATE)
 	var impact_crate := MeshHelpers.box(Vector3(1.2, 0.92, 1.2), game.art.mat_crate)
@@ -608,7 +645,7 @@ func _run():
 		if not _check(int(game.audio_manager.played_events.get(event_id, 0)) > 0, "Gameplay did not emit the %s audio event" % event_id):
 			return
 
-	print("GAME_DESIGN_SMOKE_OK modular_composition shared_art_catalog audio_events progression_unique_ids boss_behavior_boundary expanded_grid visible_initial_spawn clear_first_wave shield_pickup_inventory duplicate_inventory_fifo boss_crate_refresh legacy_map attack_frontier crate_breach ai_lava_strategy difficulty_lava_probability ai_lava_wait airborne_ai_bomb_rule airborne_stomp shielded_stomp stomp_bounce stomp_overlap_safety stomp_single_hit subgrid_turning held_subgrid_motion shared_ai_movement active_world_blast timed_status_effects bomb_warning weather_bounds speed_curve forest_materials backpack_slots wall_hop chain_reaction overlap spawn_fx lava_launch airborne_movement vertical_attack_ranges safe_landing impact_support same_height_attack active_support_exit support_cracks support_fragments")
+	print("GAME_DESIGN_SMOKE_OK modular_composition shared_art_catalog audio_events progression_unique_ids boss_behavior_boundary expanded_grid visible_initial_spawn clear_first_wave shield_pickup_inventory duplicate_inventory_fifo boss_crate_refresh legacy_map attack_frontier crate_breach ai_lava_strategy difficulty_lava_probability ai_lava_wait winged_ai_lava_strategy airborne_ai_bomb_rule airborne_stomp shielded_stomp stomp_bounce stomp_overlap_safety stomp_single_hit subgrid_turning held_subgrid_motion shared_ai_movement active_world_blast timed_status_effects bomb_warning weather_bounds speed_curve forest_materials backpack_slots wall_hop chain_reaction overlap spawn_fx lava_launch wing_lava_launch wing_airborne_immunity wing_extended_flight airborne_movement vertical_attack_ranges safe_landing impact_support same_height_attack active_support_exit support_cracks support_fragments")
 	quit(0)
 
 

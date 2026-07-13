@@ -9,7 +9,7 @@ var _game: Node
 func setup(game_manager: Node):
 	_game = game_manager
 
-func notify_shield_granted(player: Dictionary):
+func notify_protection_granted(player: Dictionary):
 	if not bool(player.get("ai", false)):
 		return
 	player["lava_flight_available"] = true
@@ -20,7 +20,7 @@ func choose_action(player_index: int, danger_cells: Dictionary, roll_override: V
 	if player_index < 0 or player_index >= _game.players.size():
 		return inactive
 	var player: Dictionary = _game.players[player_index]
-	if int(player.get("shield", 0)) <= 0:
+	if _protection_time_left(player) <= 0.0:
 		cancel(player, true)
 		return inactive
 	if bool(player.get("airborne", false)):
@@ -45,7 +45,7 @@ func choose_action(player_index: int, danger_cells: Dictionary, roll_override: V
 		return inactive
 	if player["grid_pos"] == target:
 		var eruption_remaining := maxf(Constants.LAVA_ERUPTION_TIME - float(player.get("lava_eruption_time", 0.0)), 0.0)
-		if eruption_remaining + SAFETY_MARGIN > float(player.get("shield_timer", 0.0)):
+		if eruption_remaining + SAFETY_MARGIN > _protection_time_left(player):
 			cancel(player, true)
 			return inactive
 		player["status"] = "Lava launch %.1fs" % maxf(Constants.LAVA_ERUPTION_TIME - float(player.get("lava_eruption_time", 0.0)), 0.0)
@@ -55,7 +55,7 @@ func choose_action(player_index: int, danger_cells: Dictionary, roll_override: V
 	if path.is_empty():
 		cancel(player, false)
 		return inactive
-	if not _shield_lasts_for_path(player, path):
+	if not _protection_lasts_for_path(player, path):
 		cancel(player, true)
 		return inactive
 	player["status"] = "Seeking lava lift"
@@ -97,7 +97,7 @@ func _find_reachable_lava_target(player: Dictionary, danger_cells: Dictionary) -
 			var path_length := 0 if candidate == start else path.size()
 			if candidate != start and path.is_empty():
 				continue
-			if not _shield_lasts_for_path(player, path):
+			if not _protection_lasts_for_path(player, path):
 				continue
 			if path_length < best_length:
 				best_length = path_length
@@ -124,7 +124,7 @@ func _path_to_lava(player: Dictionary, target: Vector2i, danger_cells: Dictionar
 	walkable[start] = true
 	return AI_PATHFINDER.find_path(start, target, walkable)
 
-func _shield_lasts_for_path(player: Dictionary, path: Array[Vector2i]) -> bool:
+func _protection_lasts_for_path(player: Dictionary, path: Array[Vector2i]) -> bool:
 	var travel_time := 0.0
 	var base_duration := Constants.move_duration_for_speed(int(player.get("speed", 5)))
 	for cell in path:
@@ -134,7 +134,11 @@ func _shield_lasts_for_path(player: Dictionary, path: Array[Vector2i]) -> bool:
 		if float(player.get("slow_timer", 0.0)) > 0.0:
 			cell_duration *= 3.33
 		travel_time += cell_duration
-	return travel_time + Constants.LAVA_ERUPTION_TIME + SAFETY_MARGIN <= float(player.get("shield_timer", 0.0))
+	return travel_time + Constants.LAVA_ERUPTION_TIME + SAFETY_MARGIN <= _protection_time_left(player)
+
+func _protection_time_left(player: Dictionary) -> float:
+	var shield_time := float(player.get("shield_timer", 0.0)) if int(player.get("shield", 0)) > 0 else 0.0
+	return maxf(shield_time, float(player.get("wings_timer", 0.0)))
 
 func _is_occupied_by_other(cell: Vector2i, player: Dictionary) -> bool:
 	for other: Dictionary in _game.players:

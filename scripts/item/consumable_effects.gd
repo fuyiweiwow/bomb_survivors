@@ -31,8 +31,10 @@ func use(player_index: int, item_id: String) -> bool:
 		"oil_barrel":
 			return _place_oil_barrel(player_index)
 		"wings":
-			player["wings_timer"] = 8.0
-			player["status"] = "Wings 8s"
+			player["wings_timer"] = Constants.WINGS_DURATION
+			player["status"] = "Wings %.0fs" % Constants.WINGS_DURATION
+			if bool(player.get("ai", false)) and game.ai_controller:
+				game.ai_controller.on_wings_granted(player_index)
 			status_visuals.refresh_player(player)
 			return true
 		"football_shoes":
@@ -61,6 +63,8 @@ func process(delta: float):
 				game.players[index]["slow_timer"] = 3.0
 
 func end_wings(player: Dictionary):
+	if bool(player.get("airborne", false)):
+		return
 	var cell := player["grid_pos"] as Vector2i
 	if Constants.is_walkable_cell(game.grid[cell.y][cell.x]) and not game.bomb_map.has(cell) and not game.oil_barrels.has(cell):
 		return

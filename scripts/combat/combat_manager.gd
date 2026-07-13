@@ -89,8 +89,8 @@ func process_terrain_effects(delta: float):
 			status_parts.append("Airborne %.1fm" % Constants.player_world_height(p))
 		elif cell_type == Constants.Cell.FOREST:
 			status_parts.append("Hidden")
-		if not bool(p.get("airborne", false)) and cell_type == Constants.Cell.LAVA and float(p["wings_timer"]) <= 0.0:
-			if int(p.get("shield", 0)) > 0:
+		if not bool(p.get("airborne", false)) and cell_type == Constants.Cell.LAVA:
+			if _has_lava_lift_protection(p):
 				p["lava_time"] = 0.0
 				p["lava_eruption_time"] = float(p.get("lava_eruption_time", 0.0)) + delta
 				status_parts.append("Lava pressure %.1fs" % maxf(Constants.LAVA_ERUPTION_TIME - float(p["lava_eruption_time"]), 0.0))
@@ -125,6 +125,9 @@ func process_terrain_effects(delta: float):
 			p["status"] = "Ready"
 		else:
 			p["status"] = " / ".join(status_parts)
+
+func _has_lava_lift_protection(player: Dictionary) -> bool:
+	return int(player.get("shield", 0)) > 0 or float(player.get("wings_timer", 0.0)) > 0.0
 
 func apply_explosion_damage(
 	cells: Array,

@@ -19,7 +19,12 @@ func setup(game_manager: Node):
 func on_shield_granted(player_index: int):
 	if player_index < 0 or player_index >= _game.players.size():
 		return
-	lava_flight_strategy.notify_shield_granted(_game.players[player_index])
+	lava_flight_strategy.notify_protection_granted(_game.players[player_index])
+
+func on_wings_granted(player_index: int):
+	if player_index < 0 or player_index >= _game.players.size():
+		return
+	lava_flight_strategy.notify_protection_granted(_game.players[player_index])
 
 func process_ai(delta: float):
 	for i in range(_game.players.size()):
