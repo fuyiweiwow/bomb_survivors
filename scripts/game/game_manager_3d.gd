@@ -290,6 +290,9 @@ func _try_move_player(index: int, dir: Vector2i) -> bool:
 		return false
 	var current_cell := Constants.world_to_grid(node.position)
 	p["grid_pos"] = current_cell
+	if bool(p.get("impact_support", false)):
+		wall_mechanics.leave_elevated_cell(p)
+		airborne_controller.begin_fall(index)
 	var is_airborne := bool(p.get("airborne", false))
 	var target_height := node.position.y if is_airborne else (0.92 if float(p.get("wings_timer", 0.0)) > 0.0 else 0.0)
 	var target_world := Constants.substep_target(node.position, dir, target_height)
@@ -303,9 +306,7 @@ func _try_move_player(index: int, dir: Vector2i) -> bool:
 
 	p["last_move_dir"] = dir
 	if (p["elevated_cell"] as Vector2i) != Vector2i(-1, -1):
-		wall_mechanics.clear_wall_warning(p)
-		p["elevated_cell"] = Vector2i(-1, -1)
-		p["wall_stay_timer"] = 0.0
+		wall_mechanics.leave_elevated_cell(p)
 	p["is_moving"] = true
 	node.look_at(target_world, Vector3.UP)
 	var move_duration: float = Constants.move_duration_for_speed(int(p["speed"])) / float(Constants.MOVE_SUBSTEPS_PER_TILE)

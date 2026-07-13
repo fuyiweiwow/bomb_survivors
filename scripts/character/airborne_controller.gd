@@ -24,10 +24,29 @@ func launch_from_lava(player_index: int) -> bool:
 	_play_lava_burst(player["grid_pos"])
 	return true
 
+func begin_fall(player_index: int, initial_vertical_velocity := -0.35) -> bool:
+	if player_index < 0 or player_index >= _game.players.size():
+		return false
+	var player: Dictionary = _game.players[player_index]
+	var node = player.get("node")
+	if not player["alive"] or bool(player.get("downed", false)) or not is_instance_valid(node):
+		return false
+	player["airborne"] = true
+	player["vertical_velocity"] = initial_vertical_velocity
+	player["lava_eruption_time"] = 0.0
+	player["lava_time"] = 0.0
+	player["status"] = "Falling %.1fm" % (node as Node3D).position.y
+	_create_shadow(player_index, node as Node3D)
+	return true
+
 func force_land(player_index: int):
 	if player_index < 0 or player_index >= _game.players.size():
 		return
-	if not bool(_game.players[player_index].get("airborne", false)):
+	var player: Dictionary = _game.players[player_index]
+	if (player.get("elevated_cell", Vector2i(-1, -1)) as Vector2i) != Vector2i(-1, -1):
+		_game.wall_mechanics.leave_elevated_cell(player)
+		player["airborne"] = true
+	if not bool(player.get("airborne", false)):
 		return
 	_land_player(player_index)
 
@@ -47,8 +66,40 @@ func _physics_process(delta: float):
 		player["vertical_velocity"] = float(player.get("vertical_velocity", 0.0)) - Constants.AIR_GRAVITY * delta
 		(node as Node3D).position.y += float(player["vertical_velocity"]) * delta
 		_update_shadow(player_index, node as Node3D)
+		if float(player["vertical_velocity"]) <= 0.0:
+			var support_cell := Constants.world_to_grid((node as Node3D).position)
+			var support_height := _support_height(support_cell)
+			if support_height >= 0.0 and (node as Node3D).position.y <= support_height:
+				_land_on_support(player_index, support_cell, support_height)
+				continue
 		if (node as Node3D).position.y <= Constants.FLOOR_Y and float(player["vertical_velocity"]) <= 0.0:
 			_land_player(player_index)
+
+func _support_height(cell: Vector2i) -> float:
+	if not Constants.is_grid_cell_valid(cell):
+		return -1.0
+	match _game.grid[cell.y][cell.x]:
+		Constants.Cell.CRATE:
+			return Constants.CRATE_SUPPORT_HEIGHT
+		Constants.Cell.WALL:
+			return Constants.WALL_SUPPORT_HEIGHT
+	return -1.0
+
+func _land_on_support(player_index: int, cell: Vector2i, height: float):
+	var player: Dictionary = _game.players[player_index]
+	if _game.wall_mechanics.is_cell_occupied(cell, player):
+		return
+	var node = player.get("node")
+	if not is_instance_valid(node):
+		return
+	player["grid_pos"] = cell
+	(node as Node3D).position = Constants.grid_to_world(cell) + Vector3(0, height, 0)
+	if _game.movement_controller:
+		_game.movement_controller.cancel_move(player)
+	player["airborne"] = false
+	player["vertical_velocity"] = 0.0
+	_clear_shadow(player_index)
+	_game.wall_mechanics.start_fall_support(player_index, cell)
 
 func _land_player(player_index: int):
 	var player: Dictionary = _game.players[player_index]

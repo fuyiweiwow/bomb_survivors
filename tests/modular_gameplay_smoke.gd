@@ -345,6 +345,69 @@ func _run():
 	if not _check(not bool(player["airborne"]) and is_equal_approx(player["node"].position.y, Constants.FLOOR_Y), "Airborne player did not descend and land"):
 		return
 
+	var impact_crate_cell := Vector2i(9, 7)
+	game.grid_manager.set_cell(impact_crate_cell.x, impact_crate_cell.y, Constants.Cell.CRATE)
+	var impact_crate := MeshHelpers.box(Vector3(1.2, 0.92, 1.2), game.mat_crate)
+	impact_crate.position = Constants.grid_to_world(impact_crate_cell) + Vector3(0, 0.46, 0)
+	game.add_child(impact_crate)
+	game.grid_manager.crate_nodes[impact_crate_cell] = impact_crate
+	player["grid_pos"] = impact_crate_cell
+	player["node"].position = Constants.grid_to_world(impact_crate_cell) + Vector3(0, Constants.CRATE_SUPPORT_HEIGHT + 0.04, 0)
+	player["airborne"] = true
+	player["vertical_velocity"] = -1.0
+	game.airborne_controller._physics_process(0.05)
+	if not _check(not bool(player["airborne"]) and bool(player["impact_support"]) and player["elevated_cell"] == impact_crate_cell, "Player did not land on the crate support"):
+		return
+	if not _check(is_equal_approx(player["node"].position.y, Constants.CRATE_SUPPORT_HEIGHT), "Crate landing used the wrong height layer"):
+		return
+	if not _check(
+		not game.combat_manager.is_player_in_attack_cells(player, [impact_crate_cell], Constants.GROUND_ATTACK_MIN_HEIGHT, Constants.GROUND_ATTACK_MAX_HEIGHT)
+		and game.combat_manager.is_player_in_attack_cells(player, [impact_crate_cell], 0.96, 1.02),
+		"Support height did not separate ground and same-height attacks"
+	):
+		return
+	game.wall_mechanics.process(0.55)
+	if not _check(player["impact_support_cracks"] != null and impact_crate.scale.y < 1.0, "Crate did not show a cracking warning"):
+		return
+	game.wall_mechanics.process(0.50)
+	if not _check(game.grid[impact_crate_cell.y][impact_crate_cell.x] == Constants.Cell.EMPTY and bool(player["airborne"]), "Crate did not break and release the falling player after one second"):
+		return
+	if not _check(game.get_node_or_null("SupportBreakFragment_%d_%d_0" % [impact_crate_cell.x, impact_crate_cell.y]) != null, "Crate break fragments were not created"):
+		return
+	player["node"].position.y = 0.02
+	player["vertical_velocity"] = -1.0
+	game.airborne_controller._physics_process(0.05)
+
+	var impact_wall_cell := Vector2i(11, 7)
+	game.grid_manager.set_cell(impact_wall_cell.x, impact_wall_cell.y, Constants.Cell.WALL)
+	var impact_wall := MeshHelpers.box(Vector3(1.2, 1.24, 1.2), game.mat_wall)
+	impact_wall.position = Constants.grid_to_world(impact_wall_cell) + Vector3(0, 0.62, 0)
+	game.add_child(impact_wall)
+	game.grid_manager.wall_nodes[impact_wall_cell] = impact_wall
+	player["grid_pos"] = impact_wall_cell
+	player["node"].position = Constants.grid_to_world(impact_wall_cell) + Vector3(0, Constants.WALL_SUPPORT_HEIGHT + 0.04, 0)
+	player["airborne"] = true
+	player["vertical_velocity"] = -1.0
+	game.airborne_controller._physics_process(0.05)
+	if not _check(bool(player["impact_support"]) and is_equal_approx(player["node"].position.y, Constants.WALL_SUPPORT_HEIGHT), "Player did not land on the rock support"):
+		return
+	if not _check(game._try_move_player(0, Vector2i.LEFT) and bool(player["airborne"]) and not bool(player["impact_support"]), "Player could not actively leave a cracking support"):
+		return
+	game.movement_controller.cancel_move(player)
+	if not _check(game.grid[impact_wall_cell.y][impact_wall_cell.x] == Constants.Cell.WALL and impact_wall.scale.is_equal_approx(Vector3.ONE), "Leaving a support did not cancel its cracking state"):
+		return
+	player["grid_pos"] = impact_wall_cell
+	player["node"].position = Constants.grid_to_world(impact_wall_cell) + Vector3(0, Constants.WALL_SUPPORT_HEIGHT + 0.04, 0)
+	player["airborne"] = true
+	player["vertical_velocity"] = -1.0
+	game.airborne_controller._physics_process(0.05)
+	game.wall_mechanics.process(Constants.IMPACT_SUPPORT_BREAK_TIME + 0.01)
+	if not _check(game.grid[impact_wall_cell.y][impact_wall_cell.x] == Constants.Cell.EMPTY and game.grid_manager.destroyed_walls.has(impact_wall_cell) and bool(player["airborne"]), "Rock did not break into its temporary destroyed state"):
+		return
+	player["node"].position.y = 0.02
+	player["vertical_velocity"] = -1.0
+	game.airborne_controller._physics_process(0.05)
+
 	game.combat_manager._cancel_player_movement(player)
 	player["alive"] = true
 	player["downed"] = true
@@ -357,7 +420,7 @@ func _run():
 	if not _check(game.is_cell_walkable(occupied_cell.x, occupied_cell.y, 0), "Living characters still block shared cells"):
 		return
 
-	print("GAME_DESIGN_SMOKE_OK expanded_grid legacy_map attack_frontier crate_breach subgrid_turning held_subgrid_motion shared_ai_movement active_world_blast timed_status_effects bomb_warning weather_bounds speed_curve forest_materials backpack_slots wall_hop chain_reaction overlap spawn_fx lava_launch airborne_movement vertical_attack_ranges safe_landing")
+	print("GAME_DESIGN_SMOKE_OK expanded_grid legacy_map attack_frontier crate_breach subgrid_turning held_subgrid_motion shared_ai_movement active_world_blast timed_status_effects bomb_warning weather_bounds speed_curve forest_materials backpack_slots wall_hop chain_reaction overlap spawn_fx lava_launch airborne_movement vertical_attack_ranges safe_landing impact_support same_height_attack active_support_exit support_cracks support_fragments")
 	quit(0)
 
 
