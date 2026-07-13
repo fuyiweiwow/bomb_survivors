@@ -22,6 +22,8 @@ func _run():
 		return
 	if not _check(not game.players.is_empty(), "Game did not create a player"):
 		return
+	if not _check(Constants.GRID_W == 19 and Constants.GRID_H == 13, "Expanded grid dimensions are incorrect"):
+		return
 	for y in range(Constants.GRID_H):
 		for x in range(Constants.GRID_W):
 			var cell := Vector2i(x, y)
@@ -34,6 +36,14 @@ func _run():
 	game.game_ui.update_hud()
 	if not _check(game.game_hud.inventory_slot_labels[0].text.contains("Shield Potion"), "Backpack HUD does not show the starter item"):
 		return
+	game.inventory_manager.add_item(player, "glue")
+	var slot_two := InputEventKey.new()
+	slot_two.physical_keycode = KEY_2
+	slot_two.pressed = true
+	game.input_controller._unhandled_input(slot_two)
+	if not _check(int(player["selected_consumable_index"]) == 1 and game.inventory_manager.selected_item(player) == "glue", "Number key did not select backpack slot 2"):
+		return
+	game._select_player_consumable(0)
 	if not _check(game.get_node_or_null("AISpawnEffect") != null, "AI spawn effect was not created"):
 		return
 	var left_press := InputEventKey.new()
@@ -80,7 +90,7 @@ func _run():
 	game.movement_controller._physics_process(move_duration * 0.49)
 	if not _check(player["grid_pos"] == Vector2i(1, 1) and Constants.world_to_grid(player["node"].position) == Vector2i(1, 1), "World position left the source grid too early"):
 		return
-	game.movement_controller._physics_process(move_duration * 0.03)
+	game.movement_controller._physics_process(move_duration * 0.06)
 	if not _check(player["grid_pos"] == Vector2i(2, 1) and bool(player["is_moving"]), "Grid position did not follow the character across the cell boundary"):
 		return
 	game.movement_controller._physics_process(1.0)
@@ -97,6 +107,36 @@ func _run():
 	game.movement_controller._physics_process(move_duration * 0.75)
 	game.movement_controller.cancel_move(player)
 	if not _check(player["grid_pos"] == Vector2i(1, 1) and player["node"].position.is_equal_approx(Constants.grid_to_world(Vector2i(1, 1))), "Late movement cancellation did not settle in the entered cell"):
+		return
+
+	var blast_cell := Vector2i(1, 1)
+	var blast_center := Constants.grid_to_world(blast_cell)
+	player["shield"] = 0
+	player["alive"] = true
+	player["downed"] = false
+	player["grid_pos"] = blast_cell
+	player["node"].position = blast_center + Vector3(Constants.BLAST_HIT_RADIUS, 0.0, 0.0)
+	game.combat_manager.apply_explosion_damage([blast_cell])
+	if not _check(not player["downed"], "Player at one-third tile distance was still hit by an explosion"):
+		return
+	player["node"].position = blast_center + Vector3(Constants.BLAST_HIT_RADIUS - 0.01, 0.0, 0.0)
+	game.combat_manager.apply_explosion_damage([blast_cell])
+	if not _check(player["downed"], "Player inside one-third tile distance avoided an explosion"):
+		return
+	game.combat_manager._revive_player(0)
+	player["node"].position = blast_center
+
+	var legacy_grid: Array = []
+	for y in Constants.GRID_H:
+		var legacy_row: Array = []
+		legacy_row.resize(Constants.GRID_W)
+		legacy_row.fill(Constants.Cell.EMPTY)
+		legacy_grid.append(legacy_row)
+	var legacy_data := {"0,0": Constants.Cell.WALL, "14,10": Constants.Cell.WALL, "7,5": Constants.Cell.CRATE}
+	var map_codec = load("res://scripts/grid/map_data_codec.gd")
+	if not _check(map_codec.decode_into_grid(legacy_data, legacy_grid, Constants.GRID_W, Constants.GRID_H, Constants.Cell.EMPTY, Constants.Cell.WALL), "Legacy map could not be migrated"):
+		return
+	if not _check(legacy_grid[6][9] == Constants.Cell.CRATE and legacy_grid[1][2] == Constants.Cell.EMPTY, "Legacy map content was not centered without its old border"):
 		return
 
 	var forest_tile = game.grid_manager._create_forest_tile(Vector2i(5, 5))
@@ -150,7 +190,7 @@ func _run():
 	if not _check(game.is_cell_walkable(occupied_cell.x, occupied_cell.y, 0), "Living characters still block shared cells"):
 		return
 
-	print("GAME_DESIGN_SMOKE_OK continuous_grid_sync physics_movement forest_materials backpack_hud wall_hop chain_reaction overlap spawn_fx")
+	print("GAME_DESIGN_SMOKE_OK expanded_grid legacy_map continuous_grid_sync physics_movement world_blast forest_materials backpack_slots wall_hop chain_reaction overlap spawn_fx")
 	quit(0)
 
 

@@ -97,12 +97,23 @@ func apply_explosion_damage(cells: Array, explosion_owner := -1, exploding_cell 
 		if _game.oil_barrels.has(cell):
 			_game.consumable_effects.damage_oil_barrel(cell)
 
-		for i in range(_game.players.size()):
-			var p: Dictionary = _game.players[i]
-			if p["alive"] and p["grid_pos"] == cell:
-				if i == explosion_owner and _game.wall_mechanics.try_bomb_boost(i):
-					continue
-				_damage_player(i, 1, "blast")
+	for i in range(_game.players.size()):
+		var p: Dictionary = _game.players[i]
+		if not p["alive"] or not _is_player_hit_by_cells(p, cells):
+			continue
+		if i == explosion_owner and _game.wall_mechanics.try_bomb_boost(i):
+			continue
+		_damage_player(i, 1, "blast")
+
+func _is_player_hit_by_cells(player: Dictionary, cells: Array) -> bool:
+	var world_position := Constants.grid_to_world(player["grid_pos"])
+	var player_node = player.get("node")
+	if is_instance_valid(player_node):
+		world_position = (player_node as Node3D).position
+	for raw_cell in cells:
+		if Constants.is_world_position_in_blast_cell(world_position, raw_cell as Vector2i):
+			return true
+	return false
 
 func damage_player(index: int, amount: int, source: String):
 	if index < 0 or index >= _game.players.size():

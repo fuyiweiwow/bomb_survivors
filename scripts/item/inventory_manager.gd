@@ -18,6 +18,13 @@ func cycle(player: Dictionary) -> String:
 	player["selected_consumable_index"] = (int(player.get("selected_consumable_index", 0)) + 1) % items.size()
 	return str(items[int(player["selected_consumable_index"])])
 
+func select_slot(player: Dictionary, slot_index: int) -> String:
+	var items: Array = player.get("consumables", [])
+	if slot_index < 0 or slot_index >= items.size():
+		return ""
+	player["selected_consumable_index"] = slot_index
+	return str(items[slot_index])
+
 func add_item(player: Dictionary, item_id: String) -> bool:
 	var items: Array = player.get("consumables", [])
 	if items.size() >= MAX_ITEMS:

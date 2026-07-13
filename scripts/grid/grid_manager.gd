@@ -1,5 +1,7 @@
 extends Node
 
+const MAP_DATA_CODEC := preload("res://scripts/grid/map_data_codec.gd")
+
 var grid: Array = []
 var crate_nodes: Dictionary = {}
 var wall_nodes: Dictionary = {}
@@ -159,13 +161,13 @@ func _seed_special_terrain():
 	open_cells.shuffle()
 
 	var index := 0
-	for i in range(6):
+	for i in range(9):
 		if index >= open_cells.size():
 			return
 		var cell := open_cells[index] as Vector2i
 		grid[cell.y][cell.x] = Constants.Cell.FOREST
 		index += 1
-	for i in range(4):
+	for i in range(6):
 		if index >= open_cells.size():
 			return
 		var cell := open_cells[index] as Vector2i
@@ -184,25 +186,14 @@ func _load_saved_map():
 		return
 	file.close()
 
-	var data = json.get_data()
-	for y in Constants.GRID_H:
-		for x in Constants.GRID_W:
-			grid[y][x] = Constants.Cell.EMPTY
-	for x in Constants.GRID_W:
-		grid[0][x] = Constants.Cell.WALL
-		grid[Constants.GRID_H - 1][x] = Constants.Cell.WALL
-	for y in Constants.GRID_H:
-		grid[y][0] = Constants.Cell.WALL
-		grid[y][Constants.GRID_W - 1] = Constants.Cell.WALL
-
-	for key in data.keys():
-		var coords = key.split(",")
-		if coords.size() != 2:
-			continue
-		var cx := int(coords[0])
-		var cy := int(coords[1])
-		if cx >= 1 and cx < Constants.GRID_W - 1 and cy >= 1 and cy < Constants.GRID_H - 1:
-			grid[cy][cx] = int(data[key])
+	MAP_DATA_CODEC.decode_into_grid(
+		json.get_data(),
+		grid,
+		Constants.GRID_W,
+		Constants.GRID_H,
+		Constants.Cell.EMPTY,
+		Constants.Cell.WALL
+	)
 
 func _floor_mat_for_cell(x: int, y: int) -> Material:
 	match grid[y][x]:

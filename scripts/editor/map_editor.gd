@@ -5,6 +5,7 @@ const GRID_H := Constants.GRID_H
 const TILE_SIZE := Constants.TILE_SIZE
 const FLOOR_Y := Constants.FLOOR_Y
 const TERRAIN_ART := preload("res://scripts/terrain/terrain_art_factory.gd")
+const MAP_DATA_CODEC := preload("res://scripts/grid/map_data_codec.gd")
 
 enum Cell { EMPTY, WALL, CRATE, FOREST, LAVA }
 
@@ -70,7 +71,7 @@ func _setup_scene():
 
 	camera = Camera3D.new()
 	camera.projection = Camera3D.PROJECTION_ORTHOGONAL
-	camera.size = 27.0
+	camera.size = 34.0
 	camera.position = Vector3(0, 16, 12)
 	camera.rotation_degrees = Vector3(-58, 0, 0)
 	camera.current = true
@@ -387,11 +388,7 @@ func _is_pointer_over_editor_ui(screen_pos: Vector2) -> bool:
 func _save_map():
 	var file := FileAccess.open("user://map_data.json", FileAccess.WRITE)
 	if file:
-		var data := {}
-		for y in GRID_H:
-			for x in GRID_W:
-				if grid[y][x] != Cell.EMPTY:
-					data[str(x) + "," + str(y)] = grid[y][x]
+		var data := MAP_DATA_CODEC.encode(grid, GRID_W, GRID_H, Cell.EMPTY)
 		file.store_string(JSON.stringify(data))
 		file.close()
 		print("Map saved!")
@@ -407,24 +404,7 @@ func _load_map(show_messages := true):
 		file.close()
 		var json := JSON.new()
 		if json.parse(text) == OK:
-			var data = json.get_data()
-			for yy in GRID_H:
-				for xx in GRID_W:
-					grid[yy][xx] = Cell.EMPTY
-			for xx in GRID_W:
-				grid[0][xx] = Cell.WALL
-				grid[GRID_H - 1][xx] = Cell.WALL
-			for yy in GRID_H:
-				grid[yy][0] = Cell.WALL
-				grid[yy][GRID_W - 1] = Cell.WALL
-			for key in data.keys():
-				var coords = key.split(",")
-				if coords.size() != 2:
-					continue
-				var cx = int(coords[0])
-				var cy = int(coords[1])
-				if cx >= 1 and cx < GRID_W - 1 and cy >= 1 and cy < GRID_H - 1:
-					grid[cy][cx] = int(data[key])
-			_refresh_view()
-			if show_messages:
-				print("Map loaded!")
+			if MAP_DATA_CODEC.decode_into_grid(json.get_data(), grid, GRID_W, GRID_H, Cell.EMPTY, Cell.WALL):
+				_refresh_view()
+				if show_messages:
+					print("Map loaded!")

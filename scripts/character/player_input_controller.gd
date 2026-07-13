@@ -48,6 +48,9 @@ func _unhandled_input(event: InputEvent) -> void:
 		KEY_SPACE: action_requested.emit("bomb")
 		KEY_E: action_requested.emit("use_item")
 		KEY_Q: action_requested.emit("cycle_item")
+		KEY_1: action_requested.emit("select_item_0")
+		KEY_2: action_requested.emit("select_item_1")
+		KEY_3: action_requested.emit("select_item_2")
 		KEY_ESCAPE: action_requested.emit("menu")
 		KEY_R: action_requested.emit("restart")
 

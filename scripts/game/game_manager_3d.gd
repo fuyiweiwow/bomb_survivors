@@ -135,6 +135,9 @@ func _on_player_action(action: String):
 			"menu": get_tree().change_scene_to_file("res://scenes/menu/main_menu.tscn")
 			"cycle_item": get_tree().quit()
 		return
+	if action.begins_with("select_item_"):
+		_select_player_consumable(int(action.trim_prefix("select_item_")))
+		return
 	match action:
 		"bomb": bomb_pressed = true
 		"use_item": _try_use_player_consumable()
@@ -252,6 +255,16 @@ func _cycle_player_consumable():
 		p["status"] = "Bag empty"
 		return
 	var selected_item := str(inventory_manager.cycle(p))
+	p["status"] = "Selected %s" % powerup_manager._item_display_name(selected_item)
+
+func _select_player_consumable(slot_index: int):
+	if players.is_empty() or not players[0]["alive"]:
+		return
+	var p: Dictionary = players[0]
+	var selected_item: String = inventory_manager.select_slot(p, slot_index)
+	if selected_item.is_empty():
+		p["status"] = "Bag slot %d empty" % (slot_index + 1)
+		return
 	p["status"] = "Selected %s" % powerup_manager._item_display_name(selected_item)
 
 func _try_move_player(index: int, dir: Vector2i) -> bool:

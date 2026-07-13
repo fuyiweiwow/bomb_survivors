@@ -12,7 +12,7 @@ func setup(game_manager: Node):
 func setup_camera():
 	game_camera = Camera3D.new()
 	game_camera.projection = Camera3D.PROJECTION_ORTHOGONAL
-	game_camera.size = 25.0
+	game_camera.size = 30.0
 	game_camera.position = Vector3(0, 16, 12)
 	game_camera.rotation_degrees = Vector3(-58, 0, 0)
 	game_camera.current = true
