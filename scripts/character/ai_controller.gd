@@ -64,13 +64,13 @@ func _ai_should_place_bomb(player_index: int) -> bool:
 	var p: Dictionary = _game.players[player_index]
 	var difficulty := str(p.get("ai_difficulty", "normal"))
 	var blast_cells: Dictionary = _game.bomb_manager.blast_cell_set(p["grid_pos"], p["bomb_range"])
-	if difficulty == "hard" and Constants.is_player_hidden(_game.players, 0, _game.grid) and blast_cells.has(_game.players[0]["grid_pos"]):
+	if difficulty == "hard" and Constants.is_player_hidden(_game.players, 0, _game.grid) and _is_target_in_ground_attack_layer(_game.players[0]) and blast_cells.has(_game.players[0]["grid_pos"]):
 		return true
 	for i: int in range(_game.players.size()):
 		if i == player_index:
 			continue
 		var target: Dictionary = _game.players[i]
-		if target["alive"] and not Constants.is_player_hidden(_game.players, i, _game.grid) and blast_cells.has(target["grid_pos"]):
+		if target["alive"] and _is_target_in_ground_attack_layer(target) and not Constants.is_player_hidden(_game.players, i, _game.grid) and blast_cells.has(target["grid_pos"]):
 			return true
 
 	var dirs := [Vector2i(0, -1), Vector2i(0, 1), Vector2i(-1, 0), Vector2i(1, 0)]
@@ -91,6 +91,9 @@ func _ai_should_place_bomb(player_index: int) -> bool:
 			if _game.grid[c.y][c.x] == Constants.Cell.CRATE and Constants.grid_distance(c, player_cell) < current_distance:
 				return true
 	return false
+
+func _is_target_in_ground_attack_layer(target: Dictionary) -> bool:
+	return Constants.is_player_in_attack_height(target, Constants.GROUND_ATTACK_MIN_HEIGHT, Constants.GROUND_ATTACK_MAX_HEIGHT)
 
 func _choose_ai_direction(p: Dictionary) -> Vector2i:
 	var dirs := [Vector2i(0, -1), Vector2i(0, 1), Vector2i(-1, 0), Vector2i(1, 0)]
@@ -279,7 +282,7 @@ func _frost_giant_skill(index: int):
 	var boss: Dictionary = _game.players[index]
 	var player: Dictionary = _game.players[0]
 	var delta_vec: Vector2i = player["grid_pos"] - boss["grid_pos"]
-	if absi(delta_vec.x) <= 1 and absi(delta_vec.y) <= 1:
+	if absi(delta_vec.x) <= 1 and absi(delta_vec.y) <= 1 and _is_target_in_ground_attack_layer(player):
 		player["frozen_timer"] = 3.0
 		player["status"] = "Frozen 3.0s"
 		var freeze := MeshHelpers.box(Vector3(Constants.TILE_SIZE * 0.9, 0.12, Constants.TILE_SIZE * 0.9), MeshHelpers.make_mat(Color(0.45, 0.88, 1.0), true))
@@ -297,7 +300,7 @@ func _frost_charge(index: int, direction: Vector2i):
 	var destination: Vector2i = boss["grid_pos"]
 	for step in range(2):
 		var target := destination + direction
-		if not _game.players.is_empty() and _game.players[0]["alive"] and target == _game.players[0]["grid_pos"]:
+		if not _game.players.is_empty() and _game.players[0]["alive"] and _is_target_in_ground_attack_layer(_game.players[0]) and target == _game.players[0]["grid_pos"]:
 			_game._damage_player(0, 1, "frost charge")
 			break
 		if not _game.is_cell_walkable(target.x, target.y):

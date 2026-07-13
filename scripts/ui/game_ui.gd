@@ -166,7 +166,16 @@ func _strike_thunder(cell: Vector2i, warning: Node3D):
 	tw.tween_property(bolt, "transparency", 1.0, 0.22)
 	tw.tween_callback(bolt.queue_free)
 	for i in range(_game.players.size()):
-		if _game.players[i]["alive"] and _game.players[i]["grid_pos"] == cell:
+		var player: Dictionary = _game.players[i]
+		if (
+			player["alive"]
+			and _game.combat_manager.is_player_in_attack_cells(
+				player,
+				[cell],
+				Constants.GROUND_ATTACK_MIN_HEIGHT,
+				Constants.AERIAL_ATTACK_MAX_HEIGHT
+			)
+		):
 			_game.combat_manager.damage_player(i, 1, "thunder")
 
 func _difficulty_label() -> String:

@@ -41,7 +41,10 @@ func _character_nodes_overlap(first: Dictionary, second: Dictionary) -> bool:
 		return false
 	var first_position := (first_node as Node3D).global_position
 	var second_position := (second_node as Node3D).global_position
-	return Vector2(first_position.x, first_position.z).distance_to(Vector2(second_position.x, second_position.z)) <= 0.72
+	return (
+		absf(first_position.y - second_position.y) <= 0.8
+		and Vector2(first_position.x, first_position.z).distance_to(Vector2(second_position.x, second_position.z)) <= 0.72
+	)
 
 func process_terrain_effects(delta: float):
 	for i in range(_game.players.size()):
@@ -68,16 +71,31 @@ func process_terrain_effects(delta: float):
 		var cell_type: int = _game.grid[cell.y][cell.x]
 		var status_parts: Array = []
 
-		if cell_type == Constants.Cell.FOREST:
-			status_parts.append("Hidden")
-		if cell_type == Constants.Cell.LAVA and float(p["wings_timer"]) <= 0.0:
-			p["lava_time"] = float(p["lava_time"]) + delta
-			status_parts.append("Burning %.1fs" % maxf(Constants.LAVA_DAMAGE_TIME - float(p["lava_time"]), 0.0))
-			if float(p["lava_time"]) >= Constants.LAVA_DAMAGE_TIME:
-				p["lava_time"] = 0.0
-				_damage_player(i, 1, "lava")
-		else:
+		if bool(p.get("airborne", false)):
 			p["lava_time"] = 0.0
+			p["lava_eruption_time"] = 0.0
+			status_parts.append("Airborne %.1fm" % Constants.player_world_height(p))
+		elif cell_type == Constants.Cell.FOREST:
+			status_parts.append("Hidden")
+		if not bool(p.get("airborne", false)) and cell_type == Constants.Cell.LAVA and float(p["wings_timer"]) <= 0.0:
+			if int(p.get("shield", 0)) > 0:
+				p["lava_time"] = 0.0
+				p["lava_eruption_time"] = float(p.get("lava_eruption_time", 0.0)) + delta
+				status_parts.append("Lava pressure %.1fs" % maxf(Constants.LAVA_ERUPTION_TIME - float(p["lava_eruption_time"]), 0.0))
+				if float(p["lava_eruption_time"]) >= Constants.LAVA_ERUPTION_TIME and _game.airborne_controller:
+					if _game.airborne_controller.launch_from_lava(i):
+						status_parts.clear()
+						status_parts.append("Airborne %.1fm" % Constants.player_world_height(p))
+			else:
+				p["lava_eruption_time"] = 0.0
+				p["lava_time"] = float(p["lava_time"]) + delta
+				status_parts.append("Burning %.1fs" % maxf(Constants.LAVA_DAMAGE_TIME - float(p["lava_time"]), 0.0))
+				if float(p["lava_time"]) >= Constants.LAVA_DAMAGE_TIME:
+					p["lava_time"] = 0.0
+					_damage_player(i, 1, "lava")
+		elif not bool(p.get("airborne", false)):
+			p["lava_time"] = 0.0
+			p["lava_eruption_time"] = 0.0
 
 		if int(p.get("shield", 0)) > 0:
 			status_parts.append("Shield %d %.1fs" % [int(p["shield"]), float(p["shield_timer"])])
@@ -101,7 +119,9 @@ func apply_explosion_damage(
 	explosion_owner := -1,
 	exploding_cell := Vector2i(-1, -1),
 	hit_players: Variant = null,
-	affect_obstacles := true
+	affect_obstacles := true,
+	min_height := Constants.GROUND_ATTACK_MIN_HEIGHT,
+	max_height := Constants.GROUND_ATTACK_MAX_HEIGHT
 ):
 	var hit_registry: Dictionary = hit_players as Dictionary if hit_players is Dictionary else {}
 	if affect_obstacles:
@@ -115,18 +135,20 @@ func apply_explosion_damage(
 
 	for i in range(_game.players.size()):
 		var p: Dictionary = _game.players[i]
-		if hit_registry.has(i) or not p["alive"] or not _is_player_hit_by_cells(p, cells):
+		if hit_registry.has(i) or not p["alive"] or not is_player_in_attack_cells(p, cells, min_height, max_height):
 			continue
 		hit_registry[i] = true
 		if i == explosion_owner and _game.wall_mechanics.try_bomb_boost(i):
 			continue
 		_damage_player(i, 1, "blast")
 
-func _is_player_hit_by_cells(player: Dictionary, cells: Array) -> bool:
+func is_player_in_attack_cells(player: Dictionary, cells: Array, min_height: float, max_height: float) -> bool:
 	var world_position := Constants.grid_to_world(player["grid_pos"])
 	var player_node = player.get("node")
 	if is_instance_valid(player_node):
 		world_position = (player_node as Node3D).position
+	if not Constants.is_height_in_attack_range(world_position.y, min_height, max_height):
+		return false
 	for raw_cell in cells:
 		if Constants.is_world_position_in_blast_cell(world_position, raw_cell as Vector2i):
 			return true
@@ -169,6 +191,8 @@ func _enter_downed(index: int, source: String):
 	p["downed"] = true
 	p["downed_timer"] = Constants.DOWNED_DURATION
 	p["status"] = "Downed by %s" % source
+	if _game.airborne_controller:
+		_game.airborne_controller.force_land(index)
 	_cancel_player_movement(p)
 	_cancel_player_state_animation(p)
 	if index == 0:
@@ -202,6 +226,8 @@ func _kill_player(index: int):
 	p["downed"] = false
 	p["downed_timer"] = 0.0
 	p["status"] = "Defeated"
+	if _game.airborne_controller:
+		_game.airborne_controller.force_land(index)
 	_cancel_player_movement(p)
 	_cancel_player_state_animation(p)
 	if str(p.get("boss_id", "")) != "":

@@ -14,6 +14,14 @@ const PLAYER_MAX_HP := 3
 const LAVA_DAMAGE_TIME := 1.35
 const DOWNED_DURATION := 5.0
 const SHIELD_DURATION := 5.0
+const LAVA_ERUPTION_TIME := 1.0
+const AIR_LAUNCH_HEIGHT := 1.15
+const AIR_LAUNCH_VELOCITY := 3.6
+const AIR_GRAVITY := 1.65
+const GROUND_ATTACK_MIN_HEIGHT := -0.25
+const GROUND_ATTACK_MAX_HEIGHT := 1.05
+const AERIAL_ATTACK_MIN_HEIGHT := GROUND_ATTACK_MAX_HEIGHT
+const AERIAL_ATTACK_MAX_HEIGHT := 8.0
 
 const CONSUMABLE_IDS := ["detonator", "glue", "shield_potion", "invincible_star", "dummy", "oil_barrel", "wings", "football_shoes", "tianlao"]
 
@@ -32,6 +40,18 @@ static func is_world_position_in_blast_cell(world_position: Vector3, cell: Vecto
 	var center := grid_to_world(cell)
 	var hit_radius := BLAST_HIT_RADIUS - 0.001
 	return absf(world_position.x - center.x) < hit_radius and absf(world_position.z - center.z) < hit_radius
+
+static func is_height_in_attack_range(height: float, min_height: float, max_height: float) -> bool:
+	return height >= min_height and height <= max_height
+
+static func player_world_height(player: Dictionary) -> float:
+	var player_node = player.get("node")
+	if is_instance_valid(player_node):
+		return (player_node as Node3D).position.y
+	return FLOOR_Y
+
+static func is_player_in_attack_height(player: Dictionary, min_height: float, max_height: float) -> bool:
+	return is_height_in_attack_range(player_world_height(player), min_height, max_height)
 
 static func substep_target(world_position: Vector3, direction: Vector2i, height: float) -> Vector3:
 	var target := world_position + Vector3(direction.x * MOVE_STEP_SIZE, 0.0, direction.y * MOVE_STEP_SIZE)
@@ -65,4 +85,6 @@ static func is_player_hidden(players: Array, index: int, grid_array: Array) -> b
 		return false
 	var p: Dictionary = players[index]
 	var cell: Vector2i = p["grid_pos"]
-	return p["alive"] and grid_array[cell.y][cell.x] == Cell.FOREST
+	if not p["alive"] or not is_grid_cell_valid(cell) or bool(p.get("airborne", false)):
+		return false
+	return grid_array[cell.y][cell.x] == Cell.FOREST

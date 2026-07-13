@@ -20,6 +20,8 @@ func _run():
 		return
 	if not _check(game.movement_controller != null, "GridMovementController was not initialized"):
 		return
+	if not _check(game.airborne_controller != null, "AirborneController was not initialized"):
+		return
 	if not _check(not game.players.is_empty(), "Game did not create a player"):
 		return
 	if not _check(Constants.GRID_W == 19 and Constants.GRID_H == 13, "Expanded grid dimensions are incorrect"):
@@ -283,6 +285,66 @@ func _run():
 	if not _check(int(player["shield"]) == 0 and float(player["shield_timer"]) == 0.0, "Shield did not expire after five seconds"):
 		return
 
+	var eruption_cell := Vector2i(5, 7)
+	var blocked_air_cell := eruption_cell + Vector2i.RIGHT
+	for setup_cell in [eruption_cell, eruption_cell + Vector2i.LEFT, eruption_cell + Vector2i.UP, eruption_cell + Vector2i.DOWN]:
+		game.grid_manager.set_cell(setup_cell.x, setup_cell.y, Constants.Cell.EMPTY)
+	game.grid_manager.set_cell(eruption_cell.x, eruption_cell.y, Constants.Cell.LAVA)
+	game.grid_manager.set_cell(blocked_air_cell.x, blocked_air_cell.y, Constants.Cell.WALL)
+	game.combat_manager._cancel_player_movement(player)
+	player["alive"] = true
+	player["downed"] = false
+	player["airborne"] = false
+	player["wings_timer"] = 0.0
+	player["invincible_timer"] = 0.0
+	player["shield"] = 1
+	player["shield_timer"] = Constants.SHIELD_DURATION
+	player["grid_pos"] = eruption_cell
+	player["node"].position = Constants.grid_to_world(eruption_cell)
+	game.combat_manager.process_terrain_effects(Constants.LAVA_ERUPTION_TIME + 0.01)
+	if not _check(bool(player["airborne"]) and player["node"].position.y >= Constants.AIR_LAUNCH_HEIGHT - 0.001, "Shielded lava did not erupt and launch the player"):
+		return
+	game.grid_manager.set_cell(eruption_cell.x, eruption_cell.y, Constants.Cell.FOREST)
+	if not _check(not Constants.is_player_hidden(game.players, 0, game.grid), "Airborne player was hidden by forest cover"):
+		return
+	game.grid_manager.set_cell(eruption_cell.x, eruption_cell.y, Constants.Cell.LAVA)
+
+	player["node"].position = Constants.grid_to_world(eruption_cell) + Vector3(Constants.MOVE_STEP_SIZE, Constants.AIR_LAUNCH_HEIGHT, 0.0)
+	player["grid_pos"] = eruption_cell
+	if not _check(game._try_move_player(0, Vector2i.RIGHT), "Airborne movement did not cross a blocked ground cell"):
+		return
+	game.movement_controller.cancel_move(player)
+	player["node"].position = Constants.grid_to_world(eruption_cell) + Vector3(0.0, Constants.AIR_LAUNCH_HEIGHT, 0.0)
+	player["grid_pos"] = eruption_cell
+	player["shield"] = 0
+	player["shield_timer"] = 0.0
+	game.combat_manager.apply_explosion_damage([eruption_cell])
+	if not _check(not player["downed"], "Ground explosion hit a player above its height range"):
+		return
+	game.combat_manager.apply_explosion_damage(
+		[eruption_cell],
+		-1,
+		eruption_cell,
+		null,
+		false,
+		Constants.AERIAL_ATTACK_MIN_HEIGHT,
+		Constants.AERIAL_ATTACK_MAX_HEIGHT
+	)
+	if not _check(player["downed"] and not bool(player["airborne"]), "Aerial attack did not hit and land an airborne player"):
+		return
+	if not _check(not Constants.is_lava_cell(game.grid, player["grid_pos"]), "Forced landing selected an unsafe lava cell"):
+		return
+	game.combat_manager._revive_player(0)
+	player["grid_pos"] = eruption_cell
+	player["node"].position = Constants.grid_to_world(eruption_cell)
+	if not _check(game.airborne_controller.launch_from_lava(0), "Second lava launch was rejected"):
+		return
+	player["node"].position.y = 0.02
+	player["vertical_velocity"] = -1.0
+	game.airborne_controller._physics_process(0.05)
+	if not _check(not bool(player["airborne"]) and is_equal_approx(player["node"].position.y, Constants.FLOOR_Y), "Airborne player did not descend and land"):
+		return
+
 	game.combat_manager._cancel_player_movement(player)
 	player["alive"] = true
 	player["downed"] = true
@@ -295,7 +357,7 @@ func _run():
 	if not _check(game.is_cell_walkable(occupied_cell.x, occupied_cell.y, 0), "Living characters still block shared cells"):
 		return
 
-	print("GAME_DESIGN_SMOKE_OK expanded_grid legacy_map attack_frontier crate_breach subgrid_turning held_subgrid_motion shared_ai_movement active_world_blast timed_status_effects bomb_warning weather_bounds speed_curve forest_materials backpack_slots wall_hop chain_reaction overlap spawn_fx")
+	print("GAME_DESIGN_SMOKE_OK expanded_grid legacy_map attack_frontier crate_breach subgrid_turning held_subgrid_motion shared_ai_movement active_world_blast timed_status_effects bomb_warning weather_bounds speed_curve forest_materials backpack_slots wall_hop chain_reaction overlap spawn_fx lava_launch airborne_movement vertical_attack_ranges safe_landing")
 	quit(0)
 
 

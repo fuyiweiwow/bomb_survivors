@@ -6,6 +6,7 @@ const GAME_HUD := preload("res://scripts/ui/game_hud.gd")
 
 var grid_manager: Node
 var player_manager: Node
+var airborne_controller: Node
 var movement_controller: Node
 var ai_controller: Node
 var combat_manager: Node
@@ -102,6 +103,10 @@ func _setup_gameplay_systems():
 	player_manager = load("res://scripts/character/player_manager.gd").new()
 	add_child(player_manager)
 	player_manager.setup(self)
+
+	airborne_controller = load("res://scripts/character/airborne_controller.gd").new()
+	add_child(airborne_controller)
+	airborne_controller.setup(self)
 
 	movement_controller = load("res://scripts/character/grid_movement_controller.gd").new()
 	add_child(movement_controller)
@@ -220,6 +225,9 @@ func read_player_move_direction() -> Vector2i:
 
 func _handle_player_bomb_action():
 	var p: Dictionary = players[0]
+	if bool(p.get("airborne", false)):
+		p["status"] = "Cannot place a ground bomb in the air"
+		return
 	if float(p.get("football_timer", 0.0)) > 0.0:
 		bomb_manager.kick_bomb_in_direction(p)
 	elif int(p["bomb_placed_count"]) < int(p["bomb_max"]):
@@ -282,14 +290,15 @@ func _try_move_player(index: int, dir: Vector2i) -> bool:
 		return false
 	var current_cell := Constants.world_to_grid(node.position)
 	p["grid_pos"] = current_cell
-	var target_height := 0.92 if float(p.get("wings_timer", 0.0)) > 0.0 else 0.0
+	var is_airborne := bool(p.get("airborne", false))
+	var target_height := node.position.y if is_airborne else (0.92 if float(p.get("wings_timer", 0.0)) > 0.0 else 0.0)
 	var target_world := Constants.substep_target(node.position, dir, target_height)
 	var target := Constants.world_to_grid(target_world)
 	if target.x < 0 or target.x >= Constants.GRID_W or target.y < 0 or target.y >= Constants.GRID_H:
 		return false
-	if target != current_cell and grid[target.y][target.x] == Constants.Cell.WALL:
+	if not is_airborne and target != current_cell and grid[target.y][target.x] == Constants.Cell.WALL:
 		return wall_mechanics.try_wall_hop(index, dir)
-	if target != current_cell and not is_cell_walkable(target.x, target.y, index):
+	if not is_airborne and target != current_cell and not is_cell_walkable(target.x, target.y, index):
 		return false
 
 	p["last_move_dir"] = dir

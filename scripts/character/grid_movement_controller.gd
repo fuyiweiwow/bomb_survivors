@@ -18,7 +18,9 @@ func start_move(player_index: int, from_cell: Vector2i, target_cell: Vector2i, t
 	var player_node = player.get("node")
 	var move_distance := Constants.MOVE_STEP_SIZE
 	if is_instance_valid(player_node):
-		move_distance = (player_node as Node3D).position.distance_to(target)
+		var offset := target - (player_node as Node3D).position
+		offset.y = 0.0
+		move_distance = offset.length()
 	player["move_speed_world"] = move_distance / maxf(duration, 0.01)
 	player["grid_motion_active"] = true
 	player["is_moving"] = true
@@ -35,7 +37,7 @@ func cancel_move(player: Dictionary):
 	player["grid_motion_active"] = false
 	player["move_tween"] = null
 	if is_instance_valid(node):
-		var target_height := 0.92 if float(player.get("wings_timer", 0.0)) > 0.0 else 0.0
+		var target_height := (node as Node3D).position.y if bool(player.get("airborne", false)) else (0.92 if float(player.get("wings_timer", 0.0)) > 0.0 else 0.0)
 		var resting_position := Constants.grid_to_world(player["grid_pos"]) + Vector3(0, target_height, 0)
 		player["move_target_world"] = resting_position
 		(node as Node3D).position = resting_position
@@ -61,6 +63,9 @@ func _advance_player(index: int, delta: float):
 	var cells_advanced := 0
 	while travel_budget > ARRIVAL_EPSILON and bool(player.get("is_moving", false)) and cells_advanced < MAX_SUBSTEPS_PER_TICK:
 		var target := player.get("move_target_world", (node as Node3D).position) as Vector3
+		if bool(player.get("airborne", false)):
+			target.y = (node as Node3D).position.y
+			player["move_target_world"] = target
 		var distance := (node as Node3D).position.distance_to(target)
 		if distance > travel_budget + ARRIVAL_EPSILON:
 			(node as Node3D).position = (node as Node3D).position.move_toward(target, travel_budget)
@@ -91,7 +96,7 @@ func _complete_substep(index: int):
 	player["is_moving"] = false
 	player["move_speed_world"] = 0.0
 	player["grid_motion_active"] = false
-	if bool(player.get("alive", false)) and not bool(player.get("downed", false)):
+	if bool(player.get("alive", false)) and not bool(player.get("downed", false)) and not bool(player.get("airborne", false)):
 		_game.powerup_manager.check_powerup_pickup(index)
 
 func _sync_grid_cell(player: Dictionary, node: Node3D, force_target := false):

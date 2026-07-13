@@ -179,16 +179,24 @@ func spawn_explosion(cells: Array):
 		tween.set_parallel(false)
 		tween.tween_callback(flame.queue_free).set_delay(0.35)
 
-func detonate_cells(cells: Array, explosion_owner := -1, exploding_cell := Vector2i(-1, -1)):
+func detonate_cells(
+	cells: Array,
+	explosion_owner := -1,
+	exploding_cell := Vector2i(-1, -1),
+	min_height := Constants.GROUND_ATTACK_MIN_HEIGHT,
+	max_height := Constants.GROUND_ATTACK_MAX_HEIGHT
+):
 	spawn_explosion(cells)
 	var hit_players: Dictionary = {}
-	game.combat_manager.apply_explosion_damage(cells, explosion_owner, exploding_cell, hit_players, true)
+	game.combat_manager.apply_explosion_damage(cells, explosion_owner, exploding_cell, hit_players, true, min_height, max_height)
 	active_explosions.append({
 		"cells": cells.duplicate(),
 		"owner": explosion_owner,
 		"exploding_cell": exploding_cell,
 		"remaining": EXPLOSION_ACTIVE_SECONDS,
 		"hit_players": hit_players,
+		"min_height": min_height,
+		"max_height": max_height,
 	})
 
 func _process_active_explosions(delta: float):
@@ -202,7 +210,9 @@ func _process_active_explosions(delta: float):
 			int(explosion["owner"]),
 			explosion["exploding_cell"],
 			explosion["hit_players"],
-			false
+			false,
+			float(explosion.get("min_height", Constants.GROUND_ATTACK_MIN_HEIGHT)),
+			float(explosion.get("max_height", Constants.GROUND_ATTACK_MAX_HEIGHT))
 		)
 		explosion["remaining"] = float(explosion["remaining"]) - delta
 		if float(explosion["remaining"]) <= 0.0:
