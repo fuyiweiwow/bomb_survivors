@@ -221,14 +221,14 @@ func _setup_ui():
 
 	var save_btn := Button.new()
 	save_btn.text = "S"
-	save_btn.tooltip_text = "保存"
+	save_btn.tooltip_text = "Save"
 	save_btn.custom_minimum_size = Vector2(42, 30)
 	save_btn.pressed.connect(_save_map)
 	controls.add_child(save_btn)
 
 	var back_btn := Button.new()
 	back_btn.text = "X"
-	back_btn.tooltip_text = "退出"
+	back_btn.tooltip_text = "Exit"
 	back_btn.custom_minimum_size = Vector2(42, 30)
 	back_btn.pressed.connect(func(): get_tree().change_scene_to_file("res://scenes/menu/main_menu.tscn"))
 	controls.add_child(back_btn)

@@ -1,7 +1,11 @@
 extends Control
 
+const GAME_GUIDE_OVERLAY := preload("res://scripts/menu/game_guide_overlay.gd")
+
 var difficulty_option: OptionButton = null
 var difficulty_ids := ["easy", "normal", "hard"]
+var guide_button: Button = null
+var guide_overlay = null
 
 func _ready():
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -45,14 +49,16 @@ func _ready():
 	_add_button(box, "Player Editor", func():
 		get_tree().change_scene_to_file("res://scenes/editor/player_editor.tscn")
 	)
+	guide_button = _add_button(box, "Game Guide", _show_guide)
 
 	_add_difficulty_picker(box)
 
 	_add_button(box, "Exit", func():
 		get_tree().quit()
 	)
+	_create_guide_overlay()
 
-func _add_button(parent: Node, text: String, callback: Callable):
+func _add_button(parent: Node, text: String, callback: Callable) -> Button:
 	var btn := Button.new()
 	btn.text = text
 	btn.custom_minimum_size = Vector2(300, 50)
@@ -61,6 +67,18 @@ func _add_button(parent: Node, text: String, callback: Callable):
 	btn.add_theme_font_size_override("font_size", 28)
 	btn.pressed.connect(callback)
 	parent.add_child(btn)
+	return btn
+
+func _create_guide_overlay() -> void:
+	guide_overlay = GAME_GUIDE_OVERLAY.new()
+	add_child(guide_overlay)
+	guide_overlay.closed.connect(func(): guide_button.grab_focus())
+
+func _show_guide() -> void:
+	guide_overlay.open()
+
+func _hide_guide() -> void:
+	guide_overlay.close()
 
 func _add_difficulty_picker(parent: Node):
 	var row := HBoxContainer.new()

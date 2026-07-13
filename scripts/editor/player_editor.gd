@@ -121,13 +121,13 @@ func _add_action_buttons(parent: Node):
 	parent.add_child(actions)
 
 	var save_btn := Button.new()
-	save_btn.text = "保存"
+	save_btn.text = "Save"
 	save_btn.custom_minimum_size = Vector2(150, 42)
 	save_btn.pressed.connect(_save_player)
 	actions.add_child(save_btn)
 
 	var exit_btn := Button.new()
-	exit_btn.text = "退出"
+	exit_btn.text = "Exit"
 	exit_btn.custom_minimum_size = Vector2(150, 42)
 	exit_btn.pressed.connect(func(): get_tree().change_scene_to_file("res://scenes/menu/main_menu.tscn"))
 	actions.add_child(exit_btn)
