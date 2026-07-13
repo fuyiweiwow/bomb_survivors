@@ -107,6 +107,8 @@ func _run():
 	game.game_ui.update_hud()
 	if not _check(game.game_hud.inventory_slot_labels[0].text.contains("Shield Potion"), "Backpack HUD does not show the starter item"):
 		return
+	if not _check(game.powerup_manager.item_display_name("tianlao") == "Prison", "Prison item still exposes its internal pinyin ID"):
+		return
 	game._try_use_player_consumable()
 	if not _check((player["consumables"] as Array).is_empty() and int(player["shield"]) == 1, "Using the starter shield potion did not consume only the backpack item"):
 		return

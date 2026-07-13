@@ -132,7 +132,7 @@ func _build_item_page() -> void:
 		{"id": "oil_barrel", "name": "Oil Barrel", "description": "Place a breakable barrel ahead; it explodes when destroyed."},
 		{"id": "wings", "name": "Wings", "description": "Cross ground obstacles for 8 seconds and gain a longer lava-powered flight."},
 		{"id": "football_shoes", "name": "Football Shoes", "description": "Replace bomb placement with a bomb kick for 8 seconds."},
-		{"id": "tianlao", "name": "Tianlao", "description": "Create a delayed cross-shaped bomb formation ahead."},
+		{"id": "tianlao", "name": "Prison", "description": "Create a delayed cross-shaped bomb formation ahead."},
 	])
 	_add_section_title("Backpack")
 	var backpack := Label.new()

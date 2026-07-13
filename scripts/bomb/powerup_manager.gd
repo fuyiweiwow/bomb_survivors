@@ -83,7 +83,7 @@ func _item_display_name(item_id: String) -> String:
 		"oil_barrel": return "Oil Barrel"
 		"wings": return "Wings"
 		"football_shoes": return "Football Shoes"
-		"tianlao": return "Tianlao"
+		"tianlao": return "Prison"
 	return item_id.capitalize()
 
 func _create_powerup_model(ptype: String) -> Node3D:

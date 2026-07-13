@@ -22,6 +22,11 @@ func _run() -> void:
 	var expected_item_ids := ["speed", "bomb", "range", "shield", "detonator", "glue", "shield_potion", "invincible_star", "dummy", "oil_barrel", "wings", "football_shoes", "tianlao"]
 	if not _check(menu.guide_overlay.item_icon_ids == expected_item_ids, "Item guide icon list is incomplete"):
 		return
+	var item_label_texts: Array[String] = []
+	for label in menu.guide_overlay.item_list.find_children("*", "Label", true, false):
+		item_label_texts.append(str(label.text))
+	if not _check(item_label_texts.has("Prison") and not item_label_texts.has("Tianlao"), "Item guide did not use the English Prison display name"):
+		return
 	for renderer in menu.guide_overlay.item_icon_renderers:
 		if not _check(renderer.icon_viewport != null and is_instance_valid(renderer.icon_model) and renderer.icon_model.get_child_count() > 1, "Item guide did not render a game model icon"):
 			return

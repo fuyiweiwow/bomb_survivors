@@ -43,7 +43,7 @@ func update_hud():
 		weather_text,
 		_difficulty_label(),
 		game_camera,
-		_item_display_name
+		Callable(_game.powerup_manager, "item_display_name")
 	)
 
 func show_result(winner_id: int):
@@ -257,16 +257,3 @@ func _map_half_extents() -> Vector2:
 		float(Constants.GRID_W) * Constants.TILE_SIZE * 0.5,
 		float(Constants.GRID_H) * Constants.TILE_SIZE * 0.5
 	)
-
-func _item_display_name(item_id: String) -> String:
-	match item_id:
-		"detonator": return "Detonator"
-		"glue": return "Glue"
-		"shield_potion": return "Shield Potion"
-		"invincible_star": return "Invincible Star"
-		"dummy": return "Dummy"
-		"oil_barrel": return "Oil Barrel"
-		"wings": return "Wings"
-		"football_shoes": return "Football Shoes"
-		"tianlao": return "Tianlao"
-	return item_id.capitalize()

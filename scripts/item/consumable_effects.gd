@@ -166,4 +166,4 @@ func _cast_tianlao(player_index: int):
 	game.get_tree().create_timer(1.5).timeout.connect(func():
 		game.bomb_manager.detonate_cells(cells, player_index)
 	)
-	player["status"] = "Tianlao armed"
+	player["status"] = "Prison armed"
