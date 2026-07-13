@@ -16,6 +16,7 @@ func launch_from_lava(player_index: int) -> bool:
 
 	player["airborne"] = true
 	player["vertical_velocity"] = Constants.AIR_LAUNCH_VELOCITY
+	player["airborne_stomped"] = {}
 	player["lava_eruption_time"] = 0.0
 	player["lava_time"] = 0.0
 	(node as Node3D).position.y = maxf((node as Node3D).position.y, Constants.AIR_LAUNCH_HEIGHT)
@@ -33,6 +34,7 @@ func begin_fall(player_index: int, initial_vertical_velocity := -0.35) -> bool:
 		return false
 	player["airborne"] = true
 	player["vertical_velocity"] = initial_vertical_velocity
+	player["airborne_stomped"] = {}
 	player["lava_eruption_time"] = 0.0
 	player["lava_time"] = 0.0
 	player["status"] = "Falling %.1fm" % (node as Node3D).position.y
@@ -63,10 +65,17 @@ func _physics_process(delta: float):
 			player["airborne"] = false
 			continue
 
+		var previous_height := (node as Node3D).position.y
 		player["vertical_velocity"] = float(player.get("vertical_velocity", 0.0)) - Constants.AIR_GRAVITY * delta
 		(node as Node3D).position.y += float(player["vertical_velocity"]) * delta
 		_update_shadow(player_index, node as Node3D)
 		if float(player["vertical_velocity"]) <= 0.0:
+			var stomp_result: Dictionary = _game.airborne_collision_resolver.try_stomp(player_index, previous_height, (node as Node3D).position.y)
+			if bool(stomp_result["hit"]):
+				(node as Node3D).position.y = float(stomp_result["contact_height"]) + 0.04
+				player["vertical_velocity"] = Constants.STOMP_BOUNCE_VELOCITY
+				_update_shadow(player_index, node as Node3D)
+				continue
 			var support_cell := Constants.world_to_grid((node as Node3D).position)
 			var support_height := _support_height(support_cell)
 			if support_height >= 0.0 and (node as Node3D).position.y <= support_height:
@@ -98,6 +107,7 @@ func _land_on_support(player_index: int, cell: Vector2i, height: float):
 		_game.movement_controller.cancel_move(player)
 	player["airborne"] = false
 	player["vertical_velocity"] = 0.0
+	player["airborne_stomped"] = {}
 	_clear_shadow(player_index)
 	_game.wall_mechanics.start_fall_support(player_index, cell)
 
@@ -106,6 +116,7 @@ func _land_player(player_index: int):
 	var node = player.get("node")
 	player["airborne"] = false
 	player["vertical_velocity"] = 0.0
+	player["airborne_stomped"] = {}
 	player["lava_eruption_time"] = 0.0
 	_clear_shadow(player_index)
 	if not is_instance_valid(node):

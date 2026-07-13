@@ -7,6 +7,7 @@ const GAME_HUD := preload("res://scripts/ui/game_hud.gd")
 var grid_manager: Node
 var player_manager: Node
 var airborne_controller: Node
+var airborne_collision_resolver: Node
 var movement_controller: Node
 var ai_controller: Node
 var combat_manager: Node
@@ -103,6 +104,10 @@ func _setup_gameplay_systems():
 	player_manager = load("res://scripts/character/player_manager.gd").new()
 	add_child(player_manager)
 	player_manager.setup(self)
+
+	airborne_collision_resolver = load("res://scripts/character/airborne_collision_resolver.gd").new()
+	add_child(airborne_collision_resolver)
+	airborne_collision_resolver.setup(self)
 
 	airborne_controller = load("res://scripts/character/airborne_controller.gd").new()
 	add_child(airborne_controller)

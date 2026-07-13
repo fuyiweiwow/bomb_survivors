@@ -22,6 +22,8 @@ func _run():
 		return
 	if not _check(game.airborne_controller != null, "AirborneController was not initialized"):
 		return
+	if not _check(game.airborne_collision_resolver != null, "AirborneCollisionResolver was not initialized"):
+		return
 	if not _check(game.ai_controller.lava_flight_strategy != null, "AI lava flight strategy was not initialized"):
 		return
 	if not _check(not game.players.is_empty(), "Game did not create a player"):
@@ -241,6 +243,46 @@ func _run():
 	game.airborne_controller.force_land(1)
 	enemy["shield"] = 0
 	enemy["shield_timer"] = 0.0
+
+	var stomp_cell := Vector2i(8, 9)
+	game.grid_manager.set_cell(stomp_cell.x, stomp_cell.y, Constants.Cell.EMPTY)
+	game.combat_manager._cancel_player_movement(player)
+	game.combat_manager._cancel_player_movement(enemy)
+	player["alive"] = true
+	player["downed"] = false
+	player["grid_pos"] = stomp_cell
+	player["node"].position = Constants.grid_to_world(stomp_cell) + Vector3(0, 1.20, 0)
+	enemy["alive"] = true
+	enemy["downed"] = false
+	enemy["shield"] = 1
+	enemy["shield_timer"] = Constants.SHIELD_DURATION
+	enemy["grid_pos"] = stomp_cell
+	enemy["node"].position = Constants.grid_to_world(stomp_cell)
+	game.airborne_controller.begin_fall(0, -2.0)
+	game.airborne_controller._physics_process(0.08)
+	if not _check(not enemy["downed"] and int(enemy["shield"]) == 0, "Shield did not block an airborne stomp"):
+		return
+	if not _check(bool(player["airborne"]) and float(player["vertical_velocity"]) == Constants.STOMP_BOUNCE_VELOCITY, "Stomping player did not bounce"):
+		return
+	player["node"].position = Constants.grid_to_world(stomp_cell) + Vector3(0, 1.20, 0)
+	game.airborne_controller.begin_fall(0, -2.0)
+	game.airborne_controller._physics_process(0.08)
+	if not _check(enemy["downed"] and enemy["alive"], "Unshielded stomp did not put the target into down state"):
+		return
+	game.combat_manager.process_character_overlaps()
+	if not _check(enemy["downed"] and enemy["alive"], "Stomp bounce allowed immediate overlap execution"):
+		return
+	if not _check(game.get_node_or_null("StompImpact_1") != null, "Stomp impact visual was not created"):
+		return
+	game.combat_manager._revive_player(1)
+	player["node"].position = Constants.grid_to_world(stomp_cell) + Vector3(0, 1.20, 0)
+	player["vertical_velocity"] = -2.0
+	game.airborne_controller._physics_process(0.08)
+	if not _check(not enemy["downed"], "One airborne arc stomped the same target more than once"):
+		return
+	game.airborne_controller.force_land(0)
+	enemy["grid_pos"] = ai_lava_start
+	enemy["node"].position = Constants.grid_to_world(ai_lava_start)
 
 	var blast_cell := Vector2i(1, 1)
 	var blast_center := Constants.grid_to_world(blast_cell)
@@ -483,7 +525,7 @@ func _run():
 	if not _check(game.is_cell_walkable(occupied_cell.x, occupied_cell.y, 0), "Living characters still block shared cells"):
 		return
 
-	print("GAME_DESIGN_SMOKE_OK expanded_grid legacy_map attack_frontier crate_breach ai_lava_strategy difficulty_lava_probability ai_lava_wait airborne_ai_bomb_rule subgrid_turning held_subgrid_motion shared_ai_movement active_world_blast timed_status_effects bomb_warning weather_bounds speed_curve forest_materials backpack_slots wall_hop chain_reaction overlap spawn_fx lava_launch airborne_movement vertical_attack_ranges safe_landing impact_support same_height_attack active_support_exit support_cracks support_fragments")
+	print("GAME_DESIGN_SMOKE_OK expanded_grid legacy_map attack_frontier crate_breach ai_lava_strategy difficulty_lava_probability ai_lava_wait airborne_ai_bomb_rule airborne_stomp shielded_stomp stomp_bounce stomp_overlap_safety stomp_single_hit subgrid_turning held_subgrid_motion shared_ai_movement active_world_blast timed_status_effects bomb_warning weather_bounds speed_curve forest_materials backpack_slots wall_hop chain_reaction overlap spawn_fx lava_launch airborne_movement vertical_attack_ranges safe_landing impact_support same_height_attack active_support_exit support_cracks support_fragments")
 	quit(0)
 
 

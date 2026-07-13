@@ -58,6 +58,7 @@ func create_player(id: int, cell: Vector2i, ai: bool, mat: Material, style := "m
 		"lava_eruption_time": 0.0,
 		"airborne": false,
 		"vertical_velocity": 0.0,
+		"airborne_stomped": {},
 		"status": "Ready",
 		"consumables": [],
 		"selected_consumable_index": 0,
