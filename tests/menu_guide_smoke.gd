@@ -19,7 +19,13 @@ func _run() -> void:
 		return
 	if not _check(menu.guide_overlay.operation_text.text.contains("W / A / S / D") and menu.guide_overlay.operation_text.text.contains("Space"), "Operation guide is missing the actual controls"):
 		return
-	if not _check(menu.guide_overlay.item_text.text.contains("Shield Potion") and menu.guide_overlay.item_text.text.contains("Wings") and menu.guide_overlay.item_text.text.contains("Tianlao"), "Item guide is incomplete"):
+	var expected_item_ids := ["speed", "bomb", "range", "shield", "detonator", "glue", "shield_potion", "invincible_star", "dummy", "oil_barrel", "wings", "football_shoes", "tianlao"]
+	if not _check(menu.guide_overlay.item_icon_ids == expected_item_ids, "Item guide icon list is incomplete"):
+		return
+	for renderer in menu.guide_overlay.item_icon_renderers:
+		if not _check(renderer.icon_viewport != null and is_instance_valid(renderer.icon_model) and renderer.icon_model.get_child_count() > 1, "Item guide did not render a game model icon"):
+			return
+	if not _check(menu.guide_overlay.item_list != null, "Item guide descriptions were not created"):
 		return
 	if not _check(_panel_is_inside_viewport(menu), "Game guide exceeds the desktop viewport"):
 		return
@@ -33,7 +39,7 @@ func _run() -> void:
 	if not _check(not menu.guide_overlay.visible, "Game guide did not return to the main menu"):
 		return
 
-	print("MENU_GUIDE_SMOKE_OK controls items responsive_close")
+	print("MENU_GUIDE_SMOKE_OK controls shared_3d_item_icons items responsive_close")
 	quit(0)
 
 func _panel_is_inside_viewport(menu: Control) -> bool:

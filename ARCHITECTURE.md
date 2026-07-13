@@ -155,6 +155,7 @@ Bomb / Combat / Movement / UI 等领域事件
 - `Constants`：网格尺寸、世界坐标换算、速度曲线、攻击高度。
 - `MapDataCodec`：游戏和地图编辑器共用的存档迁移与编解码。
 - `GameArtCatalog`：游戏和地图编辑器共用的纹理与材质实例定义。
+- `PowerupModelFactory`：游戏掉落物与菜单道具图标共用的程序化 3D 模型定义。
 - `TerrainArtFactory`：只负责根据材质创建地形表现。
 - `MeshHelpers`：基础 Mesh 与材质构造。
 

@@ -1,12 +1,16 @@
 class_name GameGuideOverlay
 extends Control
 
+const ITEM_ICON_RENDERER := preload("res://scripts/menu/item_icon_renderer.gd")
+
 signal closed
 
 var guide_panel: PanelContainer = null
 var guide_tabs: TabContainer = null
 var operation_text: RichTextLabel = null
-var item_text: RichTextLabel = null
+var item_list: VBoxContainer = null
+var item_icon_ids: Array[String] = []
+var item_icon_renderers: Array[Control] = []
 var close_button: Button = null
 
 func _ready() -> void:
@@ -68,8 +72,8 @@ func _build_ui() -> void:
 	guide_tabs.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	guide_tabs.add_theme_font_size_override("font_size", 20)
 	content.add_child(guide_tabs)
-	operation_text = _add_page("Controls & Rules", _operation_guide_text())
-	item_text = _add_page("Items", _item_guide_text())
+	operation_text = _add_text_page("Controls & Rules", _operation_guide_text())
+	_build_item_page()
 
 	close_button = Button.new()
 	close_button.text = "Back to Main Menu"
@@ -79,7 +83,7 @@ func _build_ui() -> void:
 	close_button.pressed.connect(close)
 	content.add_child(close_button)
 
-func _add_page(page_name: String, text: String) -> RichTextLabel:
+func _add_text_page(page_name: String, text: String) -> RichTextLabel:
 	var page := MarginContainer.new()
 	page.name = page_name
 	for side in ["margin_left", "margin_top", "margin_right", "margin_bottom"]:
@@ -97,6 +101,90 @@ func _add_page(page_name: String, text: String) -> RichTextLabel:
 	page.add_child(label)
 	return label
 
+func _build_item_page() -> void:
+	var page := MarginContainer.new()
+	page.name = "Items"
+	for side in ["margin_left", "margin_top", "margin_right", "margin_bottom"]:
+		page.add_theme_constant_override(side, 12)
+	guide_tabs.add_child(page)
+
+	var scroll := ScrollContainer.new()
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
+	page.add_child(scroll)
+
+	item_list = VBoxContainer.new()
+	item_list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	item_list.add_theme_constant_override("separation", 5)
+	scroll.add_child(item_list)
+	_add_item_section("Stat Pickups", [
+		{"id": "speed", "name": "Speed", "description": "Move faster."},
+		{"id": "bomb", "name": "Bomb", "description": "Place more bombs at the same time."},
+		{"id": "range", "name": "Range", "description": "Extend blast distance."},
+		{"id": "shield", "name": "Shield", "description": "Store a Shield Potion in the backpack."},
+	])
+	_add_item_section("Consumable Items", [
+		{"id": "detonator", "name": "Detonator", "description": "Detonate the first bomb in the direction you face."},
+		{"id": "glue", "name": "Glue", "description": "Leave a slowing area under your feet."},
+		{"id": "shield_potion", "name": "Shield Potion", "description": "Block one hit for 5 seconds and enable a lava launch."},
+		{"id": "invincible_star", "name": "Invincible Star", "description": "Ignore damage and control effects for 5 seconds."},
+		{"id": "dummy", "name": "Dummy", "description": "Passive item consumed automatically to revive you from Down."},
+		{"id": "oil_barrel", "name": "Oil Barrel", "description": "Place a breakable barrel ahead; it explodes when destroyed."},
+		{"id": "wings", "name": "Wings", "description": "Cross ground obstacles for 8 seconds and gain a longer lava-powered flight."},
+		{"id": "football_shoes", "name": "Football Shoes", "description": "Replace bomb placement with a bomb kick for 8 seconds."},
+		{"id": "tianlao", "name": "Tianlao", "description": "Create a delayed cross-shaped bomb formation ahead."},
+	])
+	_add_section_title("Backpack")
+	var backpack := Label.new()
+	backpack.text = "3 slots; duplicate items are allowed. When full, a new pickup replaces the oldest item."
+	backpack.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	backpack.add_theme_font_size_override("font_size", 16)
+	backpack.add_theme_color_override("font_color", Color(0.82, 0.86, 0.90))
+	item_list.add_child(backpack)
+
+func _add_item_section(title: String, items: Array) -> void:
+	_add_section_title(title)
+	for item: Dictionary in items:
+		_add_item_row(str(item["id"]), str(item["name"]), str(item["description"]))
+
+func _add_section_title(text: String) -> void:
+	var label := Label.new()
+	label.text = text
+	label.add_theme_font_size_override("font_size", 19)
+	label.add_theme_color_override("font_color", Color(1.0, 0.82, 0.35))
+	item_list.add_child(label)
+
+func _add_item_row(item_id: String, display_name: String, description: String) -> void:
+	var row := HBoxContainer.new()
+	row.custom_minimum_size.y = 74
+	row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.add_theme_constant_override("separation", 12)
+	item_list.add_child(row)
+
+	var icon = ITEM_ICON_RENDERER.new()
+	icon.setup(item_id, display_name)
+	row.add_child(icon)
+	item_icon_ids.append(item_id)
+	item_icon_renderers.append(icon)
+
+	var copy := VBoxContainer.new()
+	copy.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	copy.alignment = BoxContainer.ALIGNMENT_CENTER
+	row.add_child(copy)
+	var name_label := Label.new()
+	name_label.text = display_name
+	name_label.add_theme_font_size_override("font_size", 18)
+	name_label.add_theme_color_override("font_color", Color.WHITE)
+	copy.add_child(name_label)
+	var description_label := Label.new()
+	description_label.text = description
+	description_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	description_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	description_label.add_theme_font_size_override("font_size", 15)
+	description_label.add_theme_color_override("font_color", Color(0.72, 0.78, 0.83))
+	copy.add_child(description_label)
+	item_list.add_child(HSeparator.new())
+
 func _operation_guide_text() -> String:
 	return """[b][color=#ffd45a]Basic Controls[/color][/b]
 [b]W / A / S / D[/b]  Move; you can turn at any of the three substeps inside a tile
@@ -113,25 +201,6 @@ At zero health, a character enters Down. The timer, another blast, or an enemy s
 
 [b][color=#ffd45a]Result Screen[/color][/b]
 [b]R[/b]  Restart    [b]Esc[/b]  Main Menu    [b]Q[/b]  Quit Game"""
-
-func _item_guide_text() -> String:
-	return """[b][color=#ffd45a]Stat Pickups[/color][/b]
-[b]Speed[/b]  Move faster    [b]Bomb[/b]  Place more bombs at the same time
-[b]Range[/b]  Extend blast distance    [b]Shield[/b]  Store a Shield Potion in the backpack
-
-[b][color=#ffd45a]Consumable Items[/color][/b]
-[b]Detonator[/b]  Detonate the first bomb in the direction you face
-[b]Glue[/b]  Leave a slowing area under your feet
-[b]Shield Potion[/b]  Gain a 5-second shield that blocks one hit and enables a lava launch
-[b]Invincible Star[/b]  Ignore damage and control effects for 5 seconds
-[b]Dummy[/b]  Passive item consumed automatically to revive you from Down
-[b]Oil Barrel[/b]  Place a breakable barrel ahead; it explodes when destroyed
-[b]Wings[/b]  Cross ground obstacles for 8 seconds and gain a longer lava-powered flight
-[b]Football Shoes[/b]  Replace bomb placement with a bomb kick for 8 seconds
-[b]Tianlao[/b]  Create a delayed cross-shaped bomb formation in the direction you face
-
-[b][color=#ffd45a]Backpack[/color][/b]
-The backpack has 3 slots and allows duplicate items. When full, a new pickup replaces the oldest item."""
 
 func _resize_panel() -> void:
 	if guide_panel == null:
