@@ -27,9 +27,12 @@ func select_slot(player: Dictionary, slot_index: int) -> String:
 
 func add_item(player: Dictionary, item_id: String) -> bool:
 	var items: Array = player.get("consumables", [])
-	if items.size() >= MAX_ITEMS:
-		return false
+	var selected := int(player.get("selected_consumable_index", 0))
+	while items.size() >= MAX_ITEMS:
+		items.pop_front()
+		selected = maxi(selected - 1, 0)
 	items.append(item_id)
+	player["selected_consumable_index"] = selected
 	_normalize_selection(player)
 	return true
 

@@ -39,9 +39,6 @@ func check_powerup_pickup(index: int):
 		return
 
 	var data: Dictionary = _game.powerups[cell]
-	if Constants.CONSUMABLE_IDS.has(str(data["type"])) and (p["consumables"] as Array).size() >= _game.MAX_CONSUMABLES:
-		p["status"] = "Bag full"
-		return
 	var node: Node3D = data["node"]
 	if is_instance_valid(node):
 		node.queue_free()
@@ -54,7 +51,10 @@ func check_powerup_pickup(index: int):
 		"range":
 			p["bomb_range"] = clampi(p["bomb_range"] + 2, 1, 10)
 		"shield":
-			_game.combat_manager.grant_shield(index)
+			if bool(p.get("ai", false)):
+				_game.combat_manager.grant_shield(index)
+			else:
+				_add_consumable(p, "shield_potion")
 		_:
 			if Constants.CONSUMABLE_IDS.has(str(data["type"])):
 				_add_consumable(p, str(data["type"]))
@@ -69,9 +69,7 @@ func spawn_boss_reward(cell: Vector2i):
 	_game.powerups[cell] = {"node": node, "type": "dummy"}
 
 func _add_consumable(p: Dictionary, item_id: String) -> bool:
-	if not _game.inventory_manager.add_item(p, item_id):
-		p["status"] = "Bag full"
-		return false
+	_game.inventory_manager.add_item(p, item_id)
 	p["status"] = "Picked %s" % _item_display_name(item_id)
 	return true
 

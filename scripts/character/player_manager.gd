@@ -164,7 +164,9 @@ func find_spawn_cell() -> Vector2i:
 	for y in range(1, Constants.GRID_H - 1):
 		for x in range(1, Constants.GRID_W - 1):
 			var cell := Vector2i(x, y)
-			if not Constants.is_walkable_cell(_game.grid[cell.y][cell.x]) or Constants.is_lava_cell(_game.grid, cell) or _game.bomb_map.has(cell):
+			if _game.grid[cell.y][cell.x] != Constants.Cell.EMPTY or _game.bomb_map.has(cell):
+				continue
+			if _game.powerups.has(cell) or _game.oil_barrels.has(cell) or _game.glue_areas.has(cell):
 				continue
 			var occupied := false
 			for p: Dictionary in _game.players:

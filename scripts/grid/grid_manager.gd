@@ -1,6 +1,7 @@
 extends Node
 
 const MAP_DATA_CODEC := preload("res://scripts/grid/map_data_codec.gd")
+const BOSS_CRATE_REFRESH_COUNT := 10
 
 var grid: Array = []
 var crate_nodes: Dictionary = {}
@@ -89,10 +90,7 @@ func create_world():
 				wall_nodes[cell] = wall_node
 				_game.add_child(wall_node)
 			elif grid[y][x] == Constants.Cell.CRATE:
-				var crate := MeshHelpers.box(Vector3(Constants.TILE_SIZE * 0.84, 0.92, Constants.TILE_SIZE * 0.84), _mat_crate)
-				crate.position = Constants.grid_to_world(cell) + Vector3(0, 0.46, 0)
-				crate_nodes[cell] = crate
-				_game.add_child(crate)
+				_create_crate(cell)
 			elif grid[y][x] == Constants.Cell.FOREST:
 				_game.add_child(_create_forest_tile(cell))
 			elif grid[y][x] == Constants.Cell.LAVA:
@@ -106,6 +104,37 @@ func destroy_crate(cell: Vector2i):
 		tw.tween_property(crate, "scale", Vector3(1.2, 0.2, 1.2), 0.16)
 		tw.tween_callback(crate.queue_free)
 		crate_nodes.erase(cell)
+
+func refresh_crates_for_boss(count := BOSS_CRATE_REFRESH_COUNT) -> Array[Vector2i]:
+	var candidates: Array[Vector2i] = []
+	for y in range(1, Constants.GRID_H - 1):
+		for x in range(1, Constants.GRID_W - 1):
+			var cell := Vector2i(x, y)
+			if grid[y][x] != Constants.Cell.EMPTY or destroyed_walls.has(cell):
+				continue
+			if _game.bomb_map.has(cell) or _game.powerups.has(cell) or _game.oil_barrels.has(cell) or _game.glue_areas.has(cell):
+				continue
+			var occupied := false
+			for player: Dictionary in _game.players:
+				if player["alive"] and player["grid_pos"] == cell:
+					occupied = true
+					break
+			if not occupied:
+				candidates.append(cell)
+	candidates.shuffle()
+	var refreshed: Array[Vector2i] = []
+	for i in range(mini(maxi(count, 0), candidates.size())):
+		var cell := candidates[i]
+		grid[cell.y][cell.x] = Constants.Cell.CRATE
+		_create_crate(cell)
+		refreshed.append(cell)
+	return refreshed
+
+func _create_crate(cell: Vector2i):
+	var crate := MeshHelpers.box(Vector3(Constants.TILE_SIZE * 0.84, 0.92, Constants.TILE_SIZE * 0.84), _mat_crate)
+	crate.position = Constants.grid_to_world(cell) + Vector3(0, 0.46, 0)
+	crate_nodes[cell] = crate
+	_game.add_child(crate)
 
 func get_cell(x: int, y: int) -> int:
 	if x < 0 or x >= Constants.GRID_W or y < 0 or y >= Constants.GRID_H:

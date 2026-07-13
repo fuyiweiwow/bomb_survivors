@@ -46,6 +46,15 @@ func _run():
 	var player: Dictionary = game.players[0]
 	if not _check(game.players.size() > 1, "Initial AI wave was not created"):
 		return
+	if not _check(game.weather_manager.current_weather == "clear", "The first wave did not start with clear weather"):
+		return
+	game.game_ui.update_weather_visibility()
+	for enemy_index in range(1, game.players.size()):
+		var initial_enemy: Dictionary = game.players[enemy_index]
+		if not _check(game.grid[initial_enemy["grid_pos"].y][initial_enemy["grid_pos"].x] == Constants.Cell.EMPTY, "An initial enemy spawned on hidden or hazardous terrain"):
+			return
+		if not _check((initial_enemy["node"] as Node3D).visible, "An initial enemy was hidden immediately after spawning"):
+			return
 	game.weather_manager.current_weather = "clear"
 	game.weather_manager.snow_cells.clear()
 	game.game_ui.on_weather_changed("clear")
@@ -67,6 +76,31 @@ func _run():
 	game.game_ui.update_hud()
 	if not _check(game.game_hud.inventory_slot_labels[0].text.contains("Shield Potion"), "Backpack HUD does not show the starter item"):
 		return
+	game._try_use_player_consumable()
+	if not _check((player["consumables"] as Array).is_empty() and int(player["shield"]) == 1, "Using the starter shield potion did not consume only the backpack item"):
+		return
+	var shield_pickup_node := Node3D.new()
+	game.add_child(shield_pickup_node)
+	game.powerups[player["grid_pos"]] = {"node": shield_pickup_node, "type": "shield"}
+	var active_shields_before_pickup := int(player["shield"])
+	game.powerup_manager.check_powerup_pickup(0)
+	if not _check(int(player["shield"]) == active_shields_before_pickup, "A picked-up shield activated immediately instead of entering the backpack"):
+		return
+	if not _check((player["consumables"] as Array) == ["shield_potion"], "A picked-up shield was not stored as a shield potion"):
+		return
+	player["shield"] = 0
+	player["shield_timer"] = 0.0
+	game.consumable_effects.status_visuals.refresh_player(player)
+	var inventory_probe := {"consumables": [], "selected_consumable_index": 0}
+	game.inventory_manager.add_item(inventory_probe, "shield_potion")
+	game.inventory_manager.add_item(inventory_probe, "shield_potion")
+	game.inventory_manager.add_item(inventory_probe, "shield_potion")
+	inventory_probe["selected_consumable_index"] = 2
+	game.inventory_manager.add_item(inventory_probe, "glue")
+	if not _check(inventory_probe["consumables"] == ["shield_potion", "shield_potion", "glue"], "A full backpack did not replace its oldest item or rejected duplicate shields"):
+		return
+	if not _check(int(inventory_probe["selected_consumable_index"]) == 1, "Backpack replacement left the selected slot invalid"):
+		return
 	game.inventory_manager.add_item(player, "glue")
 	var slot_two := InputEventKey.new()
 	slot_two.physical_keycode = KEY_2
@@ -75,6 +109,21 @@ func _run():
 	if not _check(int(player["selected_consumable_index"]) == 1 and game.inventory_manager.selected_item(player) == "glue", "Number key did not select backpack slot 2"):
 		return
 	game._select_player_consumable(0)
+	var crates_before_refresh: int = game.grid_manager.crate_nodes.size()
+	var refreshed_crates: Array[Vector2i] = game.grid_manager.refresh_crates_for_boss(3)
+	if not _check(refreshed_crates.size() == 3 and game.grid_manager.crate_nodes.size() == crates_before_refresh + 3, "Boss crate refresh did not add the requested crates"):
+		return
+	for refreshed_cell in refreshed_crates:
+		if not _check(game.grid[refreshed_cell.y][refreshed_cell.x] == Constants.Cell.CRATE, "Boss crate refresh did not update the map grid"):
+			return
+		for active_player: Dictionary in game.players:
+			if not _check(not active_player["alive"] or active_player["grid_pos"] != refreshed_cell, "Boss crate refresh placed a crate under a character"):
+				return
+		var refreshed_node = game.grid_manager.crate_nodes.get(refreshed_cell)
+		if is_instance_valid(refreshed_node):
+			refreshed_node.queue_free()
+		game.grid_manager.crate_nodes.erase(refreshed_cell)
+		game.grid_manager.set_cell(refreshed_cell.x, refreshed_cell.y, Constants.Cell.EMPTY)
 	if not _check(game.get_node_or_null("AISpawnEffect") != null, "AI spawn effect was not created"):
 		return
 	var left_press := InputEventKey.new()
@@ -525,7 +574,7 @@ func _run():
 	if not _check(game.is_cell_walkable(occupied_cell.x, occupied_cell.y, 0), "Living characters still block shared cells"):
 		return
 
-	print("GAME_DESIGN_SMOKE_OK expanded_grid legacy_map attack_frontier crate_breach ai_lava_strategy difficulty_lava_probability ai_lava_wait airborne_ai_bomb_rule airborne_stomp shielded_stomp stomp_bounce stomp_overlap_safety stomp_single_hit subgrid_turning held_subgrid_motion shared_ai_movement active_world_blast timed_status_effects bomb_warning weather_bounds speed_curve forest_materials backpack_slots wall_hop chain_reaction overlap spawn_fx lava_launch airborne_movement vertical_attack_ranges safe_landing impact_support same_height_attack active_support_exit support_cracks support_fragments")
+	print("GAME_DESIGN_SMOKE_OK expanded_grid visible_initial_spawn clear_first_wave shield_pickup_inventory duplicate_inventory_fifo boss_crate_refresh legacy_map attack_frontier crate_breach ai_lava_strategy difficulty_lava_probability ai_lava_wait airborne_ai_bomb_rule airborne_stomp shielded_stomp stomp_bounce stomp_overlap_safety stomp_single_hit subgrid_turning held_subgrid_motion shared_ai_movement active_world_blast timed_status_effects bomb_warning weather_bounds speed_curve forest_materials backpack_slots wall_hop chain_reaction overlap spawn_fx lava_launch airborne_movement vertical_attack_ranges safe_landing impact_support same_height_attack active_support_exit support_cracks support_fragments")
 	quit(0)
 
 

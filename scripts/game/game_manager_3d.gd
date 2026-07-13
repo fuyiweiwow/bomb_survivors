@@ -175,6 +175,7 @@ func _on_wave_started(wave_number: int, enemy_count: int, boss_id: String):
 	if weather_manager:
 		weather_manager.start_wave(wave_number, grid_manager.walkable_cells())
 	if boss_id != "":
+		grid_manager.refresh_crates_for_boss()
 		player_manager.spawn_boss(boss_id, next_player_id)
 		next_player_id += 1
 	player_manager.spawn_ai_wave(enemy_count, ai_difficulty, next_player_id)

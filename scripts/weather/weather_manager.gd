@@ -11,11 +11,13 @@ var wind_direction := Vector2i.RIGHT
 var snow_cells: Dictionary = {}
 var _thunder_timer := 0.0
 
-func start_wave(_wave_number: int, walkable_cells: Array) -> void:
+func start_wave(wave_number: int, walkable_cells: Array) -> void:
 	var choices := WEATHER_TYPES.duplicate()
-	if choices.size() > 1:
+	if wave_number <= 1:
+		current_weather = "clear"
+	elif choices.size() > 1:
 		choices.erase(current_weather)
-	current_weather = str(choices.pick_random())
+		current_weather = str(choices.pick_random())
 	wind_direction = [Vector2i.UP, Vector2i.DOWN, Vector2i.LEFT, Vector2i.RIGHT].pick_random()
 	snow_cells.clear()
 	if current_weather == "snow":
