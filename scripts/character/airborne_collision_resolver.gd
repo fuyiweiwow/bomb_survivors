@@ -51,6 +51,7 @@ func try_stomp(attacker_index: int, previous_height: float, current_height: floa
 	return {"hit": true, "target_index": best_target_index, "contact_height": best_contact_height}
 
 func _play_stomp_impact(target_index: int, contact_height: float):
+	_game.audio_manager.play("stomp")
 	var target: Dictionary = _game.players[target_index]
 	var target_node = target.get("node")
 	if not is_instance_valid(target_node):

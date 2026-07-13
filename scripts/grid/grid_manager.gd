@@ -97,7 +97,10 @@ func create_world():
 				_game.add_child(_create_lava_tile(cell))
 
 func destroy_crate(cell: Vector2i):
+	var had_crate: bool = grid[cell.y][cell.x] == Constants.Cell.CRATE or crate_nodes.has(cell)
 	grid[cell.y][cell.x] = Constants.Cell.EMPTY
+	if had_crate:
+		_game.audio_manager.play("crate_break")
 	if crate_nodes.has(cell):
 		var crate: Node3D = crate_nodes[cell]
 		var tw := create_tween()

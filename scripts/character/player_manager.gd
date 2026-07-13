@@ -234,6 +234,7 @@ func spawn_boss(boss_id: String, boss_id_val: int) -> bool:
 	boss["node"].scale = Vector3(1.45, 1.45, 1.45)
 	_game.players.append(boss)
 	_play_spawn_effect(spawn_cell, true)
+	_game.audio_manager.play("boss_spawn")
 	_game.game_ui.flash_boss_spawn()
 	return true
 

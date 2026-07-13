@@ -14,6 +14,14 @@ func _run():
 
 	if not _check(game.bomb_manager != null, "BombManager was not initialized"):
 		return
+	if not _check(game.audio_manager != null, "GameAudioManager was not initialized"):
+		return
+	for event_id in ["explosion", "pickup", "shield", "footstep", "ui_select"]:
+		var stream := game.audio_manager.event_stream(event_id) as AudioStream
+		if not _check(stream != null and stream.get_length() > 0.0, "Audio event %s did not load a valid stream" % event_id):
+			return
+	if not _check(not game.audio_manager.play("missing_event"), "Unknown audio events were accepted"):
+		return
 	if not _check(game.wall_mechanics != null, "WallMechanics was not initialized"):
 		return
 	if not _check(game.consumable_effects != null, "ConsumableEffects was not initialized"):
@@ -596,8 +604,11 @@ func _run():
 	var occupied_cell := enemy["grid_pos"] as Vector2i
 	if not _check(game.is_cell_walkable(occupied_cell.x, occupied_cell.y, 0), "Living characters still block shared cells"):
 		return
+	for event_id in ["bomb_place", "explosion", "shield", "stomp", "crate_break", "wall_break", "pickup", "ui_select", "footstep"]:
+		if not _check(int(game.audio_manager.played_events.get(event_id, 0)) > 0, "Gameplay did not emit the %s audio event" % event_id):
+			return
 
-	print("GAME_DESIGN_SMOKE_OK modular_composition shared_art_catalog progression_unique_ids boss_behavior_boundary expanded_grid visible_initial_spawn clear_first_wave shield_pickup_inventory duplicate_inventory_fifo boss_crate_refresh legacy_map attack_frontier crate_breach ai_lava_strategy difficulty_lava_probability ai_lava_wait airborne_ai_bomb_rule airborne_stomp shielded_stomp stomp_bounce stomp_overlap_safety stomp_single_hit subgrid_turning held_subgrid_motion shared_ai_movement active_world_blast timed_status_effects bomb_warning weather_bounds speed_curve forest_materials backpack_slots wall_hop chain_reaction overlap spawn_fx lava_launch airborne_movement vertical_attack_ranges safe_landing impact_support same_height_attack active_support_exit support_cracks support_fragments")
+	print("GAME_DESIGN_SMOKE_OK modular_composition shared_art_catalog audio_events progression_unique_ids boss_behavior_boundary expanded_grid visible_initial_spawn clear_first_wave shield_pickup_inventory duplicate_inventory_fifo boss_crate_refresh legacy_map attack_frontier crate_breach ai_lava_strategy difficulty_lava_probability ai_lava_wait airborne_ai_bomb_rule airborne_stomp shielded_stomp stomp_bounce stomp_overlap_safety stomp_single_hit subgrid_turning held_subgrid_motion shared_ai_movement active_world_blast timed_status_effects bomb_warning weather_bounds speed_curve forest_materials backpack_slots wall_hop chain_reaction overlap spawn_fx lava_launch airborne_movement vertical_attack_ranges safe_landing impact_support same_height_attack active_support_exit support_cracks support_fragments")
 	quit(0)
 
 

@@ -282,6 +282,7 @@ func is_cell_occupied(cell: Vector2i, ignored_player: Dictionary = {}) -> bool:
 func _destroy_wall(cell: Vector2i):
 	game.grid[cell.y][cell.x] = CELL_EMPTY
 	game.grid_manager.destroyed_walls[cell] = 0.0
+	game.audio_manager.play("wall_break")
 	var wall = game.grid_manager.wall_nodes.get(cell)
 	if is_instance_valid(wall):
 		wall.transparency = 0.0

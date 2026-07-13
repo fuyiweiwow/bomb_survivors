@@ -82,6 +82,8 @@ func use_consumable() -> void:
 		player["status"] = "Dummy is passive"
 		return
 	if _game.consumable_effects.use(0, item_id):
+		if item_id != "shield_potion":
+			_game.audio_manager.play("confirm")
 		_game.inventory_manager.consume_selected(player)
 
 func cycle_consumable() -> void:
@@ -94,6 +96,7 @@ func cycle_consumable() -> void:
 		return
 	var item_id := str(_game.inventory_manager.cycle(player))
 	player["status"] = "Selected %s" % _game.powerup_manager.item_display_name(item_id)
+	_game.audio_manager.play("ui_select")
 
 func select_consumable(slot_index: int) -> void:
 	if _game.players.is_empty() or not _game.players[0]["alive"]:
@@ -104,3 +107,4 @@ func select_consumable(slot_index: int) -> void:
 		player["status"] = "Bag slot %d empty" % (slot_index + 1)
 		return
 	player["status"] = "Selected %s" % _game.powerup_manager.item_display_name(item_id)
+	_game.audio_manager.play("ui_select")

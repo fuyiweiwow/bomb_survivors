@@ -184,11 +184,13 @@ func damage_player(index: int, amount: int, source: String):
 		if int(p["shield"]) <= 0:
 			p["shield_timer"] = 0.0
 		_flash_player_shield(p)
+		_game.audio_manager.play("shield")
 		return
 	if str(p.get("boss_id", "")) != "" or bool(p.get("is_minion", false)):
 		p["hp"] = maxi(int(p["hp"]) - amount, 0)
 		p["status"] = "HP %d" % int(p["hp"])
 		_flash_player_damage(p)
+		_game.audio_manager.play("hit")
 		if int(p["hp"]) <= 0:
 			_kill_player(index)
 		return
@@ -203,6 +205,7 @@ func _enter_downed(index: int, source: String):
 	p["downed"] = true
 	p["downed_timer"] = Constants.DOWNED_DURATION
 	p["status"] = "Downed by %s" % source
+	_game.audio_manager.play("down")
 	if _game.airborne_controller:
 		_game.airborne_controller.force_land(index)
 	_cancel_player_movement(p)
@@ -234,10 +237,13 @@ func _kill_player(index: int):
 	var p: Dictionary = _game.players[index]
 	if not p["alive"]:
 		return
+	var was_downed := bool(p.get("downed", false))
 	p["alive"] = false
 	p["downed"] = false
 	p["downed_timer"] = 0.0
 	p["status"] = "Defeated"
+	if not was_downed:
+		_game.audio_manager.play("down")
 	if _game.airborne_controller:
 		_game.airborne_controller.force_land(index)
 	_cancel_player_movement(p)
@@ -316,6 +322,7 @@ func grant_shield(index: int, amount := 1):
 	player["shield"] = clampi(int(player.get("shield", 0)) + amount, 0, 5)
 	player["shield_timer"] = Constants.SHIELD_DURATION
 	player["status"] = "Shield %.1fs" % Constants.SHIELD_DURATION
+	_game.audio_manager.play("shield")
 	if bool(player.get("ai", false)) and _game.ai_controller:
 		_game.ai_controller.on_shield_granted(index)
 	if _game.consumable_effects and _game.consumable_effects.status_visuals:

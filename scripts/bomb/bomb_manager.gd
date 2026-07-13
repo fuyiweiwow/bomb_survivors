@@ -66,6 +66,7 @@ func try_place_bomb(player_index: int) -> bool:
 	pulse.tween_property(bomb, "scale", Vector3(1.12, 1.12, 1.12), 0.35)
 	pulse.tween_property(bomb, "scale", Vector3.ONE, 0.35)
 	game.bomb_map[cell] = {"node": bomb, "player_index": player_index, "range": player["bomb_range"], "pulse": pulse, "timer": timer, "placed_at": placed_at, "shell": shell, "warning": warning, "warning_started": false}
+	game.audio_manager.play("bomb_place")
 	return true
 
 func _update_bomb_warning(entry: Dictionary, time_left: float):
@@ -130,6 +131,7 @@ func explode_bomb(cell: Vector2i):
 	if bool(entry.get("exploded", false)):
 		return
 	entry["exploded"] = true
+	game.audio_manager.play("explosion")
 	var player_index: int = entry["player_index"]
 	if player_index >= 0 and player_index < game.players.size():
 		game.players[player_index]["bomb_placed_count"] = max(game.players[player_index]["bomb_placed_count"] - 1, 0)

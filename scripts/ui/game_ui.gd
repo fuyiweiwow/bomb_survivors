@@ -47,6 +47,7 @@ func update_hud():
 	)
 
 func show_result(winner_id: int):
+	_game.audio_manager.play("confirm" if winner_id == 1 else "down")
 	var layer := CanvasLayer.new()
 	_game.add_child(layer)
 
@@ -157,6 +158,7 @@ func request_thunder_strike():
 	tw.tween_callback(func(): _strike_thunder(cell, warning))
 
 func _strike_thunder(cell: Vector2i, warning: Node3D):
+	_game.audio_manager.play("thunder")
 	if is_instance_valid(warning):
 		warning.queue_free()
 	var bolt := MeshHelpers.box(Vector3(0.18, 7.0, 0.18), MeshHelpers.make_mat(Color(0.75, 0.90, 1.0), true))

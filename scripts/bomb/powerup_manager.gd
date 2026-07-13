@@ -58,6 +58,7 @@ func check_powerup_pickup(index: int):
 		_:
 			if Constants.CONSUMABLE_IDS.has(str(data["type"])):
 				_add_consumable(p, str(data["type"]))
+	_game.audio_manager.play("pickup")
 	_game.powerups.erase(cell)
 
 func spawn_boss_reward(cell: Vector2i):

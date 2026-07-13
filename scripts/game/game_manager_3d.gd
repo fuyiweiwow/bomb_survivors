@@ -15,6 +15,7 @@ var ai_controller: Node
 var combat_manager: Node
 var powerup_manager: Node
 var game_ui: Node
+var audio_manager: Node
 
 var bomb_manager: Node
 var wall_mechanics: Node

@@ -30,6 +30,7 @@ GameManager3D                         共享运行时上下文与帧顺序
 ├── BombManager                      炸弹生命周期和爆炸范围
 ├── PowerupManager                   掉落物生成与拾取
 ├── ConsumableEffects                主动道具效果
+├── GameAudioManager                 音效资源映射、并发播放器池与防重叠节流
 ├── WallMechanics                    墙顶/箱顶承重与破坏
 ├── AirborneController               垂直运动和落点
 └── GameUI / GameHUD                 显示与天气可见性
@@ -49,6 +50,7 @@ GameManager3D                         共享运行时上下文与帧顺序
 | `scripts/weather` | 天气状态和天气规则 |
 | `scripts/wave` | 纯波次计时与波次配置 |
 | `scripts/ui` | HUD、结果界面和视觉反馈 |
+| `scripts/audio` | 全局音效事件映射、音量/音高设置和播放器复用 |
 | `scripts/editor` | 地图/角色编辑器，只调用共享数据与美术模块 |
 | `scripts/core` | 无场景状态的常量、网格换算、Mesh 工具和美术目录 |
 
@@ -135,6 +137,18 @@ Bomb / Lava / Thunder / Stomp / Boss Skill
 → shield / invincible / boss HP / down / death
 → GameUI 读取状态更新 HUD
 ```
+
+### 音效
+
+```text
+Bomb / Combat / Movement / UI 等领域事件
+→ GameAudioManager.play(event_id)
+→ 从 16 个 AudioStreamPlayer 中复用空闲播放器
+→ 统一应用音量、随机音高和高频事件节流
+```
+
+业务系统只发送语义事件 ID，不应直接加载音频文件。素材来源和许可证记录在
+`assets/audio/SOURCES.md`。
 
 ## 六、共享数据与美术
 

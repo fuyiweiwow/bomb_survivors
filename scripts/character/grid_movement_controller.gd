@@ -158,6 +158,9 @@ func _complete_substep(index: int):
 	player["is_moving"] = false
 	player["move_speed_world"] = 0.0
 	player["grid_motion_active"] = false
+	var player_node = player.get("node")
+	if index == 0 and is_instance_valid(player_node) and Constants.is_world_position_at_cell_center((player_node as Node3D).position, arrived_cell):
+		_game.audio_manager.play("footstep")
 	if bool(player.get("alive", false)) and not bool(player.get("downed", false)) and not bool(player.get("airborne", false)):
 		_game.powerup_manager.check_powerup_pickup(index)
 
