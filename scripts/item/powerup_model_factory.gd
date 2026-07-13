@@ -68,6 +68,11 @@ static func create(item_id: String, art) -> Node3D:
 			_add_box(root, Vector3(0.13, 0.10, 0.70), Vector3(0, 0.18, 0), art.mat_bomb_power)
 			for offset in [Vector3(0.34, 0.18, 0), Vector3(-0.34, 0.18, 0), Vector3(0, 0.18, 0.34), Vector3(0, 0.18, -0.34)]:
 				_add_sphere(root, 0.09, offset, art.mat_range)
+		"duel":
+			_add_capsule(root, 0.14, 0.44, Vector3(-0.15, 0.18, 0), art.mat_shield)
+			_add_capsule(root, 0.14, 0.44, Vector3(0.15, 0.18, 0), art.mat_range)
+			_add_box(root, Vector3(0.58, 0.08, 0.10), Vector3(0, 0.18, 0), art.mat_bomb_power, Vector3(0, 0, 45))
+			_add_box(root, Vector3(0.58, 0.08, 0.10), Vector3(0, 0.18, 0), art.mat_bomb_power, Vector3(0, 0, -45))
 		_:
 			_add_sphere(root, 0.28, Vector3.ZERO, material)
 	return root

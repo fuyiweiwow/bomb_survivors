@@ -133,6 +133,7 @@ func _build_item_page() -> void:
 		{"id": "wings", "name": "Wings", "description": "Cross ground obstacles for 8 seconds and gain a longer lava-powered flight."},
 		{"id": "football_shoes", "name": "Football Shoes", "description": "Replace bomb placement with a bomb kick for 8 seconds."},
 		{"id": "tianlao", "name": "Prison", "description": "Create a delayed cross-shaped bomb formation ahead."},
+		{"id": "duel", "name": "Duel Token", "description": "Gain immunity until you touch an enemy, then enter a separate wing duel."},
 	])
 	_add_section_title("Backpack")
 	var backpack := Label.new()
@@ -198,6 +199,11 @@ Only the center third of an explosion tile deals damage, so precise positioning 
 Forests hide grounded characters. Lava burns unless a shield or wings trigger an eruption.
 You can steer while airborne. Ground attacks miss high targets, but aerial attacks still hit.
 At zero health, a character enters Down. The timer, another blast, or an enemy stomp defeats them.
+
+[b][color=#ffd45a]Duel Controls[/color][/b]
+The original map, bombs, and backpack are frozen during a duel.
+[b]A / D[/b]  Move    [b]W[/b]  Glide while airborne    [b]S[/b]  Dive into the opponent
+Stand on shifting lava to launch. The duel has no time limit and ends when either fighter reaches 0 HP.
 
 [b][color=#ffd45a]Result Screen[/color][/b]
 [b]R[/b]  Restart    [b]Esc[/b]  Main Menu    [b]Q[/b]  Quit Game"""

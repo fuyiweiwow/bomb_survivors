@@ -25,6 +25,8 @@ func _process(_delta: float):
 	_process_active_explosions(_delta)
 
 func try_place_bomb(player_index: int) -> bool:
+	if game.duel_manager and game.duel_manager.active:
+		return false
 	if player_index < 0 or player_index >= game.players.size():
 		return false
 	var player: Dictionary = game.players[player_index]

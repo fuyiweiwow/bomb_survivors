@@ -31,6 +31,10 @@ GameManager3D                         共享运行时上下文与帧顺序
 ├── PowerupManager                   掉落物生成与拾取
 ├── ConsumableEffects                主动道具效果
 ├── GameAudioManager                 音效资源映射、并发播放器池与防重叠节流
+├── DuelManager                      主地图决斗触发、暂停、恢复与胜负回传
+│   ├── DuelArenaCatalog             随机竞技场注册入口
+│   ├── LavaRiftArena                首个横版岩浆竞技场
+│   └── DuelRoundController / HUD    独立飞行物理、AI、俯冲伤害与显示
 ├── WallMechanics                    墙顶/箱顶承重与破坏
 ├── AirborneController               垂直运动和落点
 └── GameUI / GameHUD                 显示与天气可见性
@@ -45,6 +49,7 @@ GameManager3D                         共享运行时上下文与帧顺序
 | `scripts/combat` | 伤害状态机、down/复活/死亡和胜负判断 |
 | `scripts/bomb` | 炸弹与地图掉落物；`powerup_manager.gd` 是保留路径，语义属于道具域 |
 | `scripts/item` | 三格背包、消耗品逻辑和状态视觉 |
+| `scripts/duel` | 决斗生命周期、竞技场目录、横版回合规则与决斗 HUD |
 | `scripts/grid` | 网格数据、地图编解码和地形实例 |
 | `scripts/terrain` | 地形美术工厂与动态地形机制 |
 | `scripts/weather` | 天气状态和天气规则 |
@@ -149,6 +154,20 @@ Bomb / Combat / Movement / UI 等领域事件
 
 业务系统只发送语义事件 ID，不应直接加载音频文件。素材来源和许可证记录在
 `assets/audio/SOURCES.md`。
+
+### 决斗
+
+```text
+Duel Token → DuelManager.arm() → 触碰敌人
+→ 暂停原 SceneTree（炸弹、AI、天气与背包保持原状态）
+→ DuelArenaCatalog 随机创建已注册竞技场
+→ DuelRoundController 独立运行横版移动、岩浆升空、翅膀与俯冲
+→ 胜利：恢复原地图并 force_down 敌人
+→ 失败：恢复原地图并进入原有失败结算
+```
+
+新增决斗地图时实现与 `LavaRiftArena` 相同的公开接口，并在
+`DuelArenaCatalog.ARENA_BUILDERS` 注册；`DuelManager` 不应出现地图特例。
 
 ## 六、共享数据与美术
 

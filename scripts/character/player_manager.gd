@@ -91,7 +91,9 @@ func create_player(id: int, cell: Vector2i, ai: bool, mat: Material, style := "m
 		"boss_name": "",
 		"is_minion": false,
 		"skill_timer": 0.0,
-		"frozen_timer": 0.0
+		"frozen_timer": 0.0,
+		"duel_pending": false,
+		"duel_return_grace": 0.0
 	}
 
 func load_player_config() -> Dictionary:

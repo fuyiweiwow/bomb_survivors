@@ -14,9 +14,11 @@ const COMBAT_MANAGER := preload("res://scripts/combat/combat_manager.gd")
 const POWERUP_MANAGER := preload("res://scripts/bomb/powerup_manager.gd")
 const GAME_UI := preload("res://scripts/ui/game_ui.gd")
 const AUDIO_MANAGER := preload("res://scripts/audio/audio_manager.gd")
+const DUEL_MANAGER := preload("res://scripts/duel/duel_manager.gd")
 
 static func install(game: Node) -> void:
 	game.audio_manager = _install(game, AUDIO_MANAGER)
+	game.duel_manager = _install(game, DUEL_MANAGER)
 	game.bomb_manager = _install(game, BOMB_MANAGER)
 	game.wall_mechanics = _install(game, WALL_MECHANICS)
 	game.consumable_effects = _install(game, CONSUMABLE_EFFECTS)

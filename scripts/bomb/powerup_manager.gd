@@ -84,6 +84,7 @@ func _item_display_name(item_id: String) -> String:
 		"wings": return "Wings"
 		"football_shoes": return "Football Shoes"
 		"tianlao": return "Prison"
+		"duel": return "Duel Token"
 	return item_id.capitalize()
 
 func _create_powerup_model(ptype: String) -> Node3D:

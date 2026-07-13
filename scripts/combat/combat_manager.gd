@@ -17,6 +17,13 @@ func consume_dummy_if_available(player: Dictionary) -> bool:
 func cancel_player_movement(player: Dictionary) -> void:
 	_cancel_player_movement(player)
 
+func force_down_player(player_index: int, source: String) -> void:
+	if player_index < 0 or player_index >= _game.players.size():
+		return
+	var player: Dictionary = _game.players[player_index]
+	if player["alive"] and not bool(player.get("downed", false)):
+		_enter_downed(player_index, source)
+
 func process_downed(delta: float):
 	for i in range(_game.players.size()):
 		var p: Dictionary = _game.players[i]
@@ -33,6 +40,8 @@ func process_character_overlaps():
 	for downed_index in range(_game.players.size()):
 		var downed_player: Dictionary = _game.players[downed_index]
 		if not downed_player["alive"] or not bool(downed_player.get("downed", false)):
+			continue
+		if float(downed_player.get("duel_return_grace", 0.0)) > 0.0:
 			continue
 		for other_index in range(_game.players.size()):
 			if other_index == downed_index:
@@ -63,6 +72,7 @@ func process_terrain_effects(delta: float):
 		var p: Dictionary = _game.players[i]
 		if not p["alive"]:
 			continue
+		p["duel_return_grace"] = maxf(float(p.get("duel_return_grace", 0.0)) - delta, 0.0)
 		if int(p.get("shield", 0)) > 0:
 			p["shield_timer"] = maxf(float(p.get("shield_timer", Constants.SHIELD_DURATION)) - delta, 0.0)
 			if float(p["shield_timer"]) <= 0.0:
@@ -82,6 +92,8 @@ func process_terrain_effects(delta: float):
 		var cell: Vector2i = p["grid_pos"]
 		var cell_type: int = _game.grid[cell.y][cell.x]
 		var status_parts: Array = []
+		if bool(p.get("duel_pending", false)):
+			status_parts.append("Duel ready: touch an enemy")
 
 		if bool(p.get("airborne", false)):
 			p["lava_time"] = 0.0
@@ -174,6 +186,9 @@ func damage_player(index: int, amount: int, source: String):
 		return
 	var p: Dictionary = _game.players[index]
 	if not p["alive"]:
+		return
+	if bool(p.get("duel_pending", false)):
+		p["status"] = "Duel immunity"
 		return
 	if float(p.get("invincible_timer", 0.0)) > 0.0:
 		p["status"] = "Invincible"

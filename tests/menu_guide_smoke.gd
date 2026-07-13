@@ -17,9 +17,9 @@ func _run() -> void:
 	await process_frame
 	if not _check(menu.guide_overlay.visible and menu.guide_overlay.guide_tabs.get_tab_count() == 2, "Game guide did not open with two pages"):
 		return
-	if not _check(menu.guide_overlay.operation_text.text.contains("W / A / S / D") and menu.guide_overlay.operation_text.text.contains("Space"), "Operation guide is missing the actual controls"):
+	if not _check(menu.guide_overlay.operation_text.text.contains("W / A / S / D") and menu.guide_overlay.operation_text.text.contains("Space") and menu.guide_overlay.operation_text.text.contains("Duel Controls"), "Operation guide is missing the actual controls"):
 		return
-	var expected_item_ids := ["speed", "bomb", "range", "shield", "detonator", "glue", "shield_potion", "invincible_star", "dummy", "oil_barrel", "wings", "football_shoes", "tianlao"]
+	var expected_item_ids := ["speed", "bomb", "range", "shield", "detonator", "glue", "shield_potion", "invincible_star", "dummy", "oil_barrel", "wings", "football_shoes", "tianlao", "duel"]
 	if not _check(menu.guide_overlay.item_icon_ids == expected_item_ids, "Item guide icon list is incomplete"):
 		return
 	var item_label_texts: Array[String] = []

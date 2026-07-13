@@ -31,7 +31,7 @@ const GROUND_ATTACK_MAX_HEIGHT := 0.95
 const AERIAL_ATTACK_MIN_HEIGHT := GROUND_ATTACK_MAX_HEIGHT
 const AERIAL_ATTACK_MAX_HEIGHT := 8.0
 
-const CONSUMABLE_IDS := ["detonator", "glue", "shield_potion", "invincible_star", "dummy", "oil_barrel", "wings", "football_shoes", "tianlao"]
+const CONSUMABLE_IDS := ["detonator", "glue", "shield_potion", "invincible_star", "dummy", "oil_barrel", "wings", "football_shoes", "tianlao", "duel"]
 
 static func grid_to_world(cell: Vector2i) -> Vector3:
 	return Vector3((cell.x - (GRID_W - 1) / 2.0) * TILE_SIZE, FLOOR_Y, (cell.y - (GRID_H - 1) / 2.0) * TILE_SIZE)

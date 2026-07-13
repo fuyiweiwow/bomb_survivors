@@ -26,7 +26,7 @@ func _run() -> void:
 				return
 		elif scene_path.ends_with("main_3d.tscn"):
 			var game = scene.get_node_or_null("GameManager3D")
-			if game == null or game.player_commands == null or game.progression_coordinator == null or game.audio_manager == null:
+			if game == null or game.player_commands == null or game.progression_coordinator == null or game.audio_manager == null or game.duel_manager == null:
 				_fail("Game scene did not expose the modular runtime")
 				return
 		elif scene_path.ends_with("map_editor.tscn"):

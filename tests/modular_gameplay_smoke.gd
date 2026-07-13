@@ -16,6 +16,8 @@ func _run():
 		return
 	if not _check(game.audio_manager != null, "GameAudioManager was not initialized"):
 		return
+	if not _check(game.duel_manager != null and game.duel_manager.arena_catalog.arena_ids().has("lava_rift"), "DuelManager or its arena extension point was not initialized"):
+		return
 	for event_id in ["explosion", "pickup", "shield", "footstep", "ui_select"]:
 		var stream := game.audio_manager.event_stream(event_id) as AudioStream
 		if not _check(stream != null and stream.get_length() > 0.0, "Audio event %s did not load a valid stream" % event_id):
@@ -141,6 +143,62 @@ func _run():
 	game.input_controller._unhandled_input(slot_two)
 	if not _check(int(player["selected_consumable_index"]) == 1 and game.inventory_manager.selected_item(player) == "glue", "Number key did not select backpack slot 2"):
 		return
+	game.inventory_manager.add_item(player, "duel")
+	game._select_player_consumable(2)
+	game._try_use_player_consumable()
+	if not _check(bool(player["duel_pending"]) and not (player["consumables"] as Array).has("duel"), "Duel Token did not arm and consume from the backpack"):
+		return
+	game.combat_manager.damage_player(0, 1, "duel immunity probe")
+	if not _check(player["alive"] and not bool(player["downed"]), "Armed Duel Token did not grant damage immunity"):
+		return
+	var duel_enemy: Dictionary = game.players[1]
+	var duel_trigger_position: Vector3 = player["node"].position
+	duel_enemy["node"].position = duel_trigger_position
+	duel_enemy["grid_pos"] = player["grid_pos"]
+	var bombs_before_duel: int = game.bomb_map.size()
+	if not _check(game.duel_manager.process_pending_contact(), "Touching an enemy did not start the duel"):
+		return
+	if not _check(game.duel_manager.active and paused and game.duel_manager.current_arena_id == "lava_rift", "Duel did not pause the original map in a registered arena"):
+		return
+	if not _check(not game.game_hud.visible and game.duel_manager.round.actors.size() == 2, "Duel HUD or fighters were not initialized"):
+		return
+	if not _check(game.duel_manager.round.actors[0]["node"].get_node_or_null("DuelWings") != null and game.duel_manager.round.actors[1]["node"].get_node_or_null("DuelWings") != null, "Duel fighters did not receive unlimited wings"):
+		return
+	if not _check(not game.consumable_effects.use(0, "shield_potion") and not game.bomb_manager.try_place_bomb(0) and game.bomb_map.size() == bombs_before_duel, "Duel did not lock the original backpack and bomb ability"):
+		return
+	var duel_round = game.duel_manager.round
+	var duel_arena = game.duel_manager.arena
+	var human_duelist: Dictionary = duel_round.actors[0]
+	var enemy_duelist: Dictionary = duel_round.actors[1]
+	human_duelist["node"].position.x = float(duel_arena.lava_centers[0])
+	human_duelist["node"].position.y = duel_arena.floor_y()
+	human_duelist["airborne"] = false
+	duel_round.process_round(DuelRoundController.LAVA_CHARGE_TIME + 0.01)
+	if not _check(bool(human_duelist["airborne"]) and float(human_duelist["vertical_velocity"]) > 0.0, "Duel lava did not launch the winged player"):
+		return
+	var enemy_duel_hp_before := int(enemy_duelist["hp"])
+	human_duelist["node"].position = enemy_duelist["node"].position + Vector3(0, 0.35, 0)
+	human_duelist["airborne"] = true
+	human_duelist["diving"] = true
+	human_duelist["vertical_velocity"] = DuelRoundController.DIVE_VELOCITY
+	human_duelist["hit_cooldown"] = 0.0
+	duel_round.resolve_dive_collisions()
+	if not _check(int(enemy_duelist["hp"]) == enemy_duel_hp_before - 1, "A duel dive did not damage the opponent"):
+		return
+	var lava_refreshes_before := int(duel_arena.lava_refresh_count)
+	duel_round.lava_refresh_timer = 0.0
+	duel_round.process_round(0.01)
+	if not _check(int(duel_arena.lava_refresh_count) == lava_refreshes_before + 1 and duel_arena.lava_centers.size() == LavaRiftArena.LAVA_ZONE_COUNT, "Duel lava did not refresh randomly"):
+		return
+	game.duel_manager.resolve_current_duel(true)
+	await process_frame
+	if not _check(not game.duel_manager.active and not paused and game.game_hud.visible, "Winning a duel did not restore the original map"):
+		return
+	if not _check(duel_enemy["downed"], "Duel victory opponent state: alive=%s downed=%s status=%s enemy_index=%s" % [duel_enemy["alive"], duel_enemy["downed"], duel_enemy["status"], game.duel_manager.current_enemy_index]):
+		return
+	if not _check(player["node"].position.is_equal_approx(duel_trigger_position), "Duel victory restored the player to %s instead of %s" % [player["node"].position, duel_trigger_position]):
+		return
+	game.combat_manager._revive_player(1)
 	game._select_player_consumable(0)
 	var crates_before_refresh: int = game.grid_manager.crate_nodes.size()
 	var refreshed_crates: Array[Vector2i] = game.grid_manager.refresh_crates_for_boss(3)
@@ -647,7 +705,7 @@ func _run():
 		if not _check(int(game.audio_manager.played_events.get(event_id, 0)) > 0, "Gameplay did not emit the %s audio event" % event_id):
 			return
 
-	print("GAME_DESIGN_SMOKE_OK modular_composition shared_art_catalog audio_events progression_unique_ids boss_behavior_boundary expanded_grid visible_initial_spawn clear_first_wave shield_pickup_inventory duplicate_inventory_fifo boss_crate_refresh legacy_map attack_frontier crate_breach ai_lava_strategy difficulty_lava_probability ai_lava_wait winged_ai_lava_strategy airborne_ai_bomb_rule airborne_stomp shielded_stomp stomp_bounce stomp_overlap_safety stomp_single_hit subgrid_turning held_subgrid_motion shared_ai_movement active_world_blast timed_status_effects bomb_warning weather_bounds speed_curve forest_materials backpack_slots wall_hop chain_reaction overlap spawn_fx lava_launch wing_lava_launch wing_airborne_immunity wing_extended_flight airborne_movement vertical_attack_ranges safe_landing impact_support same_height_attack active_support_exit support_cracks support_fragments")
+	print("GAME_DESIGN_SMOKE_OK modular_composition shared_art_catalog audio_events duel_token_immunity duel_arena_catalog duel_world_pause duel_locked_loadout duel_lava_launch duel_dive_damage duel_random_lava duel_win_restore progression_unique_ids boss_behavior_boundary expanded_grid visible_initial_spawn clear_first_wave shield_pickup_inventory duplicate_inventory_fifo boss_crate_refresh legacy_map attack_frontier crate_breach ai_lava_strategy difficulty_lava_probability ai_lava_wait winged_ai_lava_strategy airborne_ai_bomb_rule airborne_stomp shielded_stomp stomp_bounce stomp_overlap_safety stomp_single_hit subgrid_turning held_subgrid_motion shared_ai_movement active_world_blast timed_status_effects bomb_warning weather_bounds speed_curve forest_materials backpack_slots wall_hop chain_reaction overlap spawn_fx lava_launch wing_lava_launch wing_airborne_immunity wing_extended_flight airborne_movement vertical_attack_ranges safe_landing impact_support same_height_attack active_support_exit support_cracks support_fragments")
 	quit(0)
 
 

@@ -14,6 +14,9 @@ func setup(game_manager: Node):
 
 func use(player_index: int, item_id: String) -> bool:
 	var player: Dictionary = game.players[player_index]
+	if game.duel_manager and game.duel_manager.active:
+		player["status"] = "Backpack locked during duel"
+		return false
 	match item_id:
 		"detonator":
 			return _use_detonator(player)
@@ -45,6 +48,8 @@ func use(player_index: int, item_id: String) -> bool:
 		"tianlao":
 			_cast_tianlao(player_index)
 			return true
+		"duel":
+			return game.duel_manager.arm(player_index)
 	return false
 
 func process(delta: float):
