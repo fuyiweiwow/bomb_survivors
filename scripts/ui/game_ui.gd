@@ -12,7 +12,7 @@ func setup(game_manager: Node):
 func setup_camera():
 	game_camera = Camera3D.new()
 	game_camera.projection = Camera3D.PROJECTION_ORTHOGONAL
-	game_camera.size = 20.0
+	game_camera.size = 25.0
 	game_camera.position = Vector3(0, 16, 12)
 	game_camera.rotation_degrees = Vector3(-58, 0, 0)
 	game_camera.current = true
@@ -43,8 +43,6 @@ func update_hud():
 		weather_text,
 		_difficulty_label(),
 		game_camera,
-		Constants.GRID_W,
-		Constants.grid_to_world,
 		_item_display_name
 	)
 
@@ -205,11 +203,13 @@ func _create_wind_visuals():
 		tw.tween_property(streak, "position", streak.position + dir3 * 4.0, 1.2).from(streak.position - dir3 * 4.0)
 
 func _create_snow_visuals():
-	var snow_mat := MeshHelpers.make_mat(Color(0.82, 0.92, 1.0), true)
+	var snow_mat := MeshHelpers.make_mat(Color(0.68, 0.86, 0.96, 0.48))
+	snow_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	snow_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	for raw_cell in _game.weather_manager.snow_cells.keys():
 		var cell := raw_cell as Vector2i
-		var patch := MeshHelpers.box(Vector3(Constants.TILE_SIZE * 0.82, 0.045, Constants.TILE_SIZE * 0.82), snow_mat)
-		patch.position = Constants.grid_to_world(cell) + Vector3(0, 0.08, 0)
+		var patch := MeshHelpers.box(Vector3(Constants.TILE_SIZE * 0.82, 0.035, Constants.TILE_SIZE * 0.82), snow_mat)
+		patch.position = Constants.grid_to_world(cell) + Vector3(0, 0.055, 0)
 		weather_visuals.add_child(patch)
 
 func _item_display_name(item_id: String) -> String:

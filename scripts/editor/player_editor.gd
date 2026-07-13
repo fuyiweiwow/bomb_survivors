@@ -49,7 +49,7 @@ func _build_ui():
 	var content := HBoxContainer.new()
 	content.alignment = BoxContainer.ALIGNMENT_CENTER
 	content.add_theme_constant_override("separation", 20)
-	content.custom_minimum_size = Vector2(700, 390)
+	content.custom_minimum_size = Vector2(520, 390)
 	page.add_child(content)
 
 	var controls_panel := PanelContainer.new()
@@ -87,15 +87,6 @@ func _build_ui():
 	female_btn.pressed.connect(func(): current_gender = "female"; _refresh_preview())
 	controls.add_child(female_btn)
 
-	var hint := Label.new()
-	hint.text = "Saved stats and suit style are used by the next match."
-	hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	hint.add_theme_font_size_override("font_size", 14)
-	hint.add_theme_color_override("font_color", Color(0.7, 0.7, 0.7))
-	hint.custom_minimum_size = Vector2(150, 54)
-	controls.add_child(hint)
-
 	speed_spin = _add_stat_spin(controls, "Start Speed", start_speed, 1, 10)
 	bombs_spin = _add_stat_spin(controls, "Start Bombs", start_bombs, 1, 8)
 	range_spin = _add_stat_spin(controls, "Start Range", start_range, 1, 10)
@@ -122,38 +113,6 @@ func _build_ui():
 	preview_viewport.render_target_update_mode = SubViewport.UPDATE_ALWAYS
 	viewport_container.add_child(preview_viewport)
 	_build_preview_scene()
-
-	var info_panel := PanelContainer.new()
-	info_panel.custom_minimum_size = Vector2(180, 390)
-	content.add_child(info_panel)
-
-	var info_margin := MarginContainer.new()
-	info_margin.add_theme_constant_override("margin_left", 14)
-	info_margin.add_theme_constant_override("margin_top", 14)
-	info_margin.add_theme_constant_override("margin_right", 14)
-	info_margin.add_theme_constant_override("margin_bottom", 14)
-	info_panel.add_child(info_margin)
-
-	var info := VBoxContainer.new()
-	info.alignment = BoxContainer.ALIGNMENT_CENTER
-	info.add_theme_constant_override("separation", 12)
-	info_margin.add_child(info)
-
-	var bomb_label := Label.new()
-	bomb_label.text = "Bomb Style"
-	bomb_label.add_theme_font_size_override("font_size", 22)
-	bomb_label.add_theme_color_override("font_color", Color.WHITE)
-	bomb_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	info.add_child(bomb_label)
-
-	var note := Label.new()
-	note.text = "Powerups can raise speed, bomb count, blast range, or add a shield."
-	note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	note.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	note.add_theme_font_size_override("font_size", 14)
-	note.add_theme_color_override("font_color", Color(0.7, 0.7, 0.7))
-	note.custom_minimum_size = Vector2(150, 110)
-	info.add_child(note)
 
 func _add_action_buttons(parent: Node):
 	var actions := HBoxContainer.new()

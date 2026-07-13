@@ -70,7 +70,7 @@ func _setup_scene():
 
 	camera = Camera3D.new()
 	camera.projection = Camera3D.PROJECTION_ORTHOGONAL
-	camera.size = 20.0
+	camera.size = 27.0
 	camera.position = Vector3(0, 16, 12)
 	camera.rotation_degrees = Vector3(-58, 0, 0)
 	camera.current = true
@@ -186,41 +186,53 @@ func _cylinder(radius: float, height: float, mat: Material) -> MeshInstance3D:
 func _setup_ui():
 	var layer := CanvasLayer.new()
 	add_child(layer)
+	var top_band := ColorRect.new()
+	top_band.color = Color(0.025, 0.032, 0.040, 0.96)
+	top_band.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	top_band.set_anchors_preset(Control.PRESET_TOP_WIDE)
+	top_band.offset_bottom = 56.0
+	layer.add_child(top_band)
+	var bottom_band := ColorRect.new()
+	bottom_band.color = Color(0.025, 0.032, 0.040, 0.96)
+	bottom_band.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	bottom_band.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
+	bottom_band.offset_top = -72.0
+	layer.add_child(bottom_band)
 
 	var top_center := CenterContainer.new()
 	top_center.set_anchors_preset(Control.PRESET_TOP_WIDE)
-	top_center.offset_top = 12
-	top_center.offset_bottom = 68
+	top_center.offset_top = 8
+	top_center.offset_bottom = 50
 	layer.add_child(top_center)
 
 	var top_bar := PanelContainer.new()
-	top_bar.custom_minimum_size = Vector2(760, 46)
+	top_bar.custom_minimum_size = Vector2(180, 38)
 	top_center.add_child(top_bar)
 
 	var top_margin := MarginContainer.new()
 	top_margin.add_theme_constant_override("margin_left", 12)
-	top_margin.add_theme_constant_override("margin_top", 8)
+	top_margin.add_theme_constant_override("margin_top", 5)
 	top_margin.add_theme_constant_override("margin_right", 12)
-	top_margin.add_theme_constant_override("margin_bottom", 8)
+	top_margin.add_theme_constant_override("margin_bottom", 5)
 	top_bar.add_child(top_margin)
 
 	var label := Label.new()
-	label.text = "Map Editor  |  Left: Place  Right: Erase  |  1 Wall  2 Crate  3 Forest  4 Lava  5 Empty"
-	label.add_theme_font_size_override("font_size", 15)
+	label.text = "Map Editor"
+	label.add_theme_font_size_override("font_size", 14)
 	label.add_theme_color_override("font_color", Color.WHITE)
 	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	label.custom_minimum_size = Vector2(730, 28)
+	label.custom_minimum_size = Vector2(150, 26)
 	top_margin.add_child(label)
 
 	var bottom_center := CenterContainer.new()
 	bottom_center.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
-	bottom_center.offset_top = -76
-	bottom_center.offset_bottom = -14
+	bottom_center.offset_top = -66
+	bottom_center.offset_bottom = -10
 	layer.add_child(bottom_center)
 
 	var bottom_bar := PanelContainer.new()
-	bottom_bar.custom_minimum_size = Vector2(472, 46)
+	bottom_bar.custom_minimum_size = Vector2(438, 44)
 	bottom_center.add_child(bottom_bar)
 
 	var bottom_margin := MarginContainer.new()
@@ -239,7 +251,7 @@ func _setup_ui():
 	selected_label.add_theme_font_size_override("font_size", 16)
 	selected_label.add_theme_color_override("font_color", Color.YELLOW)
 	selected_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	selected_label.custom_minimum_size = Vector2(110, 30)
+	selected_label.custom_minimum_size = Vector2(92, 30)
 	_update_sel_label(selected_label)
 	controls.add_child(selected_label)
 
@@ -370,7 +382,7 @@ func _input(event):
 
 func _is_pointer_over_editor_ui(screen_pos: Vector2) -> bool:
 	var viewport_height := get_viewport().get_visible_rect().size.y
-	return screen_pos.y <= 76.0 or screen_pos.y >= viewport_height - 84.0
+	return screen_pos.y <= 56.0 or screen_pos.y >= viewport_height - 72.0
 
 func _save_map():
 	var file := FileAccess.open("user://map_data.json", FileAccess.WRITE)

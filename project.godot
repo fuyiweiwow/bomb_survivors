@@ -20,7 +20,7 @@ config/features=PackedStringArray("4.7")
 window/size/viewport_width=800
 window/size/viewport_height=600
 window/stretch/mode="canvas_items"
-window/stretch/scale=1.5
+window/stretch/scale=1.0
 
 [dotnet]
 
