@@ -78,10 +78,17 @@ func _ai_should_place_bomb(player_index: int) -> bool:
 		var check: Vector2i = p["grid_pos"] + d
 		if check.x >= 0 and check.x < Constants.GRID_W and check.y >= 0 and check.y < Constants.GRID_H and _game.grid[check.y][check.x] == Constants.Cell.CRATE:
 			return true
-	if difficulty == "hard":
+	var can_breach_toward_player: bool = (
+		not _game.players.is_empty()
+		and _game.players[0]["alive"]
+		and (difficulty == "hard" or not Constants.is_player_hidden(_game.players, 0, _game.grid))
+	)
+	if difficulty in ["normal", "hard"] and can_breach_toward_player:
+		var player_cell: Vector2i = _game.players[0]["grid_pos"]
+		var current_distance := Constants.grid_distance(p["grid_pos"], player_cell)
 		for cell in blast_cells.keys():
 			var c := cell as Vector2i
-			if _game.grid[c.y][c.x] == Constants.Cell.CRATE:
+			if _game.grid[c.y][c.x] == Constants.Cell.CRATE and Constants.grid_distance(c, player_cell) < current_distance:
 				return true
 	return false
 
@@ -100,6 +107,8 @@ func _choose_ai_direction(p: Dictionary) -> Vector2i:
 	var player_cell := Vector2i(-1, -1)
 	if can_target_player:
 		player_cell = _game.players[0]["grid_pos"]
+		if Constants.grid_distance(p["grid_pos"], player_cell) <= 1:
+			return Vector2i.ZERO
 	var strategic_direction: Vector2i = AIDecisionPolicy.choose_direction(
 		p,
 		_game.powerups,
@@ -307,7 +316,6 @@ func _frost_charge(index: int, direction: Vector2i):
 func _explode_clone_minion(index: int):
 	var minion: Dictionary = _game.players[index]
 	var data: Dictionary = _game.bomb_manager.get_explosion_cells(minion["grid_pos"], 1, true)
-	_game.bomb_manager.spawn_explosion(data["cells"])
-	_game._apply_explosion_damage(data["cells"])
+	_game.bomb_manager.detonate_cells(data["cells"], index, minion["grid_pos"])
 	if minion["alive"]:
 		_game._kill_player(index)

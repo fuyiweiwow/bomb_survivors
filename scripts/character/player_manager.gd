@@ -52,6 +52,7 @@ func create_player(id: int, cell: Vector2i, ai: bool, mat: Material, style := "m
 		"bomb_max": 1,
 		"bomb_range": 2,
 		"shield": 0,
+		"shield_timer": 0.0,
 		"suit": style,
 		"lava_time": 0.0,
 		"status": "Ready",
@@ -130,17 +131,17 @@ func apply_ai_difficulty(p: Dictionary, difficulty: String):
 		"easy":
 			p["speed"] = 3
 			p["bomb_range"] = 1
-			p["move_interval"] = randf_range(0.75, 1.15)
+			p["move_interval"] = randf_range(0.55, 0.85)
 			p["bomb_interval"] = randf_range(3.2, 5.0)
 		"hard":
 			p["speed"] = 6
 			p["bomb_range"] = 3
-			p["move_interval"] = randf_range(0.18, 0.38)
+			p["move_interval"] = randf_range(0.14, 0.26)
 			p["bomb_interval"] = randf_range(0.9, 1.7)
 		_:
 			p["speed"] = 5
 			p["bomb_range"] = 2
-			p["move_interval"] = randf_range(0.35, 0.75)
+			p["move_interval"] = randf_range(0.22, 0.42)
 			p["bomb_interval"] = randf_range(1.6, 3.2)
 
 func player_material_from_config(config: Dictionary) -> Material:
@@ -184,6 +185,7 @@ func spawn_player(config: Dictionary, inventory_manager):
 	player["bomb_max"] = config["start_bombs"]
 	player["bomb_range"] = config["start_range"]
 	player["shield"] = config["start_shields"]
+	player["shield_timer"] = Constants.SHIELD_DURATION if int(player["shield"]) > 0 else 0.0
 	inventory_manager.add_item(player, "shield_potion")
 	return player
 

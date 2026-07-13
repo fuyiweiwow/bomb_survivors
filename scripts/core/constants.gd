@@ -13,6 +13,7 @@ const FLOOR_Y := 0.0
 const PLAYER_MAX_HP := 3
 const LAVA_DAMAGE_TIME := 1.35
 const DOWNED_DURATION := 5.0
+const SHIELD_DURATION := 5.0
 
 const CONSUMABLE_IDS := ["detonator", "glue", "shield_potion", "invincible_star", "dummy", "oil_barrel", "wings", "football_shoes", "tianlao"]
 
@@ -50,8 +51,9 @@ static func is_walkable_cell(cell_value: int) -> bool:
 	return cell_value == Cell.EMPTY or cell_value == Cell.FOREST or cell_value == Cell.LAVA
 
 static func move_duration_for_speed(speed_value: int) -> float:
-	var normalized_speed := clampi(speed_value, 1, 10) - 1
-	return clampf(0.31 / (1.0 + 0.14 * float(normalized_speed)), 0.12, 0.31)
+	var normalized_speed := float(clampi(speed_value, 1, 10) - 1) / 9.0
+	var world_speed := 4.5 + 5.0 * pow(normalized_speed, 0.82)
+	return TILE_SIZE / world_speed
 
 static func is_lava_cell(grid_array: Array, cell: Vector2i) -> bool:
 	if cell.x < 0 or cell.x >= GRID_W or cell.y < 0 or cell.y >= GRID_H:

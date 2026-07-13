@@ -132,8 +132,8 @@ func on_weather_changed(weather_type: String):
 		child.queue_free()
 	if _game.world_environment:
 		_game.world_environment.fog_enabled = weather_type == "fog"
-		_game.world_environment.fog_light_color = Color(0.66, 0.70, 0.72)
-		_game.world_environment.fog_density = 0.075 if weather_type == "fog" else 0.0
+		_game.world_environment.fog_light_color = Color(0.38, 0.43, 0.46)
+		_game.world_environment.fog_density = 0.012 if weather_type == "fog" else 0.0
 		_game.world_environment.background_color = Color(0.055, 0.065, 0.08) if weather_type in ["rain", "thunder"] else Color(0.07, 0.09, 0.12)
 	match weather_type:
 		"rain":
@@ -188,33 +188,64 @@ func _make_result_button(text: String) -> Button:
 	return btn
 
 func _create_rain_visuals():
-	var rain_mat := MeshHelpers.make_mat(Color(0.35, 0.68, 0.92), true)
-	for i in range(36):
-		var drop := MeshHelpers.box(Vector3(0.025, 0.65, 0.025), rain_mat)
-		drop.position = Vector3(randf_range(-11.0, 11.0), randf_range(2.0, 8.0), randf_range(-7.5, 7.5))
+	var rain_mat := MeshHelpers.make_mat(Color(0.55, 0.82, 1.0, 0.62), true)
+	rain_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	rain_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	rain_mat.no_depth_test = true
+	var extents := _map_half_extents()
+	var drop_count := maxi(80, roundi(float(Constants.GRID_W * Constants.GRID_H) * 0.42))
+	for i in range(drop_count):
+		var drop := MeshHelpers.box(Vector3(0.04, 0.85, 0.04), rain_mat)
+		var start_y := randf_range(5.0, 8.5)
+		drop.position = Vector3(randf_range(-extents.x, extents.x), start_y, randf_range(-extents.y, extents.y))
 		weather_visuals.add_child(drop)
 		var tw := create_tween().bind_node(drop).set_loops()
-		tw.tween_property(drop, "position:y", -0.1, randf_range(0.55, 0.90)).from(8.0)
+		tw.tween_property(drop, "position:y", -0.1, randf_range(1.20, 1.70)).from(start_y)
+
+	var splash_mat := MeshHelpers.make_mat(Color(0.42, 0.72, 0.95, 0.46), true)
+	splash_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	splash_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	var splash_cells: Array = _game.grid_manager.walkable_cells()
+	splash_cells.shuffle()
+	for i in range(mini(28, splash_cells.size())):
+		var splash := MeshHelpers.cylinder(0.11, 0.025, splash_mat)
+		var cell := splash_cells[i] as Vector2i
+		splash.position = Constants.grid_to_world(cell) + Vector3(randf_range(-0.38, 0.38), 0.10, randf_range(-0.38, 0.38))
+		weather_visuals.add_child(splash)
+		var splash_tween := create_tween().bind_node(splash).set_loops().set_parallel()
+		splash_tween.tween_property(splash, "scale", Vector3(2.2, 1.0, 2.2), 0.80).from(Vector3(0.45, 1.0, 0.45))
+		splash_tween.tween_property(splash, "transparency", 0.88, 0.80).from(0.10)
 
 func _create_wind_visuals():
-	var wind_mat := MeshHelpers.make_mat(Color(0.72, 0.92, 0.94), true)
+	var wind_mat := MeshHelpers.make_mat(Color(0.72, 0.92, 0.94, 0.48), true)
+	wind_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	wind_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	wind_mat.no_depth_test = true
 	var dir3 := Vector3(_game.weather_manager.wind_direction.x, 0, _game.weather_manager.wind_direction.y)
-	for i in range(12):
+	var extents := _map_half_extents()
+	var streak_count := maxi(20, roundi(float(Constants.GRID_W * Constants.GRID_H) * 0.10))
+	for i in range(streak_count):
 		var streak := MeshHelpers.box(Vector3(0.7 if dir3.x != 0 else 0.04, 0.035, 0.7 if dir3.z != 0 else 0.04), wind_mat)
-		streak.position = Vector3(randf_range(-10.0, 10.0), randf_range(0.6, 1.8), randf_range(-7.0, 7.0))
+		streak.position = Vector3(randf_range(-extents.x, extents.x), randf_range(0.6, 1.8), randf_range(-extents.y, extents.y))
 		weather_visuals.add_child(streak)
 		var tw := create_tween().bind_node(streak).set_loops()
-		tw.tween_property(streak, "position", streak.position + dir3 * 4.0, 1.2).from(streak.position - dir3 * 4.0)
+		tw.tween_property(streak, "position", streak.position + dir3 * 3.5, 1.15).from(streak.position - dir3 * 3.5)
 
 func _create_snow_visuals():
-	var snow_mat := MeshHelpers.make_mat(Color(0.68, 0.86, 0.96, 0.48))
+	var snow_mat := MeshHelpers.make_mat(Color(0.68, 0.86, 0.96, 0.34))
 	snow_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	snow_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	for raw_cell in _game.weather_manager.snow_cells.keys():
 		var cell := raw_cell as Vector2i
-		var patch := MeshHelpers.box(Vector3(Constants.TILE_SIZE * 0.82, 0.035, Constants.TILE_SIZE * 0.82), snow_mat)
+		var patch := MeshHelpers.box(Vector3(Constants.TILE_SIZE * 0.76, 0.035, Constants.TILE_SIZE * 0.76), snow_mat)
 		patch.position = Constants.grid_to_world(cell) + Vector3(0, 0.055, 0)
 		weather_visuals.add_child(patch)
+
+func _map_half_extents() -> Vector2:
+	return Vector2(
+		float(Constants.GRID_W) * Constants.TILE_SIZE * 0.5,
+		float(Constants.GRID_H) * Constants.TILE_SIZE * 0.5
+	)
 
 func _item_display_name(item_id: String) -> String:
 	match item_id:

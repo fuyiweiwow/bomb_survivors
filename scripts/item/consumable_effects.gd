@@ -21,9 +21,7 @@ func use(player_index: int, item_id: String) -> bool:
 			_place_glue(player_index)
 			return true
 		"shield_potion":
-			player["shield"] = clampi(int(player["shield"]) + 1, 0, 5)
-			player["status"] = "Shield gained"
-			status_visuals.refresh_player(player)
+			game.combat_manager.grant_shield(player_index)
 			return true
 		"invincible_star":
 			player["invincible_timer"] = 5.0
@@ -95,8 +93,7 @@ func damage_oil_barrel(cell: Vector2i):
 	if is_instance_valid(node):
 		node.queue_free()
 	var result: Dictionary = game.bomb_manager.get_explosion_cells(cell, 2, true)
-	game.bomb_manager.spawn_explosion(result["cells"])
-	game._apply_explosion_damage(result["cells"], owner, cell)
+	game.bomb_manager.detonate_cells(result["cells"], owner, cell)
 
 func _use_detonator(player: Dictionary) -> bool:
 	var direction := player["last_move_dir"] as Vector2i
@@ -163,7 +160,6 @@ func _cast_tianlao(player_index: int):
 		marker_tween.tween_property(marker, "transparency", 0.05, 0.18)
 		game.get_tree().create_timer(1.5).timeout.connect(marker.queue_free)
 	game.get_tree().create_timer(1.5).timeout.connect(func():
-		game.bomb_manager.spawn_explosion(cells)
-		game._apply_explosion_damage(cells, player_index)
+		game.bomb_manager.detonate_cells(cells, player_index)
 	)
 	player["status"] = "Tianlao armed"

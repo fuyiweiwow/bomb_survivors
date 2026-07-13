@@ -21,7 +21,8 @@ func start_wave(_wave_number: int, walkable_cells: Array) -> void:
 	if current_weather == "snow":
 		var shuffled := walkable_cells.duplicate()
 		shuffled.shuffle()
-		for i in range(mini(12, shuffled.size())):
+		var snow_count := mini(mini(maxi(roundi(float(shuffled.size()) * 0.10), 18), 28), shuffled.size())
+		for i in range(snow_count):
 			snow_cells[shuffled[i]] = true
 	_thunder_timer = randf_range(3.5, 5.5)
 	weather_changed.emit(current_weather)
@@ -34,12 +35,12 @@ func process_weather(delta: float) -> void:
 		_thunder_timer = randf_range(4.0, 7.0)
 		thunder_requested.emit()
 
-func movement_speed(base_speed: int, cell: Vector2i) -> int:
+func movement_duration_multiplier(cell: Vector2i) -> float:
 	if current_weather == "rain":
-		return maxi(base_speed - 1, 1)
+		return 1.12
 	if current_weather == "snow" and snow_cells.has(cell):
-		return maxi(base_speed - 2, 1)
-	return base_speed
+		return 1.30
+	return 1.0
 
 func can_see(observer: Vector2i, target: Vector2i) -> bool:
 	if current_weather != "fog":

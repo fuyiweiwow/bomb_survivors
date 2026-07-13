@@ -5,14 +5,15 @@ const AI_PATHFINDER := preload("res://scripts/character/ai_pathfinder.gd")
 
 const INVALID_SCORE := -1000000.0
 const EASY_POWERUP_SCORE := 27.0
-const NORMAL_POWERUP_SCORE := 18.0
-const HARD_POWERUP_SCORE := 14.0
+const NORMAL_POWERUP_SCORE := 16.0
+const HARD_POWERUP_SCORE := 10.0
 const EASY_AGGRESSION_SCORE := 7.0
-const NORMAL_AGGRESSION_SCORE := 18.0
-const HARD_AGGRESSION_SCORE := 28.0
+const NORMAL_AGGRESSION_SCORE := 25.0
+const HARD_AGGRESSION_SCORE := 38.0
 const NEARBY_POWERUP_BONUS := 9.0
 const DISTANCE_POWERUP_COST := 1.2
-const DISTANCE_ATTACK_COST := 0.35
+const DISTANCE_ATTACK_COST := 0.22
+const BLOCKED_PATH_PENALTY := 3.0
 
 
 static func choose_direction(
@@ -100,6 +101,10 @@ static func _attack_plan(
 		walkable_cells,
 		true
 	)
+	var blocked_path := false
+	if path.is_empty():
+		path = AI_PATHFINDER.find_closest_reachable_path(start, player_cell, walkable_cells)
+		blocked_path = true
 	if path.is_empty():
 		return {"path": empty_path, "score": INVALID_SCORE}
 	var aggression: float = EASY_AGGRESSION_SCORE
@@ -110,5 +115,5 @@ static func _attack_plan(
 			aggression = HARD_AGGRESSION_SCORE
 	return {
 		"path": path,
-		"score": aggression - float(path.size()) * DISTANCE_ATTACK_COST,
+		"score": aggression - float(path.size()) * DISTANCE_ATTACK_COST - (BLOCKED_PATH_PENALTY if blocked_path else 0.0),
 	}

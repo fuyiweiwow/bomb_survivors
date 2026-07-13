@@ -54,7 +54,7 @@ func check_powerup_pickup(index: int):
 		"range":
 			p["bomb_range"] = clampi(p["bomb_range"] + 2, 1, 10)
 		"shield":
-			p["shield"] = clampi(p["shield"] + 1, 0, 5)
+			_game.combat_manager.grant_shield(index)
 		_:
 			if Constants.CONSUMABLE_IDS.has(str(data["type"])):
 				_add_consumable(p, str(data["type"]))

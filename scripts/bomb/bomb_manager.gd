@@ -3,11 +3,13 @@ extends Node
 const BOMB_FUSE := 2.5
 const BOMB_WARNING_SECONDS := 1.2
 const BOMB_WARNING_FLASHES := 4
+const EXPLOSION_ACTIVE_SECONDS := 0.42
 const BOMB_HOP_WINDOW := 0.30
 const CELL_WALL := Constants.Cell.WALL
 const CELL_CRATE := Constants.Cell.CRATE
 
 var game: Node
+var active_explosions: Array[Dictionary] = []
 
 func setup(game_manager: Node):
 	game = game_manager
@@ -20,6 +22,7 @@ func _process(_delta: float):
 		var timer := entry.get("timer") as Timer
 		if is_instance_valid(timer):
 			_update_bomb_warning(entry, timer.time_left)
+	_process_active_explosions(_delta)
 
 func try_place_bomb(player_index: int) -> bool:
 	if player_index < 0 or player_index >= game.players.size():
@@ -139,8 +142,7 @@ func explode_bomb(cell: Vector2i):
 		var blast_cell := raw_cell as Vector2i
 		if game.bomb_map.has(blast_cell):
 			chained_bombs.append(blast_cell)
-	spawn_explosion(results["cells"])
-	game._apply_explosion_damage(results["cells"], player_index, cell)
+	detonate_cells(results["cells"], player_index, cell)
 	if is_instance_valid(bomb):
 		bomb.queue_free()
 	for chained_cell in chained_bombs:
@@ -167,7 +169,8 @@ func get_explosion_cells(origin: Vector2i, blast_range: int, apply_weather := fa
 func spawn_explosion(cells: Array):
 	for raw_cell in cells:
 		var cell := raw_cell as Vector2i
-		var flame = MeshHelpers.box(Vector3(Constants.TILE_SIZE * 0.86, 0.16, Constants.TILE_SIZE * 0.86), game.mat_fire)
+		var flame_size := Constants.BLAST_HIT_RADIUS * 2.0 - 0.08
+		var flame = MeshHelpers.box(Vector3(flame_size, 0.16, flame_size), game.mat_fire)
 		flame.position = Constants.grid_to_world(cell) + Vector3(0, 0.12, 0)
 		game.add_child(flame)
 		var tween := game.create_tween().set_parallel()
@@ -175,6 +178,35 @@ func spawn_explosion(cells: Array):
 		tween.tween_property(flame, "transparency", 1.0, 0.35).set_delay(0.18)
 		tween.set_parallel(false)
 		tween.tween_callback(flame.queue_free).set_delay(0.35)
+
+func detonate_cells(cells: Array, explosion_owner := -1, exploding_cell := Vector2i(-1, -1)):
+	spawn_explosion(cells)
+	var hit_players: Dictionary = {}
+	game.combat_manager.apply_explosion_damage(cells, explosion_owner, exploding_cell, hit_players, true)
+	active_explosions.append({
+		"cells": cells.duplicate(),
+		"owner": explosion_owner,
+		"exploding_cell": exploding_cell,
+		"remaining": EXPLOSION_ACTIVE_SECONDS,
+		"hit_players": hit_players,
+	})
+
+func _process_active_explosions(delta: float):
+	for index in range(active_explosions.size() - 1, -1, -1):
+		var explosion: Dictionary = active_explosions[index]
+		if float(explosion["remaining"]) <= 0.0:
+			active_explosions.remove_at(index)
+			continue
+		game.combat_manager.apply_explosion_damage(
+			explosion["cells"],
+			int(explosion["owner"]),
+			explosion["exploding_cell"],
+			explosion["hit_players"],
+			false
+		)
+		explosion["remaining"] = float(explosion["remaining"]) - delta
+		if float(explosion["remaining"]) <= 0.0:
+			active_explosions.remove_at(index)
 
 func active_blast_cell_set() -> Dictionary:
 	var result := {}

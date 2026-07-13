@@ -24,6 +24,13 @@ func _run():
 		return
 	if not _check(Constants.GRID_W == 19 and Constants.GRID_H == 13, "Expanded grid dimensions are incorrect"):
 		return
+	if not _check(
+		Constants.move_duration_for_speed(1) > Constants.move_duration_for_speed(5)
+		and Constants.move_duration_for_speed(5) > Constants.move_duration_for_speed(10)
+		and Constants.move_duration_for_speed(5) > 0.24,
+		"Character speed curve is not gradual or remains too fast"
+	):
+		return
 	for y in range(Constants.GRID_H):
 		for x in range(Constants.GRID_W):
 			var cell := Vector2i(x, y)
@@ -33,6 +40,24 @@ func _run():
 	var player: Dictionary = game.players[0]
 	if not _check(game.players.size() > 1, "Initial AI wave was not created"):
 		return
+	game.weather_manager.current_weather = "clear"
+	game.weather_manager.snow_cells.clear()
+	game.game_ui.on_weather_changed("clear")
+	var frontier_actor := player.duplicate(true)
+	frontier_actor["grid_pos"] = Vector2i(1, 1)
+	frontier_actor["ai_difficulty"] = "hard"
+	var frontier_walkable := {Vector2i(1, 1): true, Vector2i(2, 1): true, Vector2i(3, 1): true}
+	if not _check(
+		AIDecisionPolicy.choose_direction(frontier_actor, {}, frontier_walkable, Vector2i(5, 1), true) == Vector2i.RIGHT,
+		"AI did not advance toward the closest reachable frontier on a blocked large map"
+	):
+		return
+	if not _check(game.game_ui._map_half_extents().x > 17.0 and game.game_ui._map_half_extents().y > 11.5, "Weather visuals still use the old map bounds"):
+		return
+	game.weather_manager.current_weather = "rain"
+	if not _check(is_equal_approx(game.weather_manager.movement_duration_multiplier(Vector2i(1, 1)), 1.12), "Rain movement multiplier is incorrect"):
+		return
+	game.weather_manager.current_weather = "clear"
 	game.game_ui.update_hud()
 	if not _check(game.game_hud.inventory_slot_labels[0].text.contains("Shield Potion"), "Backpack HUD does not show the starter item"):
 		return
@@ -134,6 +159,23 @@ func _run():
 	game.movement_controller._physics_process(ai_move_duration * 1.05)
 	if not _check(not enemy["is_moving"] and enemy["grid_pos"] == ai_target and enemy["node"].position.is_equal_approx(Constants.grid_to_world(ai_target)), "AI did not use the same three-substep movement path"):
 		return
+	var breach_enemy_cell := Vector2i(3, 3)
+	var breach_crate_cell := Vector2i(5, 3)
+	var breach_player_cell := Vector2i(7, 3)
+	for breach_cell in [breach_enemy_cell, Vector2i(4, 3), breach_player_cell]:
+		game.grid_manager.set_cell(breach_cell.x, breach_cell.y, Constants.Cell.EMPTY)
+	game.grid_manager.set_cell(breach_crate_cell.x, breach_crate_cell.y, Constants.Cell.CRATE)
+	enemy["grid_pos"] = breach_enemy_cell
+	enemy["node"].position = Constants.grid_to_world(breach_enemy_cell)
+	enemy["ai_difficulty"] = "normal"
+	enemy["bomb_range"] = 3
+	player["grid_pos"] = breach_player_cell
+	player["node"].position = Constants.grid_to_world(breach_player_cell)
+	if not _check(game.ai_controller._ai_should_place_bomb(1), "Normal AI did not bomb a crate blocking its route toward the player"):
+		return
+	game.grid_manager.set_cell(breach_crate_cell.x, breach_crate_cell.y, Constants.Cell.EMPTY)
+	player["grid_pos"] = Vector2i(1, 1)
+	player["node"].position = Constants.grid_to_world(Vector2i(1, 1))
 
 	var blast_cell := Vector2i(1, 1)
 	var blast_center := Constants.grid_to_world(blast_cell)
@@ -150,6 +192,17 @@ func _run():
 	if not _check(player["downed"], "Player inside one-third tile distance avoided an explosion"):
 		return
 	game.combat_manager._revive_player(0)
+	player["node"].position = blast_center
+	player["node"].position = blast_center + Vector3(Constants.BLAST_HIT_RADIUS, 0.0, 0.0)
+	game.bomb_manager.detonate_cells([blast_cell])
+	if not _check(not player["downed"], "Explosion hit a player at the one-third safe point"):
+		return
+	player["node"].position = blast_center
+	game.bomb_manager._process_active_explosions(0.05)
+	if not _check(player["downed"], "Player entering a visible active flame was not hit"):
+		return
+	game.combat_manager._revive_player(0)
+	game.bomb_manager.active_explosions.clear()
 	player["node"].position = blast_center
 
 	var legacy_grid: Array = []
@@ -204,10 +257,14 @@ func _run():
 	if not _check(not game.bomb_map.has(previous) and not game.bomb_map.has(origin), "Bomb chain reaction did not detonate both bombs"):
 		return
 
+	player["alive"] = true
+	player["downed"] = false
 	var shield_before := int(player["shield"])
 	if not _check(game.consumable_effects.use(0, "shield_potion"), "Shield potion was rejected"):
 		return
 	if not _check(int(player["shield"]) == shield_before + 1, "Shield potion did not change player state"):
+		return
+	if not _check(is_equal_approx(float(player["shield_timer"]), Constants.SHIELD_DURATION), "Shield duration was not initialized"):
 		return
 	if not _check(player["node"].get_node_or_null("ShieldEffect") != null, "Shield potion did not create a character effect"):
 		return
@@ -222,6 +279,9 @@ func _run():
 			return
 		player[effect_data["timer"]] = 0.0
 		game.consumable_effects.status_visuals.refresh_player(player)
+	game.combat_manager.process_terrain_effects(Constants.SHIELD_DURATION + 0.1)
+	if not _check(int(player["shield"]) == 0 and float(player["shield_timer"]) == 0.0, "Shield did not expire after five seconds"):
+		return
 
 	game.combat_manager._cancel_player_movement(player)
 	player["alive"] = true
@@ -235,7 +295,7 @@ func _run():
 	if not _check(game.is_cell_walkable(occupied_cell.x, occupied_cell.y, 0), "Living characters still block shared cells"):
 		return
 
-	print("GAME_DESIGN_SMOKE_OK expanded_grid legacy_map subgrid_turning held_subgrid_motion shared_ai_movement world_blast status_effects bomb_warning forest_materials backpack_slots wall_hop chain_reaction overlap spawn_fx")
+	print("GAME_DESIGN_SMOKE_OK expanded_grid legacy_map attack_frontier crate_breach subgrid_turning held_subgrid_motion shared_ai_movement active_world_blast timed_status_effects bomb_warning weather_bounds speed_curve forest_materials backpack_slots wall_hop chain_reaction overlap spawn_fx")
 	quit(0)
 
 

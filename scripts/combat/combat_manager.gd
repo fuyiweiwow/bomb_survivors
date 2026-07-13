@@ -46,7 +46,15 @@ func _character_nodes_overlap(first: Dictionary, second: Dictionary) -> bool:
 func process_terrain_effects(delta: float):
 	for i in range(_game.players.size()):
 		var p: Dictionary = _game.players[i]
-		if not p["alive"] or bool(p.get("downed", false)):
+		if not p["alive"]:
+			continue
+		if int(p.get("shield", 0)) > 0:
+			p["shield_timer"] = maxf(float(p.get("shield_timer", Constants.SHIELD_DURATION)) - delta, 0.0)
+			if float(p["shield_timer"]) <= 0.0:
+				p["shield"] = 0
+		else:
+			p["shield_timer"] = 0.0
+		if bool(p.get("downed", false)):
 			continue
 		var had_wings := float(p.get("wings_timer", 0.0)) > 0.0
 		p["invincible_timer"] = maxf(float(p.get("invincible_timer", 0.0)) - delta, 0.0)
@@ -72,7 +80,7 @@ func process_terrain_effects(delta: float):
 			p["lava_time"] = 0.0
 
 		if int(p.get("shield", 0)) > 0:
-			status_parts.append("Shield %d" % int(p["shield"]))
+			status_parts.append("Shield %d %.1fs" % [int(p["shield"]), float(p["shield_timer"])])
 		if float(p.get("frozen_timer", 0.0)) > 0.0:
 			status_parts.append("Frozen %.1fs" % float(p["frozen_timer"]))
 		if float(p["invincible_timer"]) > 0.0:
@@ -88,19 +96,28 @@ func process_terrain_effects(delta: float):
 		else:
 			p["status"] = " / ".join(status_parts)
 
-func apply_explosion_damage(cells: Array, explosion_owner := -1, exploding_cell := Vector2i(-1, -1)):
-	for raw_cell in cells:
-		var cell := raw_cell as Vector2i
-		if _game.grid[cell.y][cell.x] == Constants.Cell.CRATE:
-			_game.grid_manager.destroy_crate(cell)
-			_game.powerup_manager.spawn_powerup(cell)
-		if _game.oil_barrels.has(cell):
-			_game.consumable_effects.damage_oil_barrel(cell)
+func apply_explosion_damage(
+	cells: Array,
+	explosion_owner := -1,
+	exploding_cell := Vector2i(-1, -1),
+	hit_players: Variant = null,
+	affect_obstacles := true
+):
+	var hit_registry: Dictionary = hit_players as Dictionary if hit_players is Dictionary else {}
+	if affect_obstacles:
+		for raw_cell in cells:
+			var cell := raw_cell as Vector2i
+			if _game.grid[cell.y][cell.x] == Constants.Cell.CRATE:
+				_game.grid_manager.destroy_crate(cell)
+				_game.powerup_manager.spawn_powerup(cell)
+			if _game.oil_barrels.has(cell):
+				_game.consumable_effects.damage_oil_barrel(cell)
 
 	for i in range(_game.players.size()):
 		var p: Dictionary = _game.players[i]
-		if not p["alive"] or not _is_player_hit_by_cells(p, cells):
+		if hit_registry.has(i) or not p["alive"] or not _is_player_hit_by_cells(p, cells):
 			continue
+		hit_registry[i] = true
 		if i == explosion_owner and _game.wall_mechanics.try_bomb_boost(i):
 			continue
 		_damage_player(i, 1, "blast")
@@ -130,6 +147,8 @@ func damage_player(index: int, amount: int, source: String):
 		return
 	if int(p.get("shield", 0)) > 0:
 		p["shield"] = int(p["shield"]) - 1
+		if int(p["shield"]) <= 0:
+			p["shield_timer"] = 0.0
 		_flash_player_shield(p)
 		return
 	if str(p.get("boss_id", "")) != "" or bool(p.get("is_minion", false)):
@@ -251,6 +270,16 @@ func _flash_player_shield(p: Dictionary):
 
 func _damage_player(index: int, amount: int, source: String):
 	damage_player(index, amount, source)
+
+func grant_shield(index: int, amount := 1):
+	if index < 0 or index >= _game.players.size():
+		return
+	var player: Dictionary = _game.players[index]
+	player["shield"] = clampi(int(player.get("shield", 0)) + amount, 0, 5)
+	player["shield_timer"] = Constants.SHIELD_DURATION
+	player["status"] = "Shield %.1fs" % Constants.SHIELD_DURATION
+	if _game.consumable_effects and _game.consumable_effects.status_visuals:
+		_game.consumable_effects.status_visuals.refresh_player(player)
 
 func _consume_dummy_if_available(p: Dictionary) -> bool:
 	return _game.inventory_manager.consume_item(p, "dummy")

@@ -299,18 +299,13 @@ func _try_move_player(index: int, dir: Vector2i) -> bool:
 		p["wall_stay_timer"] = 0.0
 	p["is_moving"] = true
 	node.look_at(target_world, Vector3.UP)
-	var effective_speed: int = _effective_move_speed(p, target)
-	var move_duration: float = Constants.move_duration_for_speed(effective_speed) / float(Constants.MOVE_SUBSTEPS_PER_TILE)
+	var move_duration: float = Constants.move_duration_for_speed(int(p["speed"])) / float(Constants.MOVE_SUBSTEPS_PER_TILE)
+	if weather_manager:
+		move_duration *= weather_manager.movement_duration_multiplier(target)
 	if float(p.get("slow_timer", 0.0)) > 0.0:
 		move_duration *= 3.33
 	movement_controller.start_move(index, current_cell, target, target_world, move_duration)
 	return true
-
-func _effective_move_speed(p: Dictionary, target: Vector2i) -> int:
-	var effective_speed := int(p["speed"])
-	if weather_manager:
-		effective_speed = weather_manager.movement_speed(effective_speed, target)
-	return effective_speed
 
 func is_cell_walkable(x: int, y: int, player_index := -1) -> bool:
 	if x < 0 or x >= Constants.GRID_W or y < 0 or y >= Constants.GRID_H:
