@@ -46,7 +46,7 @@ func try_place_bomb(player_index: int) -> bool:
 	var bomb := Node3D.new()
 	bomb.name = "Bomb_%d_%d" % [cell.x, cell.y]
 	bomb.position = Constants.grid_to_world(cell) + Vector3(0, 0.38, 0)
-	var shell := MeshHelpers.sphere(0.42, game.mat_bomb)
+	var shell := MeshHelpers.sphere(0.42, game.art.mat_bomb)
 	shell.name = "BombShell"
 	bomb.add_child(shell)
 	var warning := MeshHelpers.sphere(0.28, MeshHelpers.make_mat(Color(1.0, 0.08, 0.02), true))
@@ -172,7 +172,7 @@ func spawn_explosion(cells: Array):
 	for raw_cell in cells:
 		var cell := raw_cell as Vector2i
 		var flame_size := Constants.BLAST_HIT_RADIUS * 2.0 - 0.08
-		var flame = MeshHelpers.box(Vector3(flame_size, 0.16, flame_size), game.mat_fire)
+		var flame = MeshHelpers.box(Vector3(flame_size, 0.16, flame_size), game.art.mat_fire)
 		flame.position = Constants.grid_to_world(cell) + Vector3(0, 0.12, 0)
 		game.add_child(flame)
 		var tween := game.create_tween().set_parallel()

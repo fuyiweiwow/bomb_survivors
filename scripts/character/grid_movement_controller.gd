@@ -8,6 +8,68 @@ var _game: Node
 func setup(game_manager: Node):
 	_game = game_manager
 
+func try_move(player_index: int, direction: Vector2i) -> bool:
+	if player_index < 0 or player_index >= _game.players.size():
+		return false
+	var player: Dictionary = _game.players[player_index]
+	if not bool(player.get("alive", false)) or bool(player.get("downed", false)) or bool(player.get("is_moving", false)):
+		return false
+	if float(player.get("frozen_timer", 0.0)) > 0.0 or direction == Vector2i.ZERO:
+		return false
+	var player_node = player.get("node")
+	if not is_instance_valid(player_node):
+		return false
+	var node := player_node as Node3D
+	var current_cell := Constants.world_to_grid(node.position)
+	player["grid_pos"] = current_cell
+	if bool(player.get("impact_support", false)):
+		_game.wall_mechanics.leave_elevated_cell(player)
+		_game.airborne_controller.begin_fall(player_index)
+	var is_airborne := bool(player.get("airborne", false))
+	var target_height := node.position.y if is_airborne else (0.92 if float(player.get("wings_timer", 0.0)) > 0.0 else 0.0)
+	var target_world := Constants.substep_target(node.position, direction, target_height)
+	var target_cell := Constants.world_to_grid(target_world)
+	if not Constants.is_grid_cell_valid(target_cell):
+		return false
+	if not is_airborne and target_cell != current_cell and _game.grid[target_cell.y][target_cell.x] == Constants.Cell.WALL:
+		return _game.wall_mechanics.try_wall_hop(player_index, direction)
+	if not is_airborne and target_cell != current_cell and not is_cell_walkable(target_cell, player_index):
+		return false
+
+	player["last_move_dir"] = direction
+	if (player["elevated_cell"] as Vector2i) != Vector2i(-1, -1):
+		_game.wall_mechanics.leave_elevated_cell(player)
+	player["is_moving"] = true
+	node.look_at(target_world, Vector3.UP)
+	var move_duration: float = Constants.move_duration_for_speed(int(player["speed"])) / float(Constants.MOVE_SUBSTEPS_PER_TILE)
+	if _game.weather_manager:
+		move_duration *= _game.weather_manager.movement_duration_multiplier(target_cell)
+	if float(player.get("slow_timer", 0.0)) > 0.0:
+		move_duration *= 3.33
+	start_move(player_index, current_cell, target_cell, target_world, move_duration)
+	return true
+
+func is_cell_walkable(cell: Vector2i, player_index := -1) -> bool:
+	if not Constants.is_grid_cell_valid(cell):
+		return false
+	var has_wings: bool = player_index >= 0 and player_index < _game.players.size() and float(_game.players[player_index].get("wings_timer", 0.0)) > 0.0
+	if _game.grid[cell.y][cell.x] == Constants.Cell.WALL or (not has_wings and not Constants.is_walkable_cell(_game.grid[cell.y][cell.x])):
+		return false
+	if _game.oil_barrels.has(cell) and not has_wings:
+		return false
+	if _game.bomb_map.has(cell) and not has_wings and not _can_player_pass_bomb(player_index, cell):
+		return false
+	return true
+
+func _can_player_pass_bomb(player_index: int, cell: Vector2i) -> bool:
+	if player_index < 0 or player_index >= _game.players.size() or not _game.bomb_map.has(cell):
+		return false
+	var entry: Dictionary = _game.bomb_map[cell]
+	if int(entry.get("player_index", -1)) != player_index:
+		return false
+	var player: Dictionary = _game.players[player_index]
+	return _game.bomb_manager.game_time() <= float(player.get("bomb_hop_until", -99.0)) and (player.get("bomb_hop_cells", {}) as Dictionary).has(cell)
+
 func start_move(player_index: int, from_cell: Vector2i, target_cell: Vector2i, target: Vector3, duration: float):
 	if player_index < 0 or player_index >= _game.players.size():
 		return
@@ -81,9 +143,9 @@ func _advance_player(index: int, delta: float):
 			return
 		var continued := false
 		if index == 0:
-			continued = _game._try_move_player_from_input(index)
+			continued = _game.player_commands.try_move_from_input(index)
 		elif bool(player.get("ai", false)) and not Constants.is_world_position_at_cell_center((node as Node3D).position, player["grid_pos"]):
-			continued = _game._try_move_player(index, player.get("move_dir", Vector2i.ZERO))
+			continued = try_move(index, player.get("move_dir", Vector2i.ZERO))
 		if not continued:
 			return
 

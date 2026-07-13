@@ -184,11 +184,11 @@ func find_spawn_cell() -> Vector2i:
 func boss_data(boss_id: String) -> Dictionary:
 	match boss_id:
 		"frost_giant":
-			return {"name": "Frost Giant", "hp": 12, "speed": 3, "range": 1, "bomb_max": 0, "move_interval": 0.48, "bomb_interval": 99.0, "skill_interval": 4.5, "material": _game.mat_boss_frost}
+			return {"name": "Frost Giant", "hp": 12, "speed": 3, "range": 1, "bomb_max": 0, "move_interval": 0.48, "bomb_interval": 99.0, "skill_interval": 4.5, "material": _game.art.mat_boss_frost}
 		"clone_demon":
-			return {"name": "Clone Demon", "hp": 6, "speed": 6, "range": 2, "bomb_max": 2, "move_interval": 0.20, "bomb_interval": 1.4, "skill_interval": 5.0, "material": _game.mat_boss_clone}
+			return {"name": "Clone Demon", "hp": 6, "speed": 6, "range": 2, "bomb_max": 2, "move_interval": 0.20, "bomb_interval": 1.4, "skill_interval": 5.0, "material": _game.art.mat_boss_clone}
 		_:
-			return {"name": "Blast King", "hp": 8, "speed": 5, "range": 5, "bomb_max": 3, "move_interval": 0.28, "bomb_interval": 0.75, "skill_interval": 3.5, "material": _game.mat_boss_blast}
+			return {"name": "Blast King", "hp": 8, "speed": 5, "range": 5, "bomb_max": 3, "move_interval": 0.28, "bomb_interval": 0.75, "skill_interval": 3.5, "material": _game.art.mat_boss_blast}
 
 func spawn_player(config: Dictionary, inventory_manager):
 	var player := create_player(1, Vector2i(1, 1), false, player_material_from_config(config), str(config["gender"]))
@@ -200,22 +200,25 @@ func spawn_player(config: Dictionary, inventory_manager):
 	inventory_manager.add_item(player, "shield_potion")
 	return player
 
-func spawn_ai_wave(count: int, difficulty: String, start_id: int):
+func spawn_ai_wave(count: int, difficulty: String, start_id: int) -> int:
 	var current_id := start_id
+	var spawned := 0
 	for i in range(count):
 		var spawn_cell := find_spawn_cell()
 		if spawn_cell == Vector2i(-1, -1):
-			return
-		var ai_player := create_player(current_id, spawn_cell, true, _game.mat_ai, "ai")
+			break
+		var ai_player := create_player(current_id, spawn_cell, true, _game.art.mat_ai, "ai")
 		current_id += 1
+		spawned += 1
 		apply_ai_difficulty(ai_player, difficulty)
 		_game.players.append(ai_player)
 		_play_spawn_effect(spawn_cell, false)
+	return spawned
 
-func spawn_boss(boss_id: String, boss_id_val: int):
+func spawn_boss(boss_id: String, boss_id_val: int) -> bool:
 	var spawn_cell := find_spawn_cell()
 	if spawn_cell == Vector2i(-1, -1):
-		return
+		return false
 	var boss_data_dict := boss_data(boss_id)
 	var boss := create_player(boss_id_val, spawn_cell, true, boss_data_dict["material"], "boss")
 	boss["boss_id"] = boss_id
@@ -232,8 +235,9 @@ func spawn_boss(boss_id: String, boss_id_val: int):
 	_game.players.append(boss)
 	_play_spawn_effect(spawn_cell, true)
 	_game.game_ui.flash_boss_spawn()
+	return true
 
-func spawn_clone_minions(origin: Vector2i, start_id: int):
+func spawn_clone_minions(origin: Vector2i, start_id: int) -> int:
 	var current_id := start_id
 	var directions := [Vector2i.UP, Vector2i.DOWN, Vector2i.LEFT, Vector2i.RIGHT]
 	directions.shuffle()
@@ -243,7 +247,7 @@ func spawn_clone_minions(origin: Vector2i, start_id: int):
 		var cell: Vector2i = origin + direction
 		if not _is_clone_spawn_walkable(cell):
 			continue
-		var minion := create_player(current_id, cell, true, _game.mat_boss_clone, "ai")
+		var minion := create_player(current_id, cell, true, _game.art.mat_boss_clone, "ai")
 		current_id += 1
 		minion["is_minion"] = true
 		minion["hp"] = 1
@@ -257,7 +261,8 @@ func spawn_clone_minions(origin: Vector2i, start_id: int):
 		_game.players.append(minion)
 		spawned += 1
 		if spawned >= 2:
-			return
+			break
+	return spawned
 
 func _is_clone_spawn_walkable(cell: Vector2i) -> bool:
 	if cell.x < 0 or cell.x >= Constants.GRID_W or cell.y < 0 or cell.y >= Constants.GRID_H:

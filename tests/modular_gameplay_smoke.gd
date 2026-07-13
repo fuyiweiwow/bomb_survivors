@@ -26,6 +26,14 @@ func _run():
 		return
 	if not _check(game.ai_controller.lava_flight_strategy != null, "AI lava flight strategy was not initialized"):
 		return
+	if not _check(game.ai_controller.boss_behavior != null, "Boss behavior controller was not initialized"):
+		return
+	if not _check(game.player_commands != null and game.input_controller.get_parent() == game.player_commands, "Player command boundary was not initialized"):
+		return
+	if not _check(game.progression_coordinator != null and game.wave_manager.get_parent() == game.progression_coordinator, "Progression coordinator was not initialized"):
+		return
+	if not _check(game.art != null and game.art.terrain_materials()["wall"] == game.art.mat_wall, "Shared art catalog was not initialized"):
+		return
 	if not _check(not game.players.is_empty(), "Game did not create a player"):
 		return
 	if not _check(Constants.GRID_W == 19 and Constants.GRID_H == 13, "Expanded grid dimensions are incorrect"):
@@ -55,6 +63,21 @@ func _run():
 			return
 		if not _check((initial_enemy["node"] as Node3D).visible, "An initial enemy was hidden immediately after spawning"):
 			return
+	var players_before_progression: int = game.players.size()
+	var next_id_before_progression := int(game.next_player_id)
+	game.progression_coordinator._on_wave_started(2, 2, "")
+	if not _check(game.players.size() == players_before_progression + 2 and int(game.next_player_id) == next_id_before_progression + 2, "Progression did not advance IDs by the actual enemy count"):
+		return
+	var spawned_ids: Dictionary = {}
+	for active_player: Dictionary in game.players:
+		if not _check(not spawned_ids.has(active_player["id"]), "Progression created duplicate character IDs"):
+			return
+		spawned_ids[active_player["id"]] = true
+	while game.players.size() > players_before_progression:
+		var temporary_player: Dictionary = game.players.pop_back()
+		if is_instance_valid(temporary_player.get("node")):
+			temporary_player["node"].queue_free()
+	game.next_player_id = next_id_before_progression
 	game.weather_manager.current_weather = "clear"
 	game.weather_manager.snow_cells.clear()
 	game.game_ui.on_weather_changed("clear")
@@ -501,7 +524,7 @@ func _run():
 
 	var impact_crate_cell := Vector2i(9, 7)
 	game.grid_manager.set_cell(impact_crate_cell.x, impact_crate_cell.y, Constants.Cell.CRATE)
-	var impact_crate := MeshHelpers.box(Vector3(1.2, 0.92, 1.2), game.mat_crate)
+	var impact_crate := MeshHelpers.box(Vector3(1.2, 0.92, 1.2), game.art.mat_crate)
 	impact_crate.position = Constants.grid_to_world(impact_crate_cell) + Vector3(0, 0.46, 0)
 	game.add_child(impact_crate)
 	game.grid_manager.crate_nodes[impact_crate_cell] = impact_crate
@@ -534,7 +557,7 @@ func _run():
 
 	var impact_wall_cell := Vector2i(11, 7)
 	game.grid_manager.set_cell(impact_wall_cell.x, impact_wall_cell.y, Constants.Cell.WALL)
-	var impact_wall := MeshHelpers.box(Vector3(1.2, 1.24, 1.2), game.mat_wall)
+	var impact_wall := MeshHelpers.box(Vector3(1.2, 1.24, 1.2), game.art.mat_wall)
 	impact_wall.position = Constants.grid_to_world(impact_wall_cell) + Vector3(0, 0.62, 0)
 	game.add_child(impact_wall)
 	game.grid_manager.wall_nodes[impact_wall_cell] = impact_wall
@@ -574,7 +597,7 @@ func _run():
 	if not _check(game.is_cell_walkable(occupied_cell.x, occupied_cell.y, 0), "Living characters still block shared cells"):
 		return
 
-	print("GAME_DESIGN_SMOKE_OK expanded_grid visible_initial_spawn clear_first_wave shield_pickup_inventory duplicate_inventory_fifo boss_crate_refresh legacy_map attack_frontier crate_breach ai_lava_strategy difficulty_lava_probability ai_lava_wait airborne_ai_bomb_rule airborne_stomp shielded_stomp stomp_bounce stomp_overlap_safety stomp_single_hit subgrid_turning held_subgrid_motion shared_ai_movement active_world_blast timed_status_effects bomb_warning weather_bounds speed_curve forest_materials backpack_slots wall_hop chain_reaction overlap spawn_fx lava_launch airborne_movement vertical_attack_ranges safe_landing impact_support same_height_attack active_support_exit support_cracks support_fragments")
+	print("GAME_DESIGN_SMOKE_OK modular_composition shared_art_catalog progression_unique_ids boss_behavior_boundary expanded_grid visible_initial_spawn clear_first_wave shield_pickup_inventory duplicate_inventory_fifo boss_crate_refresh legacy_map attack_frontier crate_breach ai_lava_strategy difficulty_lava_probability ai_lava_wait airborne_ai_bomb_rule airborne_stomp shielded_stomp stomp_bounce stomp_overlap_safety stomp_single_hit subgrid_turning held_subgrid_motion shared_ai_movement active_world_blast timed_status_effects bomb_warning weather_bounds speed_curve forest_materials backpack_slots wall_hop chain_reaction overlap spawn_fx lava_launch airborne_movement vertical_attack_ranges safe_landing impact_support same_height_attack active_support_exit support_cracks support_fragments")
 	quit(0)
 
 

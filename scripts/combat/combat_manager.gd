@@ -5,6 +5,18 @@ var _game: Node
 func setup(game_manager: Node):
 	_game = game_manager
 
+func kill_player(player_index: int) -> void:
+	_kill_player(player_index)
+
+func revive_player(player_index: int) -> void:
+	_revive_player(player_index)
+
+func consume_dummy_if_available(player: Dictionary) -> bool:
+	return _consume_dummy_if_available(player)
+
+func cancel_player_movement(player: Dictionary) -> void:
+	_cancel_player_movement(player)
+
 func process_downed(delta: float):
 	for i in range(_game.players.size()):
 		var p: Dictionary = _game.players[i]
@@ -286,7 +298,7 @@ func _flash_player_shield(p: Dictionary):
 	var node: Node3D = p["node"]
 	if not is_instance_valid(node):
 		return
-	var shield := MeshHelpers.sphere(0.62, _game.mat_shield)
+	var shield := MeshHelpers.sphere(0.62, _game.art.mat_shield)
 	shield.transparency = 0.35
 	node.add_child(shield)
 	var tw := create_tween()

@@ -158,7 +158,7 @@ func _clear_crack_visual(player: Dictionary):
 	player["impact_support_cracks"] = null
 
 func _spawn_break_fragments(cell: Vector2i, cell_type: int):
-	var fragment_mat: Material = game.mat_wall if cell_type == CELL_WALL else game.mat_crate
+	var fragment_mat: Material = game.art.mat_wall if cell_type == CELL_WALL else game.art.mat_crate
 	var origin := Constants.grid_to_world(cell) + Vector3(0, 0.75, 0)
 	for fragment_index in range(9):
 		var fragment := MeshHelpers.box(Vector3(0.28, 0.24, 0.28), fragment_mat)
@@ -202,7 +202,7 @@ func try_bomb_boost(player_index: int) -> bool:
 	if target == Vector2i(-1, -1):
 		return false
 
-	game.combat_manager._cancel_player_movement(player)
+	game.combat_manager.cancel_player_movement(player)
 	player["grid_pos"] = target
 	player["elevated_cell"] = target
 	player["wall_stay_timer"] = 0.0

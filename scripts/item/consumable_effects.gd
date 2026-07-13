@@ -114,7 +114,7 @@ func _place_glue(player_index: int):
 		var old_node = (game.glue_areas[cell] as Dictionary).get("node")
 		if is_instance_valid(old_node):
 			old_node.queue_free()
-	var node = MeshHelpers.cylinder(Constants.TILE_SIZE * 0.38, 0.035, game.mat_glue)
+	var node = MeshHelpers.cylinder(Constants.TILE_SIZE * 0.38, 0.035, game.art.mat_glue)
 	node.position = Constants.grid_to_world(cell) + Vector3(0, 0.07, 0)
 	game.add_child(node)
 	game.glue_areas[cell] = {"node": node, "time": 5.0, "owner": player_index}
@@ -130,10 +130,10 @@ func _place_oil_barrel(player_index: int) -> bool:
 		return false
 	var root := Node3D.new()
 	root.position = Constants.grid_to_world(cell)
-	var body = MeshHelpers.cylinder(0.48, 0.92, game.mat_oil)
+	var body = MeshHelpers.cylinder(0.48, 0.92, game.art.mat_oil)
 	body.position = Vector3(0, 0.46, 0)
 	root.add_child(body)
-	var band = MeshHelpers.cylinder(0.50, 0.10, game.mat_bomb_power)
+	var band = MeshHelpers.cylinder(0.50, 0.10, game.art.mat_bomb_power)
 	band.position = Vector3(0, 0.48, 0)
 	root.add_child(band)
 	game.add_child(root)
@@ -152,7 +152,7 @@ func _cast_tianlao(player_index: int):
 				break
 			cells.append(cell)
 	for raw_cell in cells:
-		var marker = MeshHelpers.box(Vector3(Constants.TILE_SIZE * 0.72, 0.06, Constants.TILE_SIZE * 0.72), game.mat_bomb_power)
+		var marker = MeshHelpers.box(Vector3(Constants.TILE_SIZE * 0.72, 0.06, Constants.TILE_SIZE * 0.72), game.art.mat_bomb_power)
 		marker.position = Constants.grid_to_world(raw_cell as Vector2i) + Vector3(0, 0.10, 0)
 		game.add_child(marker)
 		var marker_tween := game.create_tween().bind_node(marker).set_loops()

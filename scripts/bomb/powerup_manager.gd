@@ -11,19 +11,19 @@ func spawn_powerup(cell: Vector2i):
 	var mat: Material = null
 	if r < 0.23:
 		ptype = "speed"
-		mat = _game.mat_speed
+		mat = _game.art.mat_speed
 	elif r < 0.46:
 		ptype = "bomb"
-		mat = _game.mat_bomb_power
+		mat = _game.art.mat_bomb_power
 	elif r < 0.66:
 		ptype = "range"
-		mat = _game.mat_range
+		mat = _game.art.mat_range
 	elif r < 0.79:
 		ptype = "shield"
-		mat = _game.mat_shield
+		mat = _game.art.mat_shield
 	elif r < 0.95:
 		ptype = str(Constants.CONSUMABLE_IDS.pick_random())
-		mat = _game.mat_dummy if ptype == "dummy" else _game.mat_consumable
+		mat = _game.art.mat_dummy if ptype == "dummy" else _game.art.mat_consumable
 	else:
 		return
 
@@ -63,7 +63,7 @@ func check_powerup_pickup(index: int):
 func spawn_boss_reward(cell: Vector2i):
 	if _game.powerups.has(cell):
 		return
-	var node := _create_powerup_model("dummy", _game.mat_dummy)
+	var node := _create_powerup_model("dummy", _game.art.mat_dummy)
 	node.position = Constants.grid_to_world(cell) + Vector3(0, 0.32, 0)
 	_game.add_child(node)
 	_game.powerups[cell] = {"node": node, "type": "dummy"}
@@ -72,6 +72,9 @@ func _add_consumable(p: Dictionary, item_id: String) -> bool:
 	_game.inventory_manager.add_item(p, item_id)
 	p["status"] = "Picked %s" % _item_display_name(item_id)
 	return true
+
+func item_display_name(item_id: String) -> String:
+	return _item_display_name(item_id)
 
 func _item_display_name(item_id: String) -> String:
 	match item_id:
@@ -109,7 +112,7 @@ func _create_powerup_model(ptype: String, mat: Material) -> Node3D:
 			trail.position = Vector3(0, -0.02, 0.34)
 			root.add_child(trail)
 		"bomb":
-			var mini_bomb := MeshHelpers.sphere(0.26, _game.mat_bomb)
+			var mini_bomb := MeshHelpers.sphere(0.26, _game.art.mat_bomb)
 			mini_bomb.position = Vector3(0, 0.05, 0)
 			root.add_child(mini_bomb)
 
@@ -131,7 +134,7 @@ func _create_powerup_model(ptype: String, mat: Material) -> Node3D:
 			flame_top.scale = Vector3(0.75, 1.25, 0.75)
 			root.add_child(flame_top)
 
-			var glow := MeshHelpers.sphere(0.34, MeshHelpers.make_mat(Color(1.0, 0.18, 0.05), true, _game.tex_powerup))
+			var glow := MeshHelpers.sphere(0.34, MeshHelpers.make_mat(Color(1.0, 0.18, 0.05), true, _game.art.tex_powerup))
 			glow.position = Vector3(0, 0.12, 0)
 			glow.scale = Vector3(1.0, 0.45, 1.0)
 			root.add_child(glow)
@@ -168,10 +171,10 @@ func _create_powerup_model(ptype: String, mat: Material) -> Node3D:
 			face.position = Vector3(0, 0.52, -0.15)
 			root.add_child(face)
 		"oil_barrel":
-			var barrel := MeshHelpers.cylinder(0.25, 0.58, _game.mat_oil)
+			var barrel := MeshHelpers.cylinder(0.25, 0.58, _game.art.mat_oil)
 			barrel.position = Vector3(0, 0.12, 0)
 			root.add_child(barrel)
-			var band := MeshHelpers.cylinder(0.27, 0.08, _game.mat_bomb_power)
+			var band := MeshHelpers.cylinder(0.27, 0.08, _game.art.mat_bomb_power)
 			band.position = Vector3(0, 0.14, 0)
 			root.add_child(band)
 		"wings":

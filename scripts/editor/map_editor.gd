@@ -6,6 +6,7 @@ const TILE_SIZE := Constants.TILE_SIZE
 const FLOOR_Y := Constants.FLOOR_Y
 const TERRAIN_ART := preload("res://scripts/terrain/terrain_art_factory.gd")
 const MAP_DATA_CODEC := preload("res://scripts/grid/map_data_codec.gd")
+const ART_CATALOG := preload("res://scripts/core/game_art_catalog.gd")
 
 enum Cell { EMPTY, WALL, CRATE, FOREST, LAVA }
 
@@ -15,20 +16,7 @@ var selected_label: Label = null
 var map_root: Node3D = null
 var camera: Camera3D = null
 
-var tex_floor: Texture2D = load("res://assets/art/3d/floor_tile.png")
-var tex_wall: Texture2D = load("res://assets/art/3d/wall_block.png")
-var tex_crate: Texture2D = load("res://assets/art/3d/crate_wood.png")
-var tex_lava: Texture2D = load("res://assets/art/3d/lava_cracked.png")
-
-var mat_floor_a := TERRAIN_ART.brushed_material(tex_floor, Color(0.70, 0.78, 0.66), TERRAIN_ART.PATCH_BRUSH)
-var mat_floor_b := TERRAIN_ART.brushed_material(tex_floor, Color(0.82, 0.88, 0.76), TERRAIN_ART.PATCH_BRUSH)
-var mat_wall := TERRAIN_ART.brushed_material(tex_wall, Color(0.72, 0.76, 0.82), TERRAIN_ART.PATCH_BRUSH)
-var mat_crate := TERRAIN_ART.brushed_material(tex_crate, Color(1.0, 0.88, 0.70), TERRAIN_ART.PATCH_BRUSH)
-var mat_forest_floor := TERRAIN_ART.brushed_material(tex_floor, Color(0.18, 0.36, 0.18), TERRAIN_ART.DOTS_BRUSH)
-var mat_leaf := _make_mat(Color(0.10, 0.48, 0.16))
-var mat_trunk := _make_mat(Color(0.42, 0.24, 0.11))
-var mat_lava := TERRAIN_ART.brushed_material(tex_lava, Color(0.95, 0.18, 0.04), TERRAIN_ART.LAVA_BRUSH, 0.8)
-var mat_lava_glow := TERRAIN_ART.brushed_material(tex_lava, Color(1.0, 0.65, 0.08), TERRAIN_ART.LAVA_BRUSH, 1.5)
+var art: RefCounted = ART_CATALOG.new()
 
 func _ready():
 	set_process_input(true)
@@ -80,7 +68,7 @@ func _setup_scene():
 	map_root = Node3D.new()
 	map_root.name = "EditableMap3D"
 	add_child(map_root)
-	add_child(TERRAIN_ART.create_outer_terrain(GRID_W, GRID_H, TILE_SIZE, mat_wall, mat_floor_a))
+	add_child(TERRAIN_ART.create_outer_terrain(GRID_W, GRID_H, TILE_SIZE, art.mat_wall, art.mat_floor_a))
 
 func _refresh_view():
 	if is_instance_valid(map_root):
@@ -92,16 +80,16 @@ func _refresh_view():
 	for y in GRID_H:
 		for x in GRID_W:
 			var cell := Vector2i(x, y)
-			var floor := _box(Vector3(TILE_SIZE, 0.08, TILE_SIZE), _floor_mat_for_cell(x, y))
+			var floor := MeshHelpers.box(Vector3(TILE_SIZE, 0.08, TILE_SIZE), _floor_mat_for_cell(x, y))
 			floor.position = _grid_to_world(cell) + Vector3(0, -0.04, 0)
 			map_root.add_child(floor)
 
 			if grid[y][x] == Cell.WALL:
-				var wall := TERRAIN_ART.create_rock_wall(cell, TILE_SIZE, mat_wall)
+				var wall := TERRAIN_ART.create_rock_wall(cell, TILE_SIZE, art.mat_wall)
 				wall.position = _grid_to_world(cell) + Vector3(0, 0.62, 0)
 				map_root.add_child(wall)
 			elif grid[y][x] == Cell.CRATE:
-				var crate := _box(Vector3(TILE_SIZE * 0.84, 0.92, TILE_SIZE * 0.84), mat_crate)
+				var crate := MeshHelpers.box(Vector3(TILE_SIZE * 0.84, 0.92, TILE_SIZE * 0.84), art.mat_crate)
 				crate.position = _grid_to_world(cell) + Vector3(0, 0.46, 0)
 				map_root.add_child(crate)
 			elif grid[y][x] == Cell.FOREST:
@@ -112,17 +100,17 @@ func _refresh_view():
 func _floor_mat_for_cell(x: int, y: int) -> Material:
 	match grid[y][x]:
 		Cell.FOREST:
-			return mat_forest_floor
+			return art.mat_forest_floor
 		Cell.LAVA:
-			return mat_lava
+			return art.mat_lava
 		_:
-			return mat_floor_a if (x + y) % 2 == 0 else mat_floor_b
+			return art.mat_floor_a if (x + y) % 2 == 0 else art.mat_floor_b
 
 func _create_forest_tile(cell: Vector2i) -> Node3D:
-	return TERRAIN_ART.create_forest_tile(cell, _grid_to_world(cell), TILE_SIZE, mat_forest_floor, mat_trunk, mat_leaf)
+	return TERRAIN_ART.create_forest_tile(cell, _grid_to_world(cell), TILE_SIZE, art.mat_forest_floor, art.mat_trunk, art.mat_leaf)
 
 func _create_lava_tile(cell: Vector2i) -> Node3D:
-	return TERRAIN_ART.create_lava_tile(cell, _grid_to_world(cell), TILE_SIZE, mat_lava_glow)
+	return TERRAIN_ART.create_lava_tile(cell, _grid_to_world(cell), TILE_SIZE, art.mat_lava_glow)
 
 func _grid_to_world(cell: Vector2i) -> Vector3:
 	return Vector3((cell.x - (GRID_W - 1) / 2.0) * TILE_SIZE, FLOOR_Y, (cell.y - (GRID_H - 1) / 2.0) * TILE_SIZE)
@@ -141,37 +129,6 @@ func _screen_to_grid(screen_pos: Vector2) -> Vector2i:
 	var gx := int(floor(hit.x / TILE_SIZE + (GRID_W - 1) / 2.0 + 0.5))
 	var gy := int(floor(hit.z / TILE_SIZE + (GRID_H - 1) / 2.0 + 0.5))
 	return Vector2i(gx, gy)
-
-func _make_mat(color: Color, emission := false, texture: Texture2D = null) -> StandardMaterial3D:
-	var mat := StandardMaterial3D.new()
-	mat.albedo_color = color
-	if texture:
-		mat.albedo_texture = texture
-	mat.roughness = 0.68
-	if emission:
-		mat.emission_enabled = true
-		mat.emission = color
-		mat.emission_energy_multiplier = 1.4
-	return mat
-
-func _box(size: Vector3, mat: Material) -> MeshInstance3D:
-	var mesh := BoxMesh.new()
-	mesh.size = size
-	var node := MeshInstance3D.new()
-	node.mesh = mesh
-	node.material_override = mat
-	return node
-
-func _sphere(radius: float, mat: Material) -> MeshInstance3D:
-	var mesh := SphereMesh.new()
-	mesh.radius = radius
-	mesh.height = radius * 2.0
-	mesh.radial_segments = 24
-	mesh.rings = 12
-	var node := MeshInstance3D.new()
-	node.mesh = mesh
-	node.material_override = mat
-	return node
 
 func _cylinder(radius: float, height: float, mat: Material) -> MeshInstance3D:
 	var mesh := CylinderMesh.new()
