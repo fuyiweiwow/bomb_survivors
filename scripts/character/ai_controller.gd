@@ -1,9 +1,20 @@
 extends Node
 
+const LAVA_FLIGHT_STRATEGY := preload("res://scripts/character/ai_lava_flight_strategy.gd")
+
 var _game: Node
+var lava_flight_strategy: Node
 
 func setup(game_manager: Node):
 	_game = game_manager
+	lava_flight_strategy = LAVA_FLIGHT_STRATEGY.new()
+	add_child(lava_flight_strategy)
+	lava_flight_strategy.setup(_game)
+
+func on_shield_granted(player_index: int):
+	if player_index < 0 or player_index >= _game.players.size():
+		return
+	lava_flight_strategy.notify_shield_granted(_game.players[player_index])
 
 func process_ai(delta: float):
 	for i in range(_game.players.size()):
@@ -33,7 +44,15 @@ func process_ai(delta: float):
 				continue
 			p["move_dir"] = Vector2i.ZERO
 
-		if p["bomb_timer"] >= p["bomb_interval"] and p["bomb_placed_count"] < p["bomb_max"] and _ai_should_place_bomb(i):
+		var lava_action: Dictionary = lava_flight_strategy.choose_action(i, _game.bomb_manager.active_blast_cell_set())
+		if bool(lava_action["active"]):
+			p["move_dir"] = lava_action["direction"]
+			p["move_timer"] = 0.0
+			if not bool(lava_action["waiting"]):
+				_game._try_move_player(i, p["move_dir"])
+			continue
+
+		if not bool(p.get("airborne", false)) and p["bomb_timer"] >= p["bomb_interval"] and p["bomb_placed_count"] < p["bomb_max"] and _ai_should_place_bomb(i):
 			p["bomb_timer"] = 0.0
 			var escape_dir := _ai_escape_dir_after_bomb(i)
 			if escape_dir != Vector2i.ZERO:

@@ -84,6 +84,8 @@ func create_player(id: int, cell: Vector2i, ai: bool, mat: Material, style := "m
 		"impact_support_timer": 0.0,
 		"impact_support_cracks": null,
 		"last_seen_player_pos": Vector2i(-1, -1),
+		"lava_flight_available": false,
+		"lava_flight_target": Vector2i(-1, -1),
 		"boss_id": "",
 		"boss_name": "",
 		"is_minion": false,

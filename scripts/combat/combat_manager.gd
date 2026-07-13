@@ -304,6 +304,8 @@ func grant_shield(index: int, amount := 1):
 	player["shield"] = clampi(int(player.get("shield", 0)) + amount, 0, 5)
 	player["shield_timer"] = Constants.SHIELD_DURATION
 	player["status"] = "Shield %.1fs" % Constants.SHIELD_DURATION
+	if bool(player.get("ai", false)) and _game.ai_controller:
+		_game.ai_controller.on_shield_granted(index)
 	if _game.consumable_effects and _game.consumable_effects.status_visuals:
 		_game.consumable_effects.status_visuals.refresh_player(player)
 

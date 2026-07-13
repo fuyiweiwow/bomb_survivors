@@ -28,6 +28,8 @@ func try_place_bomb(player_index: int) -> bool:
 	if player_index < 0 or player_index >= game.players.size():
 		return false
 	var player: Dictionary = game.players[player_index]
+	if bool(player.get("airborne", false)):
+		return false
 	var cell: Vector2i = player["grid_pos"]
 	if game.bomb_map.has(cell):
 		return false

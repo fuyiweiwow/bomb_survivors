@@ -22,6 +22,8 @@ func _run():
 		return
 	if not _check(game.airborne_controller != null, "AirborneController was not initialized"):
 		return
+	if not _check(game.ai_controller.lava_flight_strategy != null, "AI lava flight strategy was not initialized"):
+		return
 	if not _check(not game.players.is_empty(), "Game did not create a player"):
 		return
 	if not _check(Constants.GRID_W == 19 and Constants.GRID_H == 13, "Expanded grid dimensions are incorrect"):
@@ -178,6 +180,67 @@ func _run():
 	game.grid_manager.set_cell(breach_crate_cell.x, breach_crate_cell.y, Constants.Cell.EMPTY)
 	player["grid_pos"] = Vector2i(1, 1)
 	player["node"].position = Constants.grid_to_world(Vector2i(1, 1))
+	for lava_y in range(1, Constants.GRID_H - 1):
+		for lava_x in range(1, Constants.GRID_W - 1):
+			if game.grid[lava_y][lava_x] == Constants.Cell.LAVA:
+				game.grid_manager.set_cell(lava_x, lava_y, Constants.Cell.EMPTY)
+	var ai_lava_start := Vector2i(12, 9)
+	var ai_lava_step := Vector2i(13, 9)
+	var ai_lava_target := Vector2i(14, 9)
+	for ai_lava_cell in [ai_lava_start, ai_lava_step]:
+		game.grid_manager.set_cell(ai_lava_cell.x, ai_lava_cell.y, Constants.Cell.EMPTY)
+	game.grid_manager.set_cell(ai_lava_target.x, ai_lava_target.y, Constants.Cell.LAVA)
+	game.combat_manager._cancel_player_movement(enemy)
+	enemy["alive"] = true
+	enemy["downed"] = false
+	enemy["airborne"] = false
+	enemy["grid_pos"] = ai_lava_start
+	enemy["node"].position = Constants.grid_to_world(ai_lava_start)
+	enemy["ai_difficulty"] = "hard"
+	enemy["speed"] = 6
+	game.combat_manager.grant_shield(1)
+	var lava_strategy = game.ai_controller.lava_flight_strategy
+	var easy_actor := enemy.duplicate(true)
+	easy_actor["ai_difficulty"] = "easy"
+	var normal_actor := enemy.duplicate(true)
+	normal_actor["ai_difficulty"] = "normal"
+	if not _check(
+		lava_strategy.activation_probability(easy_actor) < lava_strategy.activation_probability(normal_actor)
+		and lava_strategy.activation_probability(normal_actor) < lava_strategy.activation_probability(enemy),
+		"AI lava flight probability does not increase with difficulty"
+	):
+		return
+	if not _check(not lava_strategy.should_activate(easy_actor, 0.20) and lava_strategy.should_activate(enemy, 0.20), "AI lava flight activation roll ignored difficulty probability"):
+		return
+	enemy["shield_timer"] = 1.0
+	var lava_action: Dictionary = lava_strategy.choose_action(1, {}, 0.0)
+	if not _check(not bool(lava_action["active"]), "AI selected lava without enough shield time to launch"):
+		return
+	game.combat_manager.grant_shield(1)
+	lava_action = lava_strategy.choose_action(1, {}, 0.0)
+	if not _check(bool(lava_action["active"]) and lava_action["direction"] == Vector2i.RIGHT and lava_action["target"] == ai_lava_target, "Shielded AI did not choose the reachable lava target"):
+		return
+	enemy["move_timer"] = float(enemy["move_interval"])
+	game.ai_controller.process_ai(0.05)
+	if not _check(bool(enemy["is_moving"]) and enemy["move_dir"] == Vector2i.RIGHT, "AI controller did not execute the lava strategy movement"):
+		return
+	game.movement_controller.cancel_move(enemy)
+	enemy["grid_pos"] = ai_lava_target
+	enemy["node"].position = Constants.grid_to_world(ai_lava_target)
+	lava_action = lava_strategy.choose_action(1, {})
+	if not _check(bool(lava_action["waiting"]) and lava_action["direction"] == Vector2i.ZERO, "AI did not wait on lava for the eruption"):
+		return
+	game.combat_manager.process_terrain_effects(Constants.LAVA_ERUPTION_TIME + 0.01)
+	if not _check(bool(enemy["airborne"]), "Shielded AI did not launch from lava"):
+		return
+	if not _check(not game.bomb_manager.try_place_bomb(1), "Airborne AI placed a ground bomb"):
+		return
+	lava_strategy.choose_action(1, {})
+	if not _check(enemy["lava_flight_target"] == Vector2i(-1, -1), "Airborne AI retained its lava target"):
+		return
+	game.airborne_controller.force_land(1)
+	enemy["shield"] = 0
+	enemy["shield_timer"] = 0.0
 
 	var blast_cell := Vector2i(1, 1)
 	var blast_center := Constants.grid_to_world(blast_cell)
@@ -420,7 +483,7 @@ func _run():
 	if not _check(game.is_cell_walkable(occupied_cell.x, occupied_cell.y, 0), "Living characters still block shared cells"):
 		return
 
-	print("GAME_DESIGN_SMOKE_OK expanded_grid legacy_map attack_frontier crate_breach subgrid_turning held_subgrid_motion shared_ai_movement active_world_blast timed_status_effects bomb_warning weather_bounds speed_curve forest_materials backpack_slots wall_hop chain_reaction overlap spawn_fx lava_launch airborne_movement vertical_attack_ranges safe_landing impact_support same_height_attack active_support_exit support_cracks support_fragments")
+	print("GAME_DESIGN_SMOKE_OK expanded_grid legacy_map attack_frontier crate_breach ai_lava_strategy difficulty_lava_probability ai_lava_wait airborne_ai_bomb_rule subgrid_turning held_subgrid_motion shared_ai_movement active_world_blast timed_status_effects bomb_warning weather_bounds speed_curve forest_materials backpack_slots wall_hop chain_reaction overlap spawn_fx lava_launch airborne_movement vertical_attack_ranges safe_landing impact_support same_height_attack active_support_exit support_cracks support_fragments")
 	quit(0)
 
 
