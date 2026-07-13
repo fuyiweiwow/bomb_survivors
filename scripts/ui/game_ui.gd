@@ -76,6 +76,7 @@ func show_result(winner_id: int):
 	else:
 		label.text = "AI Wins!"
 	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	label.add_theme_font_size_override("font_size", 48)
 	label.add_theme_color_override("font_color", Color.YELLOW)
 	box.add_child(label)
@@ -83,6 +84,7 @@ func show_result(winner_id: int):
 	var hint := Label.new()
 	hint.text = "Choose your next move"
 	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	hint.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	hint.add_theme_font_size_override("font_size", 16)
 	hint.add_theme_color_override("font_color", Color(0.85, 0.85, 0.85))
 	box.add_child(hint)
@@ -180,6 +182,8 @@ func _make_result_button(text: String) -> Button:
 	var btn := Button.new()
 	btn.text = text
 	btn.custom_minimum_size = Vector2(220, 34)
+	btn.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	btn.alignment = HORIZONTAL_ALIGNMENT_CENTER
 	btn.add_theme_font_size_override("font_size", 18)
 	return btn
 

@@ -1,11 +1,16 @@
 extends Node
 
 const CELL_WALL := Constants.Cell.WALL
+const STATUS_EFFECT_VISUALS := preload("res://scripts/item/status_effect_visuals.gd")
 
 var game: Node
+var status_visuals: Node
 
 func setup(game_manager: Node):
 	game = game_manager
+	status_visuals = STATUS_EFFECT_VISUALS.new()
+	add_child(status_visuals)
+	status_visuals.setup(game)
 
 func use(player_index: int, item_id: String) -> bool:
 	var player: Dictionary = game.players[player_index]
@@ -18,20 +23,24 @@ func use(player_index: int, item_id: String) -> bool:
 		"shield_potion":
 			player["shield"] = clampi(int(player["shield"]) + 1, 0, 5)
 			player["status"] = "Shield gained"
+			status_visuals.refresh_player(player)
 			return true
 		"invincible_star":
 			player["invincible_timer"] = 5.0
 			player["status"] = "Invincible 5s"
+			status_visuals.refresh_player(player)
 			return true
 		"oil_barrel":
 			return _place_oil_barrel(player_index)
 		"wings":
 			player["wings_timer"] = 8.0
 			player["status"] = "Wings 8s"
+			status_visuals.refresh_player(player)
 			return true
 		"football_shoes":
 			player["football_timer"] = 8.0
 			player["status"] = "Football shoes 8s"
+			status_visuals.refresh_player(player)
 			return true
 		"tianlao":
 			_cast_tianlao(player_index)

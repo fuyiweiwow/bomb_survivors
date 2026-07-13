@@ -1,6 +1,8 @@
 extends Node
 
 const BOMB_FUSE := 2.5
+const BOMB_WARNING_SECONDS := 1.2
+const BOMB_WARNING_FLASHES := 4
 const BOMB_HOP_WINDOW := 0.30
 const CELL_WALL := Constants.Cell.WALL
 const CELL_CRATE := Constants.Cell.CRATE
@@ -9,6 +11,15 @@ var game: Node
 
 func setup(game_manager: Node):
 	game = game_manager
+
+func _process(_delta: float):
+	if game == null:
+		return
+	for raw_cell in game.bomb_map.keys():
+		var entry: Dictionary = game.bomb_map[raw_cell as Vector2i]
+		var timer := entry.get("timer") as Timer
+		if is_instance_valid(timer):
+			_update_bomb_warning(entry, timer.time_left)
 
 func try_place_bomb(player_index: int) -> bool:
 	if player_index < 0 or player_index >= game.players.size():
@@ -30,7 +41,13 @@ func try_place_bomb(player_index: int) -> bool:
 	var bomb := Node3D.new()
 	bomb.name = "Bomb_%d_%d" % [cell.x, cell.y]
 	bomb.position = Constants.grid_to_world(cell) + Vector3(0, 0.38, 0)
-	bomb.add_child(MeshHelpers.sphere(0.42, game.mat_bomb))
+	var shell := MeshHelpers.sphere(0.42, game.mat_bomb)
+	shell.name = "BombShell"
+	bomb.add_child(shell)
+	var warning := MeshHelpers.sphere(0.28, MeshHelpers.make_mat(Color(1.0, 0.08, 0.02), true))
+	warning.name = "CountdownFlash"
+	warning.transparency = 1.0
+	bomb.add_child(warning)
 	game.add_child(bomb)
 
 	var timer := Timer.new()
@@ -43,8 +60,29 @@ func try_place_bomb(player_index: int) -> bool:
 	var pulse := game.create_tween().set_loops()
 	pulse.tween_property(bomb, "scale", Vector3(1.12, 1.12, 1.12), 0.35)
 	pulse.tween_property(bomb, "scale", Vector3.ONE, 0.35)
-	game.bomb_map[cell] = {"node": bomb, "player_index": player_index, "range": player["bomb_range"], "pulse": pulse, "timer": timer, "placed_at": placed_at}
+	game.bomb_map[cell] = {"node": bomb, "player_index": player_index, "range": player["bomb_range"], "pulse": pulse, "timer": timer, "placed_at": placed_at, "shell": shell, "warning": warning, "warning_started": false}
 	return true
+
+func _update_bomb_warning(entry: Dictionary, time_left: float):
+	if time_left > BOMB_WARNING_SECONDS:
+		return
+	if not bool(entry.get("warning_started", false)):
+		entry["warning_started"] = true
+		var pulse = entry.get("pulse")
+		if pulse is Tween and is_instance_valid(pulse):
+			(pulse as Tween).kill()
+	var interval := BOMB_WARNING_SECONDS / float(BOMB_WARNING_FLASHES)
+	var flash_elapsed := BOMB_WARNING_SECONDS - maxf(time_left, 0.0)
+	var flash_on := fmod(flash_elapsed, interval) < interval * 0.48
+	var warning = entry.get("warning")
+	if is_instance_valid(warning):
+		(warning as GeometryInstance3D).transparency = 0.0 if flash_on else 1.0
+	var shell = entry.get("shell")
+	if is_instance_valid(shell):
+		(shell as GeometryInstance3D).transparency = 0.42 if flash_on else 0.0
+	var bomb = entry.get("node")
+	if is_instance_valid(bomb):
+		(bomb as Node3D).scale = Vector3.ONE * (1.16 if flash_on else 1.0)
 
 func game_time() -> float:
 	return Time.get_ticks_msec() / 1000.0

@@ -275,15 +275,21 @@ func _try_move_player(index: int, dir: Vector2i) -> bool:
 		return false
 	if float(p.get("frozen_timer", 0.0)) > 0.0:
 		return false
-	var target: Vector2i = p["grid_pos"] + dir
-	if target.x < 0 or target.x >= Constants.GRID_W or target.y < 0 or target.y >= Constants.GRID_H:
-		return false
-	if grid[target.y][target.x] == Constants.Cell.WALL:
-		return wall_mechanics.try_wall_hop(index, dir)
-	if not is_cell_walkable(target.x, target.y, index):
+	if dir == Vector2i.ZERO:
 		return false
 	var node: Node3D = p["node"]
 	if not is_instance_valid(node):
+		return false
+	var current_cell := Constants.world_to_grid(node.position)
+	p["grid_pos"] = current_cell
+	var target_height := 0.92 if float(p.get("wings_timer", 0.0)) > 0.0 else 0.0
+	var target_world := Constants.substep_target(node.position, dir, target_height)
+	var target := Constants.world_to_grid(target_world)
+	if target.x < 0 or target.x >= Constants.GRID_W or target.y < 0 or target.y >= Constants.GRID_H:
+		return false
+	if target != current_cell and grid[target.y][target.x] == Constants.Cell.WALL:
+		return wall_mechanics.try_wall_hop(index, dir)
+	if target != current_cell and not is_cell_walkable(target.x, target.y, index):
 		return false
 
 	p["last_move_dir"] = dir
@@ -292,13 +298,12 @@ func _try_move_player(index: int, dir: Vector2i) -> bool:
 		p["elevated_cell"] = Vector2i(-1, -1)
 		p["wall_stay_timer"] = 0.0
 	p["is_moving"] = true
-	node.look_at(Constants.grid_to_world(target), Vector3.UP)
+	node.look_at(target_world, Vector3.UP)
 	var effective_speed: int = _effective_move_speed(p, target)
-	var move_duration: float = Constants.move_duration_for_speed(effective_speed)
+	var move_duration: float = Constants.move_duration_for_speed(effective_speed) / float(Constants.MOVE_SUBSTEPS_PER_TILE)
 	if float(p.get("slow_timer", 0.0)) > 0.0:
 		move_duration *= 3.33
-	var target_height := 0.92 if float(p.get("wings_timer", 0.0)) > 0.0 else 0.0
-	movement_controller.start_move(index, p["grid_pos"], target, Constants.grid_to_world(target) + Vector3(0, target_height, 0), move_duration)
+	movement_controller.start_move(index, current_cell, target, target_world, move_duration)
 	return true
 
 func _effective_move_speed(p: Dictionary, target: Vector2i) -> int:

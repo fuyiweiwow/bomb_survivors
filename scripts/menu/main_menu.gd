@@ -4,7 +4,7 @@ var difficulty_option: OptionButton = null
 var difficulty_ids := ["easy", "normal", "hard"]
 
 func _ready():
-	set_anchors_preset(Control.PRESET_FULL_RECT)
+	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 
 	var center := CenterContainer.new()
 	center.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -13,6 +13,7 @@ func _ready():
 	var box := VBoxContainer.new()
 	box.alignment = BoxContainer.ALIGNMENT_CENTER
 	box.add_theme_constant_override("separation", 14)
+	box.custom_minimum_size.x = 420
 	center.add_child(box)
 
 	var label := Label.new()
@@ -20,7 +21,8 @@ func _ready():
 	label.add_theme_font_size_override("font_size", 64)
 	label.add_theme_color_override("font_color", Color.YELLOW)
 	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	label.custom_minimum_size = Vector2(520, 80)
+	label.custom_minimum_size = Vector2(420, 80)
+	label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	box.add_child(label)
 
 	var ver := Label.new()
@@ -28,7 +30,8 @@ func _ready():
 	ver.add_theme_font_size_override("font_size", 24)
 	ver.add_theme_color_override("font_color", Color(0.7, 0.7, 0.7))
 	ver.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	ver.custom_minimum_size = Vector2(520, 40)
+	ver.custom_minimum_size = Vector2(420, 40)
+	ver.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	box.add_child(ver)
 
 	_add_button(box, "Start Game", func():
@@ -53,6 +56,8 @@ func _add_button(parent: Node, text: String, callback: Callable):
 	var btn := Button.new()
 	btn.text = text
 	btn.custom_minimum_size = Vector2(300, 50)
+	btn.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	btn.alignment = HORIZONTAL_ALIGNMENT_CENTER
 	btn.add_theme_font_size_override("font_size", 28)
 	btn.pressed.connect(callback)
 	parent.add_child(btn)
@@ -61,6 +66,7 @@ func _add_difficulty_picker(parent: Node):
 	var row := HBoxContainer.new()
 	row.alignment = BoxContainer.ALIGNMENT_CENTER
 	row.add_theme_constant_override("separation", 10)
+	row.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	parent.add_child(row)
 
 	var label := Label.new()
@@ -71,6 +77,7 @@ func _add_difficulty_picker(parent: Node):
 
 	difficulty_option = OptionButton.new()
 	difficulty_option.custom_minimum_size = Vector2(210, 42)
+	difficulty_option.alignment = HORIZONTAL_ALIGNMENT_CENTER
 	difficulty_option.add_theme_font_size_override("font_size", 20)
 	difficulty_option.add_item("Easy", 0)
 	difficulty_option.add_item("Normal", 1)

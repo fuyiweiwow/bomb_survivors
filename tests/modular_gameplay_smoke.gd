@@ -84,29 +84,55 @@ func _run():
 		return
 	if not _check(player["move_tween"] == null and bool(player["grid_motion_active"]), "Grid movement still depends on a Tween"):
 		return
-	if not _check(player["grid_pos"] == Vector2i(1, 1), "Grid position advanced before the character left its source cell"):
+	var start_world := Constants.grid_to_world(Vector2i(1, 1))
+	var substep_duration := Constants.move_duration_for_speed(int(player["speed"])) / float(Constants.MOVE_SUBSTEPS_PER_TILE)
+	game.movement_controller._physics_process(substep_duration * 1.05)
+	var first_substep_target := start_world + Vector3(Constants.MOVE_STEP_SIZE, 0.0, 0.0)
+	if not _check(not player["is_moving"] and player["node"].position.is_equal_approx(first_substep_target), "Player did not stop at the first one-third tile point"):
 		return
-	var move_duration := Constants.move_duration_for_speed(int(player["speed"]))
-	game.movement_controller._physics_process(move_duration * 0.49)
-	if not _check(player["grid_pos"] == Vector2i(1, 1) and Constants.world_to_grid(player["node"].position) == Vector2i(1, 1), "World position left the source grid too early"):
+	if not _check(player["grid_pos"] == Vector2i(1, 1), "First substep changed the logical cell too early"):
 		return
-	game.movement_controller._physics_process(move_duration * 0.06)
-	if not _check(player["grid_pos"] == Vector2i(2, 1) and bool(player["is_moving"]), "Grid position did not follow the character across the cell boundary"):
+	if not _check(game._try_move_player(0, Vector2i.DOWN), "Player could not turn at an in-tile substep"):
 		return
-	game.movement_controller._physics_process(1.0)
-	if not _check(not player["is_moving"] and player["node"].position.is_equal_approx(Constants.grid_to_world(Vector2i(2, 1))), "Physics grid movement did not finish on the cell center"):
+	game.movement_controller._physics_process(substep_duration * 1.05)
+	if not _check(player["node"].position.is_equal_approx(first_substep_target + Vector3(0.0, 0.0, Constants.MOVE_STEP_SIZE)), "In-tile direction change did not preserve subgrid position"):
 		return
-	if not _check(game._try_move_player(0, Vector2i.LEFT), "Movement cancellation test did not start"):
-		return
-	game.movement_controller._physics_process(move_duration * 0.25)
 	game.movement_controller.cancel_move(player)
-	if not _check(player["grid_pos"] == Vector2i(2, 1) and player["node"].position.is_equal_approx(Constants.grid_to_world(Vector2i(2, 1))), "Early movement cancellation did not return to the source cell"):
+	if not _check(player["node"].position.is_equal_approx(start_world), "Movement cancellation did not settle at the nearest logical center"):
 		return
-	if not _check(game._try_move_player(0, Vector2i.LEFT), "Late movement cancellation test did not start"):
+	var right_hold := InputEventKey.new()
+	right_hold.physical_keycode = KEY_D
+	right_hold.pressed = true
+	game.input_controller._unhandled_input(right_hold)
+	if not _check(game._try_move_player_from_input(0), "Held movement did not start"):
 		return
-	game.movement_controller._physics_process(move_duration * 0.75)
+	var full_tile_duration := Constants.move_duration_for_speed(int(player["speed"]))
+	game.movement_controller._physics_process(full_tile_duration * 1.05)
+	if not _check(player["is_moving"] and player["node"].position.x > Constants.grid_to_world(Vector2i(2, 1)).x, "Held movement paused at a full tile center"):
+		return
+	right_hold = InputEventKey.new()
+	right_hold.physical_keycode = KEY_D
+	right_hold.pressed = false
+	game.input_controller._unhandled_input(right_hold)
+	game.movement_controller._physics_process(substep_duration * 1.05)
+	if not _check(not player["is_moving"], "Released movement did not stop at the next one-third tile point"):
+		return
 	game.movement_controller.cancel_move(player)
-	if not _check(player["grid_pos"] == Vector2i(1, 1) and player["node"].position.is_equal_approx(Constants.grid_to_world(Vector2i(1, 1))), "Late movement cancellation did not settle in the entered cell"):
+
+	var enemy: Dictionary = game.players[1]
+	game.combat_manager._cancel_player_movement(enemy)
+	var ai_start := Vector2i(10, 6)
+	var ai_target := Vector2i(11, 6)
+	game.grid_manager.set_cell(ai_start.x, ai_start.y, Constants.Cell.EMPTY)
+	game.grid_manager.set_cell(ai_target.x, ai_target.y, Constants.Cell.EMPTY)
+	enemy["grid_pos"] = ai_start
+	enemy["node"].position = Constants.grid_to_world(ai_start)
+	enemy["move_dir"] = Vector2i.RIGHT
+	if not _check(game._try_move_player(1, Vector2i.RIGHT), "AI subgrid movement did not start"):
+		return
+	var ai_move_duration := Constants.move_duration_for_speed(int(enemy["speed"]))
+	game.movement_controller._physics_process(ai_move_duration * 1.05)
+	if not _check(not enemy["is_moving"] and enemy["grid_pos"] == ai_target and enemy["node"].position.is_equal_approx(Constants.grid_to_world(ai_target)), "AI did not use the same three-substep movement path"):
 		return
 
 	var blast_cell := Vector2i(1, 1)
@@ -158,6 +184,13 @@ func _run():
 	player["node"].position = Constants.grid_to_world(previous)
 	if not _check(game.bomb_manager.try_place_bomb(0), "First hopping bomb placement failed"):
 		return
+	var warning_entry: Dictionary = game.bomb_map[previous]
+	game.bomb_manager._update_bomb_warning(warning_entry, 1.15)
+	if not _check((warning_entry["warning"] as GeometryInstance3D).transparency < 0.1, "Bomb warning did not flash during the final countdown"):
+		return
+	game.bomb_manager._update_bomb_warning(warning_entry, 1.0)
+	if not _check((warning_entry["warning"] as GeometryInstance3D).transparency > 0.9, "Bomb warning did not alternate between flashes"):
+		return
 	player["grid_pos"] = origin
 	player["node"].position = Constants.grid_to_world(origin)
 	if not _check(game.bomb_manager.try_place_bomb(0), "Second hopping bomb placement failed"):
@@ -176,8 +209,20 @@ func _run():
 		return
 	if not _check(int(player["shield"]) == shield_before + 1, "Shield potion did not change player state"):
 		return
+	if not _check(player["node"].get_node_or_null("ShieldEffect") != null, "Shield potion did not create a character effect"):
+		return
+	for effect_data in [
+		{"timer": "invincible_timer", "node": "InvincibleEffect"},
+		{"timer": "wings_timer", "node": "WingsEffect"},
+		{"timer": "football_timer", "node": "FootballEffect"},
+	]:
+		player[effect_data["timer"]] = 1.0
+		game.consumable_effects.status_visuals.refresh_player(player)
+		if not _check(player["node"].get_node_or_null(effect_data["node"]) != null, "%s was not created" % effect_data["node"]):
+			return
+		player[effect_data["timer"]] = 0.0
+		game.consumable_effects.status_visuals.refresh_player(player)
 
-	var enemy: Dictionary = game.players[1]
 	game.combat_manager._cancel_player_movement(player)
 	player["alive"] = true
 	player["downed"] = true
@@ -190,7 +235,7 @@ func _run():
 	if not _check(game.is_cell_walkable(occupied_cell.x, occupied_cell.y, 0), "Living characters still block shared cells"):
 		return
 
-	print("GAME_DESIGN_SMOKE_OK expanded_grid legacy_map continuous_grid_sync physics_movement world_blast forest_materials backpack_slots wall_hop chain_reaction overlap spawn_fx")
+	print("GAME_DESIGN_SMOKE_OK expanded_grid legacy_map subgrid_turning held_subgrid_motion shared_ai_movement world_blast status_effects bomb_warning forest_materials backpack_slots wall_hop chain_reaction overlap spawn_fx")
 	quit(0)
 
 

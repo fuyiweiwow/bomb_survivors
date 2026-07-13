@@ -6,6 +6,8 @@ enum Cell { EMPTY, WALL, CRATE, FOREST, LAVA }
 const GRID_W := 19
 const GRID_H := 13
 const TILE_SIZE := 1.8
+const MOVE_SUBSTEPS_PER_TILE := 3
+const MOVE_STEP_SIZE := TILE_SIZE / float(MOVE_SUBSTEPS_PER_TILE)
 const BLAST_HIT_RADIUS := TILE_SIZE / 3.0
 const FLOOR_Y := 0.0
 const PLAYER_MAX_HP := 3
@@ -29,6 +31,17 @@ static func is_world_position_in_blast_cell(world_position: Vector3, cell: Vecto
 	var center := grid_to_world(cell)
 	var hit_radius := BLAST_HIT_RADIUS - 0.001
 	return absf(world_position.x - center.x) < hit_radius and absf(world_position.z - center.z) < hit_radius
+
+static func substep_target(world_position: Vector3, direction: Vector2i, height: float) -> Vector3:
+	var target := world_position + Vector3(direction.x * MOVE_STEP_SIZE, 0.0, direction.y * MOVE_STEP_SIZE)
+	target.x = roundf(target.x / MOVE_STEP_SIZE) * MOVE_STEP_SIZE
+	target.y = height
+	target.z = roundf(target.z / MOVE_STEP_SIZE) * MOVE_STEP_SIZE
+	return target
+
+static func is_world_position_at_cell_center(world_position: Vector3, cell: Vector2i) -> bool:
+	var center := grid_to_world(cell)
+	return absf(world_position.x - center.x) < 0.01 and absf(world_position.z - center.z) < 0.01
 
 static func grid_distance(a: Vector2i, b: Vector2i) -> int:
 	return absi(a.x - b.x) + absi(a.y - b.y)
