@@ -42,6 +42,8 @@ func create_player(id: int, cell: Vector2i, ai: bool, mat: Material, style := "m
 		"downed_timer": 0.0,
 		"is_moving": false,
 		"move_tween": null,
+		"move_from_cell": cell,
+		"move_target_cell": cell,
 		"move_target_world": Vector3.ZERO,
 		"move_speed_world": 0.0,
 		"grid_motion_active": false,

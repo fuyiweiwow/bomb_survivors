@@ -199,17 +199,21 @@ func _process_player_input():
 		bomb_pressed = false
 
 	if not p["is_moving"] and input_controller:
-		var move_dir := read_player_move_direction()
-		if move_dir != Vector2i.ZERO:
-			_try_move_player(0, move_dir)
+		_try_move_player_from_input(0)
 
+func _try_move_player_from_input(index: int) -> bool:
+	if input_controller == null:
+		return false
+	for move_direction in input_controller.consume_move_candidates():
+		if _try_move_player(index, move_direction):
+			return true
+	return false
+
+# Compatibility helper for systems that only need the current preferred input.
 func read_player_move_direction() -> Vector2i:
 	if input_controller == null:
 		return Vector2i.ZERO
-	var move_direction: Vector2i = input_controller.read_move_direction()
-	if move_direction == Vector2i.ZERO:
-		move_direction = input_controller.consume_buffered_direction()
-	return move_direction
+	return input_controller.read_move_direction()
 
 func _handle_player_bomb_action():
 	var p: Dictionary = players[0]
@@ -269,7 +273,6 @@ func _try_move_player(index: int, dir: Vector2i) -> bool:
 	if not is_instance_valid(node):
 		return false
 
-	p["grid_pos"] = target
 	p["last_move_dir"] = dir
 	if (p["elevated_cell"] as Vector2i) != Vector2i(-1, -1):
 		wall_mechanics.clear_wall_warning(p)
@@ -282,7 +285,7 @@ func _try_move_player(index: int, dir: Vector2i) -> bool:
 	if float(p.get("slow_timer", 0.0)) > 0.0:
 		move_duration *= 3.33
 	var target_height := 0.92 if float(p.get("wings_timer", 0.0)) > 0.0 else 0.0
-	movement_controller.start_move(index, Constants.grid_to_world(target) + Vector3(0, target_height, 0), move_duration)
+	movement_controller.start_move(index, p["grid_pos"], target, Constants.grid_to_world(target) + Vector3(0, target_height, 0), move_duration)
 	return true
 
 func _effective_move_speed(p: Dictionary, target: Vector2i) -> int:

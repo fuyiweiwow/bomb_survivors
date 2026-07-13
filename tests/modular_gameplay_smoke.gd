@@ -22,6 +22,11 @@ func _run():
 		return
 	if not _check(not game.players.is_empty(), "Game did not create a player"):
 		return
+	for y in range(Constants.GRID_H):
+		for x in range(Constants.GRID_W):
+			var cell := Vector2i(x, y)
+			if not _check(Constants.world_to_grid(Constants.grid_to_world(cell)) == cell, "Grid/world conversion did not preserve a tile center"):
+				return
 
 	var player: Dictionary = game.players[0]
 	if not _check(game.players.size() > 1, "Initial AI wave was not created"):
@@ -31,19 +36,67 @@ func _run():
 		return
 	if not _check(game.get_node_or_null("AISpawnEffect") != null, "AI spawn effect was not created"):
 		return
-	var key_event := InputEventKey.new()
-	key_event.physical_keycode = KEY_D
-	key_event.pressed = true
-	game.input_controller._unhandled_input(key_event)
-	if not _check(game.input_controller.consume_buffered_direction() == Vector2i.RIGHT, "Movement input was not buffered"):
+	var left_press := InputEventKey.new()
+	left_press.physical_keycode = KEY_A
+	left_press.pressed = true
+	game.input_controller._unhandled_input(left_press)
+	var up_press := InputEventKey.new()
+	up_press.physical_keycode = KEY_W
+	up_press.pressed = true
+	game.input_controller._unhandled_input(up_press)
+	var priority_candidates: Array[Vector2i] = game.input_controller.consume_move_candidates()
+	if not _check(priority_candidates.size() >= 2 and priority_candidates[0] == Vector2i.UP and priority_candidates[1] == Vector2i.LEFT, "Newest movement direction did not receive priority"):
+		return
+	var up_release := InputEventKey.new()
+	up_release.physical_keycode = KEY_W
+	up_release.pressed = false
+	game.input_controller._unhandled_input(up_release)
+	if not _check(game.input_controller.read_move_direction() == Vector2i.LEFT, "Released direction did not fall back to a held direction"):
+		return
+	var left_release := InputEventKey.new()
+	left_release.physical_keycode = KEY_A
+	left_release.pressed = false
+	game.input_controller._unhandled_input(left_release)
+	if not _check(game.input_controller.read_move_direction() == Vector2i.ZERO, "Movement continued after all direction keys were released"):
+		return
+	var right_tap := InputEventKey.new()
+	right_tap.physical_keycode = KEY_D
+	right_tap.pressed = true
+	game.input_controller._unhandled_input(right_tap)
+	right_tap = InputEventKey.new()
+	right_tap.physical_keycode = KEY_D
+	right_tap.pressed = false
+	game.input_controller._unhandled_input(right_tap)
+	if not _check(game.input_controller.consume_buffered_direction() == Vector2i.RIGHT, "Tapped movement input was not buffered"):
 		return
 	game.grid_manager.set_cell(2, 1, Constants.Cell.EMPTY)
 	if not _check(game._try_move_player(0, Vector2i.RIGHT), "Physics grid movement did not start"):
 		return
 	if not _check(player["move_tween"] == null and bool(player["grid_motion_active"]), "Grid movement still depends on a Tween"):
 		return
+	if not _check(player["grid_pos"] == Vector2i(1, 1), "Grid position advanced before the character left its source cell"):
+		return
+	var move_duration := Constants.move_duration_for_speed(int(player["speed"]))
+	game.movement_controller._physics_process(move_duration * 0.49)
+	if not _check(player["grid_pos"] == Vector2i(1, 1) and Constants.world_to_grid(player["node"].position) == Vector2i(1, 1), "World position left the source grid too early"):
+		return
+	game.movement_controller._physics_process(move_duration * 0.03)
+	if not _check(player["grid_pos"] == Vector2i(2, 1) and bool(player["is_moving"]), "Grid position did not follow the character across the cell boundary"):
+		return
 	game.movement_controller._physics_process(1.0)
 	if not _check(not player["is_moving"] and player["node"].position.is_equal_approx(Constants.grid_to_world(Vector2i(2, 1))), "Physics grid movement did not finish on the cell center"):
+		return
+	if not _check(game._try_move_player(0, Vector2i.LEFT), "Movement cancellation test did not start"):
+		return
+	game.movement_controller._physics_process(move_duration * 0.25)
+	game.movement_controller.cancel_move(player)
+	if not _check(player["grid_pos"] == Vector2i(2, 1) and player["node"].position.is_equal_approx(Constants.grid_to_world(Vector2i(2, 1))), "Early movement cancellation did not return to the source cell"):
+		return
+	if not _check(game._try_move_player(0, Vector2i.LEFT), "Late movement cancellation test did not start"):
+		return
+	game.movement_controller._physics_process(move_duration * 0.75)
+	game.movement_controller.cancel_move(player)
+	if not _check(player["grid_pos"] == Vector2i(1, 1) and player["node"].position.is_equal_approx(Constants.grid_to_world(Vector2i(1, 1))), "Late movement cancellation did not settle in the entered cell"):
 		return
 
 	var forest_tile = game.grid_manager._create_forest_tile(Vector2i(5, 5))
@@ -97,7 +150,7 @@ func _run():
 	if not _check(game.is_cell_walkable(occupied_cell.x, occupied_cell.y, 0), "Living characters still block shared cells"):
 		return
 
-	print("GAME_DESIGN_SMOKE_OK physics_movement forest_materials backpack_hud wall_hop chain_reaction overlap spawn_fx")
+	print("GAME_DESIGN_SMOKE_OK continuous_grid_sync physics_movement forest_materials backpack_hud wall_hop chain_reaction overlap spawn_fx")
 	quit(0)
 
 
