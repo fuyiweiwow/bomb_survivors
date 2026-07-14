@@ -23,6 +23,18 @@ func node() -> Node3D:
 	var value = data.get("node")
 	return value as Node3D if is_instance_valid(value) else null
 
+func visual_node() -> Node3D:
+	var value = data.get("visual_node")
+	if is_instance_valid(value):
+		return value as Node3D
+	return node()
+
+func detach_node() -> Node3D:
+	var character_node := node()
+	data["node"] = null
+	data["visual_node"] = null
+	return character_node
+
 func cell() -> Vector2i:
 	return data.get("grid_pos", Vector2i(-1, -1)) as Vector2i
 
@@ -233,6 +245,27 @@ func configure_ai(difficulty: String, speed: int, blast_range: int, move_interva
 	data["bomb_range"] = clampi(blast_range, 1, 10)
 	data["move_interval"] = maxf(move_interval, 0.01)
 	data["bomb_interval"] = maxf(bomb_interval, 0.01)
+
+func configure_boss(profile_id: String, display_name: String, health: int, speed: int, bomb_capacity: int, blast_range: int, move_interval: float, bomb_interval: float, skill_interval: float) -> void:
+	data["boss_id"] = profile_id
+	data["boss_name"] = display_name
+	data["hp"] = maxi(health, 1)
+	data["max_hp"] = maxi(health, 1)
+	data["speed"] = clampi(speed, 1, 10)
+	bombs.configure(bomb_capacity, blast_range)
+	data["move_interval"] = maxf(move_interval, 0.01)
+	data["bomb_interval"] = maxf(bomb_interval, 0.01)
+	data["skill_timer"] = maxf(skill_interval, 0.0)
+
+func configure_minion(speed: int, move_interval: float, difficulty: String) -> void:
+	data["is_minion"] = true
+	data["hp"] = 1
+	data["max_hp"] = 1
+	data["speed"] = clampi(speed, 1, 10)
+	bombs.configure(0, bombs.blast_range())
+	data["move_interval"] = maxf(move_interval, 0.01)
+	data["ai_difficulty"] = difficulty
+	set_status("Decoy")
 
 func increase_speed(amount := 1) -> void:
 	data["speed"] = clampi(speed_value() + amount, 1, 10)

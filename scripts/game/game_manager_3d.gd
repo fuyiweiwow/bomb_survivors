@@ -8,6 +8,7 @@ const PROGRESSION_COORDINATOR := preload("res://scripts/game/progression_coordin
 
 var grid_manager: Node
 var player_manager: Node
+var character_presentation: Node
 var airborne_controller: Node
 var airborne_collision_resolver: Node
 var movement_controller: Node

@@ -22,8 +22,8 @@ func revive_player(player_index: int) -> void:
 func consume_dummy_if_available(character: Variant) -> bool:
 	return _consume_dummy_if_available(character)
 
-func cancel_player_movement(player: Dictionary) -> void:
-	_cancel_player_movement(player)
+func cancel_player_movement(character: Variant) -> void:
+	_cancel_player_movement(character)
 
 func force_down_player(player_index: int, source: String) -> void:
 	var state := _game.character_state_at(player_index) as CharacterState
@@ -101,7 +101,6 @@ func damage_player(index: int, amount: int, source: String):
 	var state := _game.character_state_at(index) as CharacterState
 	if state == null:
 		return
-	var p := state.data
 	match rules.damage_route(state, source):
 		CombatRules.DamageRoute.DUEL_IMMUNE:
 			state.set_status("Duel immunity")
@@ -111,11 +110,11 @@ func damage_player(index: int, amount: int, source: String):
 			_kill_player(index)
 		CombatRules.DamageRoute.ABSORB_SHIELD:
 			state.consume_shield()
-			_flash_player_shield(p)
+			_game.character_presentation.flash_shield(state)
 			_game.audio_manager.play("shield")
 		CombatRules.DamageRoute.DAMAGE_HEALTH:
 			var defeated := state.damage_health(amount)
-			_flash_player_damage(p)
+			_game.character_presentation.flash_damage(state)
 			_game.audio_manager.play("hit")
 			if defeated:
 				_kill_player(index)
@@ -127,69 +126,38 @@ func _enter_downed(index: int, source: String):
 	var state := _game.character_state_at(index) as CharacterState
 	if state == null or not state.is_alive():
 		return
-	var p := state.data
 	state.enter_downed(source, Constants.DOWNED_DURATION)
 	_game.audio_manager.play("down")
 	if _game.airborne_controller:
 		_game.airborne_controller.force_land(index)
-	_cancel_player_movement(p)
-	_cancel_player_state_animation(p)
+	_cancel_player_movement(state)
 	if index == 0:
 		_game.bomb_pressed = false
-	var node: Node3D = p["node"]
-	if is_instance_valid(node):
-		var visual := _player_visual(p)
-		var tw := create_tween().bind_node(visual)
-		p["state_tween"] = tw
-		tw.tween_property(visual, "rotation_degrees:x", -78.0, 0.18)
+	_game.character_presentation.show_downed(state)
 
 func _revive_player(index: int):
 	var state := _game.character_state_at(index) as CharacterState
 	if state == null:
 		return
-	var p := state.data
 	state.revive()
-	_cancel_player_state_animation(p)
-	var node: Node3D = p["node"]
-	if is_instance_valid(node):
-		var visual := _player_visual(p)
-		var tw := create_tween().bind_node(visual)
-		p["state_tween"] = tw
-		tw.set_parallel()
-		tw.tween_property(visual, "rotation_degrees:x", 0.0, 0.16)
-		tw.tween_property(visual, "scale", Vector3(1.12, 1.12, 1.12), 0.12)
-		tw.set_parallel(false)
-		tw.tween_property(visual, "scale", Vector3.ONE, 0.16)
+	_game.character_presentation.show_revived(state)
 
 func _kill_player(index: int):
 	var state := _game.character_state_at(index) as CharacterState
 	if state == null or not state.is_alive():
 		return
-	var p := state.data
 	var was_downed := state.defeat()
 	if not was_downed:
 		_game.audio_manager.play("down")
 	if _game.airborne_controller:
 		_game.airborne_controller.force_land(index)
-	_cancel_player_movement(p)
-	_cancel_player_state_animation(p)
-	if str(p.get("boss_id", "")) != "":
-		_game.powerup_manager.spawn_boss_reward(p["grid_pos"])
-	var node = p.get("node")
-	if not is_instance_valid(node):
+	_cancel_player_movement(state)
+	if state.boss_id() != "":
+		_game.powerup_manager.spawn_boss_reward(state.cell())
+	if state.node() == null:
 		check_game_over()
 		return
-	var visual := _player_visual(p)
-	var tw := create_tween().bind_node(visual)
-	p["state_tween"] = tw
-	tw.tween_property(visual, "scale", Vector3.ONE * 0.05, 0.35)
-	tw.tween_callback(func():
-		if is_instance_valid(node):
-			p["node"] = null
-			node.queue_free()
-		p["state_tween"] = null
-		check_game_over()
-	)
+	_game.character_presentation.show_defeated(state, Callable(self, "check_game_over"))
 
 func check_game_over():
 	if _game.players.is_empty():
@@ -206,44 +174,16 @@ func check_game_over():
 		_game.game_over = true
 		_game.game_ui.show_result(1)
 
-func _cancel_player_movement(p: Dictionary):
-	var move_tween = p.get("move_tween")
-	if move_tween is Tween and is_instance_valid(move_tween):
-		(move_tween as Tween).kill()
-	_game.movement_controller.cancel_move(p)
-
-func _cancel_player_state_animation(p: Dictionary):
-	var state_tween = p.get("state_tween")
-	if state_tween is Tween and is_instance_valid(state_tween):
-		(state_tween as Tween).kill()
-	p["state_tween"] = null
-
-func _flash_player_damage(p: Dictionary):
-	var node: Node3D = p["node"]
-	if not is_instance_valid(node):
+func _cancel_player_movement(character: Variant):
+	var state := character as CharacterState if character is CharacterState else null
+	if state == null and character is Dictionary:
+		state = _game.character_state_by_id(int((character as Dictionary).get("id", -1)))
+	if state == null:
 		return
-	var visual := _player_visual(p)
-	var tw := create_tween().bind_node(visual)
-	tw.tween_property(visual, "scale", Vector3.ONE * 1.12, 0.08)
-	tw.tween_property(visual, "scale", Vector3.ONE, 0.10)
-
-func _player_visual(player: Dictionary) -> Node3D:
-	var visual = player.get("visual_node")
-	if is_instance_valid(visual):
-		return visual as Node3D
-	return player["node"] as Node3D
-
-func _flash_player_shield(p: Dictionary):
-	var node: Node3D = p["node"]
-	if not is_instance_valid(node):
-		return
-	var shield := MeshHelpers.sphere(0.62, _game.art.mat_shield)
-	shield.transparency = 0.35
-	node.add_child(shield)
-	var tw := create_tween()
-	tw.tween_property(shield, "scale", Vector3(1.35, 1.35, 1.35), 0.18)
-	tw.tween_property(shield, "transparency", 1.0, 0.18)
-	tw.tween_callback(shield.queue_free)
+	var move_tween := state.move_tween()
+	if move_tween != null:
+		move_tween.kill()
+	_game.movement_controller.cancel_move(state.data)
 
 func _damage_player(index: int, amount: int, source: String):
 	damage_player(index, amount, source)

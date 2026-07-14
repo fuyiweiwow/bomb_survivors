@@ -22,10 +22,14 @@ GameManager3D                         共享运行时上下文与帧顺序
 │   └── WeatherManager
 ├── MapState / GridManager           地图领域对象与地形实例
 ├── GridMovementController           通行、移动开始和连续推进
-├── CharacterState / PlayerManager   角色聚合根、配置与生成
+├── CharacterState                   角色聚合根
 │   ├── CharacterEffectState         护盾、状态计时与熔岩暴露
 │   ├── CharacterElevationState      浮空、落地、踩踏与承重状态
 │   └── CharacterBombState           炸弹容量、范围、计数与卡位窗口
+├── PlayerManager                    角色配置与生成编排
+│   ├── CharacterStateFactory        合法角色默认数据构建
+│   └── PlayerVisualFactory          碰撞根与角色 Mesh 构建
+├── CharacterPresentation            出生、受伤、倒地、复活与死亡表现
 ├── AIController                     通用 AI 决策和逃生
 │   ├── AILavaFlightStrategy
 │   └── BossBehaviorController       Boss 技能与分身行为
@@ -100,11 +104,14 @@ GameManager3D                         共享运行时上下文与帧顺序
 - `CharacterEffectState` 负责护盾、翅膀、无敌、冰冻、减速和熔岩暴露计时。
 - `CharacterElevationState` 负责浮空、垂直速度、单次飞行踩踏集合和墙/箱承重状态。
 - `CharacterBombState` 负责炸弹容量、爆炸范围、在场计数和连续放置卡位窗口。
+- `CharacterStateFactory` 是默认角色数据结构的唯一构建入口；`PlayerManager` 不拼装领域字典。
 - `CombatRules` 是无场景状态的纯判定对象，负责伤害路由、攻击高度/格内命中和角色重叠规则。
-- `GridManager`、`PlayerManager`、`CombatManager` 负责场景节点、音效、动画和跨领域编排，不重复领域规则。
+- `PlayerVisualFactory` 只构造碰撞根和 Mesh，不进入场景树；`PlayerManager` 只负责配置、选点和生成编排。
+- `CharacterPresentation` 独占角色 Tween、临时战斗特效和死亡节点清理；领域数据不保存动画句柄。
+- `GridManager`、`PlayerManager`、`CombatManager` 负责各自跨领域编排，不重复领域规则或角色表现实现。
 - `TerrainEffectProcessor` 负责状态倒计时和森林/岩浆 tick；`CombatManager` 只保留兼容代理并接收最终伤害命令。
 
-`grid` 与 `players` 目前只作为迁移期兼容视图。新代码不得直接修改这两个视图；地图写入使用 `MapState.set_cell()`，角色写入使用 `CharacterState` 或其子状态方法。例外只有明确的数据所有者：`PlayerManager` 初始化角色场景绑定、`InventoryManager` 修改背包槽位，以及表现系统保存短生命周期 Tween。
+`grid` 与 `players` 目前只作为迁移期兼容视图。新代码不得直接修改这两个视图；地图写入使用 `MapState.set_cell()`，角色写入使用 `CharacterState` 或其子状态方法。例外只有明确的数据所有者：`CharacterStateFactory` 创建初始数据，`InventoryManager` 修改背包槽位。表现 Tween 只能存放在 `CharacterPresentation` 内部，不能写入角色数据。
 
 ### 4.4 共享运行时上下文
 
@@ -236,9 +243,9 @@ Duel Token → DuelManager.arm() → 触碰敌人
 
 按收益优先级继续处理：
 
-1. 将 `PlayerManager` 的角色 Mesh 工厂、初始数据构建和生成职责拆开。
-2. 将 `CombatManager` 的角色表现 Tween 移入独立 `CharacterPresentation`，领域状态不持有动画句柄。
-3. 将 `MapEditor` 的 UI 构建、射线选格和地图数据操作拆成三个组件。
+1. 将 `MapEditor` 的 UI 构建、射线选格和地图数据操作拆成三个组件。
+2. 增加 `CharacterRegistry`，替代 `players` 与 `character_states` 两个必须同步的平行数组。
+3. 将玩家配置文件读取和 Boss 静态档案从 `PlayerManager` 移入配置仓库与目录对象。
 4. 将只读 UI 与 AI 查询逐步从 `players` 兼容视图迁移到 `CharacterState`。
 5. 为爆炸高度、浮空落点和道具覆盖增加更细粒度的边界测试。
 
