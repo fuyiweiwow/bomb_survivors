@@ -26,7 +26,7 @@ void fragment() {
 """
 
 static var _brush_images: Dictionary = {}
-static var _subdivided_floor_meshes: Dictionary = {}
+static var _floor_meshes: Dictionary = {}
 
 static func brushed_material(base_texture: Texture2D, tint: Color, brush_path: String, emission := 0.0) -> ShaderMaterial:
 	var shader := Shader.new()
@@ -47,87 +47,58 @@ static func create_rock_wall(cell: Vector2i, tile_size: float, material: Materia
 	mesh.height = lerpf(1.10, 1.42, variation)
 	mesh.radial_segments = 7
 	var node := MeshInstance3D.new()
+	node.name = "Wall_%d_%d" % [cell.x, cell.y]
 	node.mesh = mesh
 	node.material_override = material
 	node.rotation_degrees.y = fmod(float(cell.x * 37 + cell.y * 61), 360.0)
 	return node
 
-static func create_subdivided_floor_tile(cell: Vector2i, world_position: Vector3, tile_size: float, subdivisions: int, material: Material) -> MeshInstance3D:
+static func create_floor_cell(cell: Vector2i, world_position: Vector3, tile_size: float, material: Material) -> MeshInstance3D:
 	var node := MeshInstance3D.new()
-	node.name = "GroundSubgrid_%d_%d" % [cell.x, cell.y]
-	node.mesh = _subdivided_floor_mesh(tile_size, subdivisions)
+	node.name = "GroundCell_%d_%d" % [cell.x, cell.y]
+	node.mesh = _floor_mesh(tile_size)
 	node.material_override = material
-	node.position = world_position + Vector3(0, 0.002, 0)
+	node.position = world_position + Vector3(0, -0.04, 0)
 	node.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	node.set_meta("visual_subdivisions", subdivisions)
+	node.set_meta("logical_cell_size", tile_size)
 	return node
 
-static func _subdivided_floor_mesh(tile_size: float, subdivisions: int) -> ArrayMesh:
-	var safe_subdivisions := maxi(subdivisions, 1)
-	var cache_key := "%0.4f:%d" % [tile_size, safe_subdivisions]
-	if _subdivided_floor_meshes.has(cache_key):
-		return _subdivided_floor_meshes[cache_key] as ArrayMesh
-
-	var vertices := PackedVector3Array()
-	var normals := PackedVector3Array()
-	var uvs := PackedVector2Array()
-	var indices := PackedInt32Array()
-	var step := tile_size / float(safe_subdivisions)
-	var half_size := (step - tile_size * 0.025) * 0.5
-	for sub_y in safe_subdivisions:
-		for sub_x in safe_subdivisions:
-			var center_x := -tile_size * 0.5 + (float(sub_x) + 0.5) * step
-			var center_z := -tile_size * 0.5 + (float(sub_y) + 0.5) * step
-			var first_vertex := vertices.size()
-			vertices.append(Vector3(center_x - half_size, 0, center_z - half_size))
-			vertices.append(Vector3(center_x - half_size, 0, center_z + half_size))
-			vertices.append(Vector3(center_x + half_size, 0, center_z + half_size))
-			vertices.append(Vector3(center_x + half_size, 0, center_z - half_size))
-			for normal_index in 4:
-				normals.append(Vector3.UP)
-			uvs.append(Vector2(0, 0))
-			uvs.append(Vector2(0, 1))
-			uvs.append(Vector2(1, 1))
-			uvs.append(Vector2(1, 0))
-			for offset in [0, 2, 1, 0, 3, 2]:
-				indices.append(first_vertex + offset)
-
-	var arrays: Array = []
-	arrays.resize(Mesh.ARRAY_MAX)
-	arrays[Mesh.ARRAY_VERTEX] = vertices
-	arrays[Mesh.ARRAY_NORMAL] = normals
-	arrays[Mesh.ARRAY_TEX_UV] = uvs
-	arrays[Mesh.ARRAY_INDEX] = indices
-	var mesh := ArrayMesh.new()
-	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
-	_subdivided_floor_meshes[cache_key] = mesh
+static func _floor_mesh(tile_size: float) -> BoxMesh:
+	var cache_key := "%0.4f" % tile_size
+	if _floor_meshes.has(cache_key):
+		return _floor_meshes[cache_key] as BoxMesh
+	var mesh := BoxMesh.new()
+	mesh.size = Vector3(tile_size * 0.95, 0.08, tile_size * 0.95)
+	_floor_meshes[cache_key] = mesh
 	return mesh
 
 static func create_forest_tile(cell: Vector2i, world_position: Vector3, tile_size: float, floor_material: Material, trunk_material: Material, leaf_material: Material) -> Node3D:
 	var root := Node3D.new()
 	root.name = "Forest_%d_%d" % [cell.x, cell.y]
 	root.position = world_position
+	var art_scale := tile_size / 1.8
 	var offsets := [Vector3(-0.36, 0, -0.30), Vector3(0.34, 0, -0.14), Vector3(-0.04, 0, 0.34)]
 	for offset in offsets:
+		offset *= art_scale
 		var trunk_mesh := CylinderMesh.new()
-		trunk_mesh.top_radius = 0.08
-		trunk_mesh.bottom_radius = 0.10
-		trunk_mesh.height = 0.55
+		trunk_mesh.top_radius = 0.08 * art_scale
+		trunk_mesh.bottom_radius = 0.10 * art_scale
+		trunk_mesh.height = 0.55 * art_scale
 		trunk_mesh.radial_segments = 7
 		var trunk := MeshInstance3D.new()
 		trunk.mesh = trunk_mesh
 		trunk.material_override = trunk_material
-		trunk.position = offset + Vector3(0, 0.24, 0)
+		trunk.position = offset + Vector3(0, 0.24 * art_scale, 0)
 		root.add_child(trunk)
 		var crown_mesh := SphereMesh.new()
-		crown_mesh.radius = 0.34
-		crown_mesh.height = 0.68
+		crown_mesh.radius = 0.34 * art_scale
+		crown_mesh.height = 0.68 * art_scale
 		crown_mesh.radial_segments = 10
 		crown_mesh.rings = 6
 		var crown := MeshInstance3D.new()
 		crown.mesh = crown_mesh
 		crown.material_override = leaf_material
-		crown.position = offset + Vector3(0, 0.72, 0)
+		crown.position = offset + Vector3(0, 0.72 * art_scale, 0)
 		crown.scale = Vector3(1.0, 0.82, 1.0)
 		root.add_child(crown)
 	var cover_mesh := BoxMesh.new()
@@ -143,6 +114,7 @@ static func create_lava_tile(cell: Vector2i, world_position: Vector3, tile_size:
 	var root := Node3D.new()
 	root.name = "Lava_%d_%d" % [cell.x, cell.y]
 	root.position = world_position
+	var art_scale := tile_size / 1.8
 	var pool_mesh := BoxMesh.new()
 	pool_mesh.size = Vector3(tile_size * 0.86, 0.10, tile_size * 0.86)
 	var pool := MeshInstance3D.new()
@@ -152,14 +124,14 @@ static func create_lava_tile(cell: Vector2i, world_position: Vector3, tile_size:
 	root.add_child(pool)
 	for data in [[Vector3(0.28, 0.16, -0.22), 0.16], [Vector3(-0.30, 0.13, 0.26), 0.11]]:
 		var bubble_mesh := SphereMesh.new()
-		bubble_mesh.radius = float(data[1])
-		bubble_mesh.height = float(data[1]) * 2.0
+		bubble_mesh.radius = float(data[1]) * art_scale
+		bubble_mesh.height = float(data[1]) * art_scale * 2.0
 		bubble_mesh.radial_segments = 10
 		bubble_mesh.rings = 5
 		var bubble := MeshInstance3D.new()
 		bubble.mesh = bubble_mesh
 		bubble.material_override = lava_material
-		bubble.position = data[0]
+		bubble.position = (data[0] as Vector3) * art_scale
 		bubble.scale = Vector3(1.0, 0.45, 1.0)
 		root.add_child(bubble)
 	return root
@@ -167,8 +139,9 @@ static func create_lava_tile(cell: Vector2i, world_position: Vector3, tile_size:
 static func create_outer_terrain(grid_w: int, grid_h: int, tile_size: float, rock_material: Material, ground_material: Material) -> Node3D:
 	var root := Node3D.new()
 	root.name = "TerraBrushOuterTerrain"
-	for y in range(-2, grid_h + 2):
-		for x in range(-2, grid_w + 2):
+	var margin_cells := maxi(2, roundi(3.6 / tile_size))
+	for y in range(-margin_cells, grid_h + margin_cells):
+		for x in range(-margin_cells, grid_w + margin_cells):
 			if x >= 0 and x < grid_w and y >= 0 and y < grid_h:
 				continue
 			var cell := Vector2i(x, y)

@@ -172,7 +172,7 @@ Duel Token → DuelManager.arm() → 触碰敌人
 ## 六、共享数据与美术
 
 - `Constants`：网格尺寸、世界坐标换算、速度曲线、攻击高度。
-- `MapDataCodec`：游戏和地图编辑器共用的存档迁移与编解码。
+- `MapDataCodec`：游戏和地图编辑器共用的当前格式编解码与严格版本校验；不迁移旧地图。
 - `GameArtCatalog`：游戏和地图编辑器共用的纹理与材质实例定义。
 - `PowerupModelFactory`：游戏掉落物与菜单道具图标共用的程序化 3D 模型定义。
 - `TerrainArtFactory`：只负责根据材质创建地形表现。
@@ -219,4 +219,4 @@ Duel Token → DuelManager.arm() → 触碰敌人
 3. 将 `MapEditor` 的 UI 构建、射线选格和地图数据操作拆成三个组件。
 4. 把仍在使用的跨 manager 私有调用改为公开领域接口。
 
-不要一次性替换角色字典为 Resource；应先建立类型化适配器和存档迁移测试，再按领域逐步迁移。
+不要一次性替换角色字典为 Resource；应先建立类型化适配器和当前格式编解码测试，再按领域逐步迁移。

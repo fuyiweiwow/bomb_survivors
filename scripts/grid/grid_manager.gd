@@ -2,6 +2,11 @@ extends Node
 
 const MAP_DATA_CODEC := preload("res://scripts/grid/map_data_codec.gd")
 const BOSS_CRATE_REFRESH_COUNT := 10
+const SPAWN_SAFE_DEPTH := Constants.GRID_REFINEMENT * 2
+const FIXED_WALL_SPACING := Constants.GRID_REFINEMENT * 2
+const MAP_LOAD_MISSING := 0
+const MAP_LOAD_OK := 1
+const MAP_LOAD_INVALID := -1
 
 var grid: Array = []
 var crate_nodes: Dictionary = {}
@@ -30,6 +35,13 @@ func setup(game_manager: Node, mats: Dictionary):
 	_mat_lava = mats["lava"]
 
 func init_grid():
+	_initialize_blank_grid()
+	var map_load_result := _load_saved_map()
+	if map_load_result != MAP_LOAD_MISSING:
+		return
+	_generate_default_layout()
+
+func _initialize_blank_grid():
 	grid.clear()
 	for y in Constants.GRID_H:
 		var row: Array = []
@@ -44,21 +56,21 @@ func init_grid():
 		grid[y][0] = Constants.Cell.WALL
 		grid[y][Constants.GRID_W - 1] = Constants.Cell.WALL
 
-	for y in range(2, Constants.GRID_H - 2, 2):
-		for x in range(2, Constants.GRID_W - 2, 2):
+func _generate_default_layout():
+	for y in range(FIXED_WALL_SPACING, Constants.GRID_H - FIXED_WALL_SPACING, FIXED_WALL_SPACING):
+		for x in range(FIXED_WALL_SPACING, Constants.GRID_W - FIXED_WALL_SPACING, FIXED_WALL_SPACING):
 			grid[y][x] = Constants.Cell.WALL
 
 	for y in range(1, Constants.GRID_H - 1):
 		for x in range(1, Constants.GRID_W - 1):
 			if grid[y][x] != Constants.Cell.EMPTY:
 				continue
-			if (x <= 2 and y <= 2) or (x >= Constants.GRID_W - 3 and y >= Constants.GRID_H - 3):
+			if _is_spawn_safe_cell(Vector2i(x, y)):
 				continue
 			if randf() < 0.5:
 				grid[y][x] = Constants.Cell.CRATE
 
 	_seed_special_terrain()
-	_load_saved_map()
 
 func create_world():
 	var env := Environment.new()
@@ -80,11 +92,10 @@ func create_world():
 	for y in Constants.GRID_H:
 		for x in Constants.GRID_W:
 			var cell := Vector2i(x, y)
-			var floor := TerrainArtFactory.create_subdivided_floor_tile(
+			var floor := TerrainArtFactory.create_floor_cell(
 				cell,
 				Constants.grid_to_world(cell),
 				Constants.TILE_SIZE,
-				Constants.GROUND_SUBDIVISIONS,
 				_floor_mat_for_cell(x, y)
 			)
 			_game.add_child(floor)
@@ -140,6 +151,7 @@ func refresh_crates_for_boss(count := BOSS_CRATE_REFRESH_COUNT) -> Array[Vector2
 
 func _create_crate(cell: Vector2i):
 	var crate := MeshHelpers.box(Vector3(Constants.TILE_SIZE * 0.84, 0.92, Constants.TILE_SIZE * 0.84), _mat_crate)
+	crate.name = "Crate_%d_%d" % [cell.x, cell.y]
 	crate.position = Constants.grid_to_world(cell) + Vector3(0, 0.46, 0)
 	crate_nodes[cell] = crate
 	_game.add_child(crate)
@@ -192,45 +204,53 @@ func _seed_special_terrain():
 		for x in range(1, Constants.GRID_W - 1):
 			if grid[y][x] != Constants.Cell.EMPTY:
 				continue
-			if (x <= 2 and y <= 2) or (x >= Constants.GRID_W - 3 and y >= Constants.GRID_H - 3):
+			if _is_spawn_safe_cell(Vector2i(x, y)):
 				continue
 			open_cells.append(Vector2i(x, y))
 	open_cells.shuffle()
 
 	var index := 0
-	for i in range(9):
+	for i in range(9 * Constants.GRID_REFINEMENT * Constants.GRID_REFINEMENT):
 		if index >= open_cells.size():
 			return
 		var cell := open_cells[index] as Vector2i
 		grid[cell.y][cell.x] = Constants.Cell.FOREST
 		index += 1
-	for i in range(6):
+	for i in range(6 * Constants.GRID_REFINEMENT * Constants.GRID_REFINEMENT):
 		if index >= open_cells.size():
 			return
 		var cell := open_cells[index] as Vector2i
 		grid[cell.y][cell.x] = Constants.Cell.LAVA
 		index += 1
 
-func _load_saved_map():
+func _load_saved_map() -> int:
 	if not FileAccess.file_exists("user://map_data.json"):
-		return
+		return MAP_LOAD_MISSING
 	var file := FileAccess.open("user://map_data.json", FileAccess.READ)
 	if file == null:
-		return
+		_delete_saved_map()
+		return MAP_LOAD_INVALID
 	var json := JSON.new()
 	if json.parse(file.get_as_text()) != OK:
 		file.close()
-		return
+		_delete_saved_map()
+		return MAP_LOAD_INVALID
 	file.close()
 
-	MAP_DATA_CODEC.decode_into_grid(
+	if not MAP_DATA_CODEC.decode_into_grid(
 		json.get_data(),
 		grid,
 		Constants.GRID_W,
 		Constants.GRID_H,
 		Constants.Cell.EMPTY,
 		Constants.Cell.WALL
-	)
+	):
+		_delete_saved_map()
+		return MAP_LOAD_INVALID
+	return MAP_LOAD_OK
+
+func _delete_saved_map():
+	DirAccess.remove_absolute(ProjectSettings.globalize_path("user://map_data.json"))
 
 func _floor_mat_for_cell(x: int, y: int) -> Material:
 	match grid[y][x]:
@@ -246,3 +266,9 @@ func _create_forest_tile(cell: Vector2i) -> Node3D:
 
 func _create_lava_tile(cell: Vector2i) -> Node3D:
 	return TerrainArtFactory.create_lava_tile(cell, Constants.grid_to_world(cell), Constants.TILE_SIZE, _mat_lava)
+
+func _is_spawn_safe_cell(cell: Vector2i) -> bool:
+	return (
+		(cell.x <= SPAWN_SAFE_DEPTH and cell.y <= SPAWN_SAFE_DEPTH)
+		or (cell.x >= Constants.GRID_W - SPAWN_SAFE_DEPTH - 1 and cell.y >= Constants.GRID_H - SPAWN_SAFE_DEPTH - 1)
+	)

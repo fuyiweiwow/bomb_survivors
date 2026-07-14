@@ -3,14 +3,17 @@ extends RefCounted
 
 enum Cell { EMPTY, WALL, CRATE, FOREST, LAVA }
 
-const GRID_W := 19
-const GRID_H := 13
-const TILE_SIZE := 1.8
-const MOVE_SUBSTEPS_PER_TILE := 3
-const GROUND_SUBDIVISIONS := 2
-const GROUND_SUBTILE_SIZE := TILE_SIZE / float(GROUND_SUBDIVISIONS)
+const LEGACY_GRID_W := 19
+const LEGACY_GRID_H := 13
+const LEGACY_TILE_SIZE := 1.8
+const GRID_REFINEMENT := 2
+const GRID_W := LEGACY_GRID_W * GRID_REFINEMENT
+const GRID_H := LEGACY_GRID_H * GRID_REFINEMENT
+const TILE_SIZE := LEGACY_TILE_SIZE / float(GRID_REFINEMENT)
+const MOVE_SUBSTEPS_PER_TILE := 1
 const MOVE_STEP_SIZE := TILE_SIZE / float(MOVE_SUBSTEPS_PER_TILE)
 const BLAST_HIT_RADIUS := TILE_SIZE * 0.5
+const PLAYER_START_CELL := Vector2i(GRID_REFINEMENT + 1, GRID_REFINEMENT + 1)
 const FLOOR_Y := 0.0
 const PLAYER_MAX_HP := 3
 const LAVA_DAMAGE_TIME := 1.35
@@ -65,9 +68,10 @@ static func is_player_in_attack_height(player: Dictionary, min_height: float, ma
 
 static func substep_target(world_position: Vector3, direction: Vector2i, height: float) -> Vector3:
 	var target := world_position + Vector3(direction.x * MOVE_STEP_SIZE, 0.0, direction.y * MOVE_STEP_SIZE)
-	target.x = roundf(target.x / MOVE_STEP_SIZE) * MOVE_STEP_SIZE
+	var grid_origin := grid_to_world(Vector2i.ZERO)
+	target.x = roundf((target.x - grid_origin.x) / MOVE_STEP_SIZE) * MOVE_STEP_SIZE + grid_origin.x
 	target.y = height
-	target.z = roundf(target.z / MOVE_STEP_SIZE) * MOVE_STEP_SIZE
+	target.z = roundf((target.z - grid_origin.z) / MOVE_STEP_SIZE) * MOVE_STEP_SIZE + grid_origin.z
 	return target
 
 static func is_world_position_at_cell_center(world_position: Vector3, cell: Vector2i) -> bool:

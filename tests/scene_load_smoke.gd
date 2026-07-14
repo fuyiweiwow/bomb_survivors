@@ -34,9 +34,24 @@ func _run() -> void:
 				_fail("Map editor did not use the shared art catalog")
 				return
 			var editor_map_root := scene.get("map_root") as Node3D
-			var editor_ground := editor_map_root.get_node_or_null("GroundSubgrid_1_1") as MeshInstance3D if editor_map_root != null else null
-			if editor_ground == null or int(editor_ground.get_meta("visual_subdivisions", 0)) != Constants.GROUND_SUBDIVISIONS:
-				_fail("Map editor did not use the shared 2x2 ground grid")
+			var editor_ground := editor_map_root.get_node_or_null("GroundCell_1_1") as MeshInstance3D if editor_map_root != null else null
+			if editor_ground == null or not is_equal_approx(float(editor_ground.get_meta("logical_cell_size", 0.0)), Constants.TILE_SIZE):
+				_fail("Map editor did not expose the refined logical ground cells")
+				return
+			var editor_grid := scene.get("grid") as Array
+			editor_grid[5][5] = Constants.Cell.WALL
+			editor_grid[5][6] = Constants.Cell.CRATE
+			scene.call("_refresh_view")
+			editor_map_root = scene.get("map_root") as Node3D
+			var editor_wall := editor_map_root.get_node_or_null("Wall_5_5") as MeshInstance3D
+			var editor_crate := editor_map_root.get_node_or_null("Crate_6_5") as MeshInstance3D
+			if editor_wall == null or editor_crate == null:
+				_fail("Map editor did not refresh one-cell wall and crate elements")
+				return
+			var editor_wall_mesh := editor_wall.mesh as CylinderMesh
+			var editor_crate_mesh := editor_crate.mesh as BoxMesh
+			if editor_wall_mesh.bottom_radius * 2.0 > Constants.TILE_SIZE or editor_crate_mesh.size.x > Constants.TILE_SIZE:
+				_fail("Map editor elements exceed one refined logical cell")
 				return
 		scene.queue_free()
 		await process_frame

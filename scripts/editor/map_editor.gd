@@ -80,11 +80,10 @@ func _refresh_view():
 	for y in GRID_H:
 		for x in GRID_W:
 			var cell := Vector2i(x, y)
-			var floor := TERRAIN_ART.create_subdivided_floor_tile(
+			var floor := TERRAIN_ART.create_floor_cell(
 				cell,
 				_grid_to_world(cell),
 				TILE_SIZE,
-				Constants.GROUND_SUBDIVISIONS,
 				_floor_mat_for_cell(x, y)
 			)
 			map_root.add_child(floor)
@@ -95,6 +94,7 @@ func _refresh_view():
 				map_root.add_child(wall)
 			elif grid[y][x] == Cell.CRATE:
 				var crate := MeshHelpers.box(Vector3(TILE_SIZE * 0.84, 0.92, TILE_SIZE * 0.84), art.mat_crate)
+				crate.name = "Crate_%d_%d" % [cell.x, cell.y]
 				crate.position = _grid_to_world(cell) + Vector3(0, 0.46, 0)
 				map_root.add_child(crate)
 			elif grid[y][x] == Cell.FOREST:
@@ -361,12 +361,22 @@ func _load_map(show_messages := true):
 			print("No saved map.")
 		return
 	var file := FileAccess.open("user://map_data.json", FileAccess.READ)
-	if file:
-		var text := file.get_as_text()
-		file.close()
-		var json := JSON.new()
-		if json.parse(text) == OK:
-			if MAP_DATA_CODEC.decode_into_grid(json.get_data(), grid, GRID_W, GRID_H, Cell.EMPTY, Cell.WALL):
-				_refresh_view()
-				if show_messages:
-					print("Map loaded!")
+	if file == null:
+		_delete_incompatible_map(show_messages)
+		return
+	var text := file.get_as_text()
+	file.close()
+	var json := JSON.new()
+	if json.parse(text) != OK or not MAP_DATA_CODEC.decode_into_grid(json.get_data(), grid, GRID_W, GRID_H, Cell.EMPTY, Cell.WALL):
+		_delete_incompatible_map(show_messages)
+		return
+	_refresh_view()
+	if show_messages:
+		print("Map loaded!")
+
+func _delete_incompatible_map(show_messages: bool):
+	DirAccess.remove_absolute(ProjectSettings.globalize_path("user://map_data.json"))
+	_init_grid()
+	_refresh_view()
+	if show_messages:
+		print("Incompatible map deleted. Start from an empty map.")

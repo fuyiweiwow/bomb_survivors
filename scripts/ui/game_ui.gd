@@ -149,7 +149,7 @@ func request_thunder_strike():
 	if cells.is_empty():
 		return
 	var cell := cells.pick_random() as Vector2i
-	var warning := MeshHelpers.cylinder(0.58, 0.04, MeshHelpers.make_mat(Color(1.0, 0.82, 0.12), true))
+	var warning := MeshHelpers.cylinder(Constants.TILE_SIZE * 0.40, 0.04, MeshHelpers.make_mat(Color(1.0, 0.82, 0.12), true))
 	warning.position = Constants.grid_to_world(cell) + Vector3(0, 0.10, 0)
 	weather_visuals.add_child(warning)
 	var tw := create_tween().bind_node(warning)
@@ -204,7 +204,7 @@ func _create_rain_visuals():
 	rain_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	rain_mat.no_depth_test = true
 	var extents := _map_half_extents()
-	var drop_count := maxi(80, roundi(float(Constants.GRID_W * Constants.GRID_H) * 0.42))
+	var drop_count := maxi(80, roundi(float(Constants.LEGACY_GRID_W * Constants.LEGACY_GRID_H) * 0.42))
 	for i in range(drop_count):
 		var drop := MeshHelpers.box(Vector3(0.04, 0.85, 0.04), rain_mat)
 		var start_y := randf_range(5.0, 8.5)
@@ -234,7 +234,7 @@ func _create_wind_visuals():
 	wind_mat.no_depth_test = true
 	var dir3 := Vector3(_game.weather_manager.wind_direction.x, 0, _game.weather_manager.wind_direction.y)
 	var extents := _map_half_extents()
-	var streak_count := maxi(20, roundi(float(Constants.GRID_W * Constants.GRID_H) * 0.10))
+	var streak_count := maxi(20, roundi(float(Constants.LEGACY_GRID_W * Constants.LEGACY_GRID_H) * 0.10))
 	for i in range(streak_count):
 		var streak := MeshHelpers.box(Vector3(0.7 if dir3.x != 0 else 0.04, 0.035, 0.7 if dir3.z != 0 else 0.04), wind_mat)
 		streak.position = Vector3(randf_range(-extents.x, extents.x), randf_range(0.6, 1.8), randf_range(-extents.y, extents.y))

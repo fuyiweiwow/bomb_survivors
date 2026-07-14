@@ -139,10 +139,10 @@ func _place_oil_barrel(player_index: int) -> bool:
 		return false
 	var root := Node3D.new()
 	root.position = Constants.grid_to_world(cell)
-	var body = MeshHelpers.cylinder(0.48, 0.92, game.art.mat_oil)
+	var body = MeshHelpers.cylinder(Constants.TILE_SIZE * 0.36, 0.92, game.art.mat_oil)
 	body.position = Vector3(0, 0.46, 0)
 	root.add_child(body)
-	var band = MeshHelpers.cylinder(0.50, 0.10, game.art.mat_bomb_power)
+	var band = MeshHelpers.cylinder(Constants.TILE_SIZE * 0.38, 0.10, game.art.mat_bomb_power)
 	band.position = Vector3(0, 0.48, 0)
 	root.add_child(band)
 	game.add_child(root)

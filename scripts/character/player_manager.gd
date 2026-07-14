@@ -22,18 +22,23 @@ func create_player(id: int, cell: Vector2i, ai: bool, mat: Material, style := "m
 	collision_shape.position = Vector3(0, style_data["body_y"], 0)
 	root.add_child(collision_shape)
 
+	var visual_root := Node3D.new()
+	visual_root.name = "PlayerVisuals"
+	root.add_child(visual_root)
+
 	var body := MeshHelpers.capsule(style_data["radius"], style_data["height"], mat)
 	body.position = Vector3(0, style_data["body_y"], 0)
-	root.add_child(body)
+	visual_root.add_child(body)
 
 	var visor := MeshHelpers.box(Vector3(style_data["visor_w"], 0.12, 0.08), MeshHelpers.make_mat(style_data["visor_color"], true))
 	visor.position = Vector3(0, style_data["visor_y"], -0.34)
-	root.add_child(visor)
+	visual_root.add_child(visor)
 
 	_game.add_child(root)
 	return {
 		"id": id,
 		"node": root,
+		"visual_node": visual_root,
 		"grid_pos": cell,
 		"alive": true,
 		"hp": Constants.PLAYER_MAX_HP,
@@ -179,7 +184,7 @@ func find_spawn_cell() -> Vector2i:
 				candidates.append(cell)
 	if candidates.is_empty():
 		return Vector2i(-1, -1)
-	candidates.sort_custom(func(a: Vector2i, b: Vector2i): return a.distance_squared_to(Vector2i(1, 1)) > b.distance_squared_to(Vector2i(1, 1)))
+	candidates.sort_custom(func(a: Vector2i, b: Vector2i): return a.distance_squared_to(Constants.PLAYER_START_CELL) > b.distance_squared_to(Constants.PLAYER_START_CELL))
 	var pool_size := mini(12, candidates.size())
 	return candidates[randi_range(0, pool_size - 1)]
 
@@ -193,7 +198,7 @@ func boss_data(boss_id: String) -> Dictionary:
 			return {"name": "Blast King", "hp": 8, "speed": 5, "range": 5, "bomb_max": 3, "move_interval": 0.28, "bomb_interval": 0.75, "skill_interval": 3.5, "material": _game.art.mat_boss_blast}
 
 func spawn_player(config: Dictionary, inventory_manager):
-	var player := create_player(1, Vector2i(1, 1), false, player_material_from_config(config), str(config["gender"]))
+	var player := create_player(1, Constants.PLAYER_START_CELL, false, player_material_from_config(config), str(config["gender"]))
 	player["speed"] = config["start_speed"]
 	player["bomb_max"] = config["start_bombs"]
 	player["bomb_range"] = config["start_range"]

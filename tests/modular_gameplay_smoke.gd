@@ -46,12 +46,12 @@ func _run():
 		return
 	if not _check(not game.players.is_empty(), "Game did not create a player"):
 		return
-	if not _check(Constants.GRID_W == 19 and Constants.GRID_H == 13, "Expanded grid dimensions are incorrect"):
+	if not _check(Constants.GRID_W == 38 and Constants.GRID_H == 26 and is_equal_approx(Constants.TILE_SIZE, 0.9), "Refined logical grid dimensions are incorrect"):
 		return
 	if not _check(
 		Constants.move_duration_for_speed(1) > Constants.move_duration_for_speed(5)
 		and Constants.move_duration_for_speed(5) > Constants.move_duration_for_speed(10)
-		and Constants.move_duration_for_speed(5) > 0.24,
+		and Constants.move_duration_for_speed(5) > 0.12,
 		"Character speed curve is not gradual or remains too fast"
 	):
 		return
@@ -62,6 +62,11 @@ func _run():
 				return
 
 	var player: Dictionary = game.players[0]
+	var player_shape := ((player["node"] as Area3D).get_child(0) as CollisionShape3D).shape as CapsuleShape3D
+	if not _check(player_shape != null and player_shape.radius * 2.0 <= Constants.TILE_SIZE, "Player footprint exceeds one refined cell"):
+		return
+	if not _check(is_instance_valid(player.get("visual_node")) and (player["visual_node"] as Node3D).get_parent() == player["node"], "Player visuals are not isolated from the movement and collision root"):
+		return
 	if not _check(game.players.size() > 1, "Initial AI wave was not created"):
 		return
 	if not _check(game.weather_manager.current_weather == "clear", "The first wave did not start with clear weather"):
@@ -250,43 +255,49 @@ func _run():
 	game.input_controller._unhandled_input(right_tap)
 	if not _check(game.input_controller.consume_buffered_direction() == Vector2i.RIGHT, "Tapped movement input was not buffered"):
 		return
-	game.grid_manager.set_cell(2, 1, Constants.Cell.EMPTY)
+	var movement_start := Constants.PLAYER_START_CELL
+	var movement_right := movement_start + Vector2i.RIGHT
+	var movement_down := movement_right + Vector2i.DOWN
+	for movement_cell in [movement_start, movement_right, movement_down, movement_right + Vector2i.RIGHT]:
+		game.grid_manager.set_cell(movement_cell.x, movement_cell.y, Constants.Cell.EMPTY)
+	game.movement_controller.cancel_move(player)
+	player["grid_pos"] = movement_start
+	player["node"].position = Constants.grid_to_world(movement_start)
 	if not _check(game._try_move_player(0, Vector2i.RIGHT), "Physics grid movement did not start"):
 		return
 	if not _check(player["move_tween"] == null and bool(player["grid_motion_active"]), "Grid movement still depends on a Tween"):
 		return
-	var start_world := Constants.grid_to_world(Vector2i(1, 1))
-	var substep_duration := Constants.move_duration_for_speed(int(player["speed"])) / float(Constants.MOVE_SUBSTEPS_PER_TILE)
-	game.movement_controller._physics_process(substep_duration * 1.05)
-	var first_substep_target := start_world + Vector3(Constants.MOVE_STEP_SIZE, 0.0, 0.0)
-	if not _check(not player["is_moving"] and player["node"].position.is_equal_approx(first_substep_target), "Player did not stop at the first one-third tile point"):
+	var cell_duration := Constants.move_duration_for_speed(int(player["speed"]))
+	game.movement_controller._physics_process(cell_duration * 1.05)
+	if not _check(not player["is_moving"] and player["node"].position.is_equal_approx(Constants.grid_to_world(movement_right)), "Player did not arrive at the adjacent refined cell"):
 		return
-	if not _check(player["grid_pos"] == Vector2i(1, 1), "First substep changed the logical cell too early"):
+	if not _check(player["grid_pos"] == movement_right, "Player logical occupancy did not advance by exactly one refined cell"):
 		return
-	if not _check(game._try_move_player(0, Vector2i.DOWN), "Player could not turn at an in-tile substep"):
+	if not _check(game._try_move_player(0, Vector2i.DOWN), "Player could not turn at the next refined cell"):
 		return
-	game.movement_controller._physics_process(substep_duration * 1.05)
-	if not _check(player["node"].position.is_equal_approx(first_substep_target + Vector3(0.0, 0.0, Constants.MOVE_STEP_SIZE)), "In-tile direction change did not preserve subgrid position"):
+	game.movement_controller._physics_process(cell_duration * 1.05)
+	if not _check(player["grid_pos"] == movement_down and player["node"].position.is_equal_approx(Constants.grid_to_world(movement_down)), "Cell-center turn did not preserve logical occupancy"):
 		return
 	game.movement_controller.cancel_move(player)
-	if not _check(player["node"].position.is_equal_approx(start_world), "Movement cancellation did not settle at the nearest logical center"):
+	if not _check(player["node"].position.is_equal_approx(Constants.grid_to_world(movement_down)), "Movement cancellation did not settle at the current refined cell"):
 		return
+	player["grid_pos"] = movement_start
+	player["node"].position = Constants.grid_to_world(movement_start)
 	var right_hold := InputEventKey.new()
 	right_hold.physical_keycode = KEY_D
 	right_hold.pressed = true
 	game.input_controller._unhandled_input(right_hold)
 	if not _check(game._try_move_player_from_input(0), "Held movement did not start"):
 		return
-	var full_tile_duration := Constants.move_duration_for_speed(int(player["speed"]))
-	game.movement_controller._physics_process(full_tile_duration * 1.05)
-	if not _check(player["is_moving"] and player["node"].position.x > Constants.grid_to_world(Vector2i(2, 1)).x, "Held movement paused at a full tile center"):
+	game.movement_controller._physics_process(cell_duration * 1.05)
+	if not _check(player["is_moving"] and player["node"].position.x > Constants.grid_to_world(movement_right).x, "Held movement paused at a refined cell center"):
 		return
 	right_hold = InputEventKey.new()
 	right_hold.physical_keycode = KEY_D
 	right_hold.pressed = false
 	game.input_controller._unhandled_input(right_hold)
-	game.movement_controller._physics_process(substep_duration * 1.05)
-	if not _check(not player["is_moving"], "Released movement did not stop at the next one-third tile point"):
+	game.movement_controller._physics_process(cell_duration * 1.05)
+	if not _check(not player["is_moving"] and Constants.is_world_position_at_cell_center(player["node"].position, player["grid_pos"]), "Released movement did not stop at the next refined cell center"):
 		return
 	game.movement_controller.cancel_move(player)
 
@@ -299,11 +310,11 @@ func _run():
 	enemy["grid_pos"] = ai_start
 	enemy["node"].position = Constants.grid_to_world(ai_start)
 	enemy["move_dir"] = Vector2i.RIGHT
-	if not _check(game._try_move_player(1, Vector2i.RIGHT), "AI subgrid movement did not start"):
+	if not _check(game._try_move_player(1, Vector2i.RIGHT), "AI refined-grid movement did not start"):
 		return
 	var ai_move_duration := Constants.move_duration_for_speed(int(enemy["speed"]))
 	game.movement_controller._physics_process(ai_move_duration * 1.05)
-	if not _check(not enemy["is_moving"] and enemy["grid_pos"] == ai_target and enemy["node"].position.is_equal_approx(Constants.grid_to_world(ai_target)), "AI did not use the same three-substep movement path"):
+	if not _check(not enemy["is_moving"] and enemy["grid_pos"] == ai_target and enemy["node"].position.is_equal_approx(Constants.grid_to_world(ai_target)), "AI did not occupy exactly one adjacent refined cell"):
 		return
 	var breach_enemy_cell := Vector2i(3, 3)
 	var breach_crate_cell := Vector2i(5, 3)
@@ -435,11 +446,19 @@ func _run():
 
 	var blast_cell := Vector2i(1, 1)
 	var blast_center := Constants.grid_to_world(blast_cell)
-	var ground_subgrid := game.get_node_or_null("GroundSubgrid_1_1") as MeshInstance3D
-	if not _check(ground_subgrid != null and int(ground_subgrid.get_meta("visual_subdivisions", 0)) == 2, "Ground tile did not expose a 2x2 visual grid"):
+	var ground_cell := game.get_node_or_null("GroundCell_1_1") as MeshInstance3D
+	if not _check(ground_cell != null and is_equal_approx(float(ground_cell.get_meta("logical_cell_size", 0.0)), Constants.TILE_SIZE), "Ground did not expose one mesh per refined logical cell"):
 		return
-	var ground_arrays := (ground_subgrid.mesh as ArrayMesh).surface_get_arrays(0)
-	if not _check((ground_arrays[Mesh.ARRAY_VERTEX] as PackedVector3Array).size() == Constants.GROUND_SUBDIVISIONS * Constants.GROUND_SUBDIVISIONS * 4, "Ground subgrid mesh did not contain four visual tiles"):
+	var ground_mesh := ground_cell.mesh as BoxMesh
+	if not _check(ground_mesh != null and ground_mesh.size.x < Constants.TILE_SIZE and ground_mesh.size.x > Constants.TILE_SIZE * 0.9, "Ground cell mesh does not fit one refined logical cell"):
+		return
+	var footprint_wall := game.grid_manager.wall_nodes.values()[0] as MeshInstance3D
+	var wall_mesh := footprint_wall.mesh as CylinderMesh
+	if not _check(wall_mesh != null and wall_mesh.bottom_radius * 2.0 <= Constants.TILE_SIZE, "Wall footprint exceeds one refined cell"):
+		return
+	var footprint_crate := game.grid_manager.crate_nodes.values()[0] as MeshInstance3D
+	var crate_mesh := footprint_crate.mesh as BoxMesh
+	if not _check(crate_mesh != null and crate_mesh.size.x <= Constants.TILE_SIZE and crate_mesh.size.z <= Constants.TILE_SIZE, "Crate footprint exceeds one refined cell"):
 		return
 	player["shield"] = 0
 	player["alive"] = true
@@ -457,6 +476,10 @@ func _run():
 	player["node"].position = blast_center
 	player["node"].position = blast_center + Vector3(Constants.BLAST_HIT_RADIUS + 0.01, 0.0, 0.0)
 	game.bomb_manager.detonate_cells([blast_cell])
+	var blast_visual := game.get_node_or_null("Explosion_%d_%d" % [blast_cell.x, blast_cell.y]) as MeshInstance3D
+	var blast_mesh := blast_visual.mesh as BoxMesh if blast_visual != null else null
+	if not _check(blast_mesh != null and blast_mesh.size.x <= Constants.TILE_SIZE and blast_mesh.size.z <= Constants.TILE_SIZE, "Explosion visual exceeds one refined cell"):
+		return
 	if not _check(not player["downed"], "Explosion hit a player beyond the logical tile boundary"):
 		return
 	player["node"].position = blast_center
@@ -473,11 +496,14 @@ func _run():
 		legacy_row.resize(Constants.GRID_W)
 		legacy_row.fill(Constants.Cell.EMPTY)
 		legacy_grid.append(legacy_row)
-	var legacy_data := {"0,0": Constants.Cell.WALL, "14,10": Constants.Cell.WALL, "7,5": Constants.Cell.CRATE}
+	var legacy_data := {"version": 2, "width": 19, "height": 13, "cells": {"7,5": Constants.Cell.CRATE}}
 	var map_codec = load("res://scripts/grid/map_data_codec.gd")
-	if not _check(map_codec.decode_into_grid(legacy_data, legacy_grid, Constants.GRID_W, Constants.GRID_H, Constants.Cell.EMPTY, Constants.Cell.WALL), "Legacy map could not be migrated"):
+	if not _check(not map_codec.decode_into_grid(legacy_data, legacy_grid, Constants.GRID_W, Constants.GRID_H, Constants.Cell.EMPTY, Constants.Cell.WALL), "Incompatible legacy map was accepted"):
 		return
-	if not _check(legacy_grid[6][9] == Constants.Cell.CRATE and legacy_grid[1][2] == Constants.Cell.EMPTY, "Legacy map content was not centered without its old border"):
+	var current_data := {"version": 3, "width": Constants.GRID_W, "height": Constants.GRID_H, "cells": {"18,12": Constants.Cell.CRATE}}
+	if not _check(map_codec.decode_into_grid(current_data, legacy_grid, Constants.GRID_W, Constants.GRID_H, Constants.Cell.EMPTY, Constants.Cell.WALL), "Current refined map could not be decoded"):
+		return
+	if not _check(legacy_grid[12][18] == Constants.Cell.CRATE and legacy_grid[12][19] == Constants.Cell.EMPTY, "Current map element did not occupy exactly one refined cell"):
 		return
 
 	var forest_tile = game.grid_manager._create_forest_tile(Vector2i(5, 5))
@@ -500,6 +526,9 @@ func _run():
 	if not _check(game.bomb_manager.try_place_bomb(0), "First hopping bomb placement failed"):
 		return
 	var warning_entry: Dictionary = game.bomb_map[previous]
+	var bomb_shell_mesh := (warning_entry["shell"] as MeshInstance3D).mesh as SphereMesh
+	if not _check(bomb_shell_mesh != null and bomb_shell_mesh.radius * 2.0 <= Constants.TILE_SIZE, "Bomb footprint exceeds one refined cell"):
+		return
 	game.bomb_manager._update_bomb_warning(warning_entry, 1.15)
 	if not _check((warning_entry["warning"] as GeometryInstance3D).transparency < 0.1, "Bomb warning did not flash during the final countdown"):
 		return
@@ -711,7 +740,7 @@ func _run():
 		if not _check(int(game.audio_manager.played_events.get(event_id, 0)) > 0, "Gameplay did not emit the %s audio event" % event_id):
 			return
 
-	print("GAME_DESIGN_SMOKE_OK modular_composition shared_art_catalog audio_events duel_token_immunity duel_arena_catalog duel_world_pause duel_locked_loadout duel_lava_launch duel_dive_damage duel_random_lava duel_win_restore progression_unique_ids boss_behavior_boundary expanded_grid visible_initial_spawn clear_first_wave shield_pickup_inventory duplicate_inventory_fifo boss_crate_refresh legacy_map attack_frontier crate_breach ai_lava_strategy difficulty_lava_probability ai_lava_wait winged_ai_lava_strategy airborne_ai_bomb_rule airborne_stomp shielded_stomp stomp_bounce stomp_overlap_safety stomp_single_hit ground_subgrid full_cell_blast subgrid_turning held_subgrid_motion shared_ai_movement active_world_blast timed_status_effects bomb_warning weather_bounds speed_curve forest_materials backpack_slots wall_hop chain_reaction overlap spawn_fx lava_launch wing_lava_launch wing_airborne_immunity wing_extended_flight airborne_movement vertical_attack_ranges safe_landing impact_support same_height_attack active_support_exit support_cracks support_fragments")
+	print("GAME_DESIGN_SMOKE_OK modular_composition shared_art_catalog audio_events duel_token_immunity duel_arena_catalog duel_world_pause duel_locked_loadout duel_lava_launch duel_dive_damage duel_random_lava duel_win_restore progression_unique_ids boss_behavior_boundary refined_logical_grid visible_initial_spawn clear_first_wave shield_pickup_inventory duplicate_inventory_fifo boss_crate_refresh strict_map_config attack_frontier crate_breach ai_lava_strategy difficulty_lava_probability ai_lava_wait winged_ai_lava_strategy airborne_ai_bomb_rule airborne_stomp shielded_stomp stomp_bounce stomp_overlap_safety stomp_single_hit one_cell_ground full_cell_blast cell_center_turning held_grid_motion shared_ai_movement active_world_blast timed_status_effects bomb_warning weather_bounds speed_curve forest_materials backpack_slots wall_hop chain_reaction overlap spawn_fx lava_launch wing_lava_launch wing_airborne_immunity wing_extended_flight airborne_movement vertical_attack_ranges safe_landing impact_support same_height_attack active_support_exit support_cracks support_fragments")
 	quit(0)
 
 

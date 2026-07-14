@@ -232,9 +232,10 @@ func _enter_downed(index: int, source: String):
 		_game.bomb_pressed = false
 	var node: Node3D = p["node"]
 	if is_instance_valid(node):
-		var tw := create_tween().bind_node(node)
+		var visual := _player_visual(p)
+		var tw := create_tween().bind_node(visual)
 		p["state_tween"] = tw
-		tw.tween_property(node, "scale", Vector3(1.0, 0.35, 1.0), 0.18)
+		tw.tween_property(visual, "rotation_degrees:x", -78.0, 0.18)
 
 func _revive_player(index: int):
 	var p: Dictionary = _game.players[index]
@@ -246,10 +247,14 @@ func _revive_player(index: int):
 	_cancel_player_state_animation(p)
 	var node: Node3D = p["node"]
 	if is_instance_valid(node):
-		var tw := create_tween().bind_node(node)
+		var visual := _player_visual(p)
+		var tw := create_tween().bind_node(visual)
 		p["state_tween"] = tw
-		tw.tween_property(node, "scale", Vector3(1.12, 1.12, 1.12), 0.12)
-		tw.tween_property(node, "scale", Vector3.ONE, 0.16)
+		tw.set_parallel()
+		tw.tween_property(visual, "rotation_degrees:x", 0.0, 0.16)
+		tw.tween_property(visual, "scale", Vector3(1.12, 1.12, 1.12), 0.12)
+		tw.set_parallel(false)
+		tw.tween_property(visual, "scale", Vector3.ONE, 0.16)
 
 func _kill_player(index: int):
 	var p: Dictionary = _game.players[index]
@@ -272,9 +277,10 @@ func _kill_player(index: int):
 	if not is_instance_valid(node):
 		check_game_over()
 		return
-	var tw := create_tween().bind_node(node)
+	var visual := _player_visual(p)
+	var tw := create_tween().bind_node(visual)
 	p["state_tween"] = tw
-	tw.tween_property(node, "scale", Vector3(1.0, 0.05, 1.0), 0.35)
+	tw.tween_property(visual, "scale", Vector3.ONE * 0.05, 0.35)
 	tw.tween_callback(func():
 		if is_instance_valid(node):
 			p["node"] = null
@@ -314,9 +320,16 @@ func _flash_player_damage(p: Dictionary):
 	var node: Node3D = p["node"]
 	if not is_instance_valid(node):
 		return
-	var tw := create_tween()
-	tw.tween_property(node, "scale", Vector3(1.12, 0.88, 1.12), 0.08)
-	tw.tween_property(node, "scale", Vector3.ONE, 0.10)
+	var visual := _player_visual(p)
+	var tw := create_tween().bind_node(visual)
+	tw.tween_property(visual, "scale", Vector3.ONE * 1.12, 0.08)
+	tw.tween_property(visual, "scale", Vector3.ONE, 0.10)
+
+func _player_visual(player: Dictionary) -> Node3D:
+	var visual = player.get("visual_node")
+	if is_instance_valid(visual):
+		return visual as Node3D
+	return player["node"] as Node3D
 
 func _flash_player_shield(p: Dictionary):
 	var node: Node3D = p["node"]

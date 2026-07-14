@@ -144,7 +144,7 @@ func _find_safe_landing_cell(origin: Vector2i, player_index: int) -> Vector2i:
 			if Constants.is_grid_cell_valid(next) and not visited.has(next):
 				visited[next] = true
 				queue.append(next)
-	return Vector2i(1, 1)
+	return Constants.PLAYER_START_CELL
 
 func _is_safe_landing_cell(cell: Vector2i, player_index: int) -> bool:
 	return (

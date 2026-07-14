@@ -5,6 +5,8 @@ const BOMB_WARNING_SECONDS := 1.2
 const BOMB_WARNING_FLASHES := 4
 const EXPLOSION_ACTIVE_SECONDS := 0.42
 const BOMB_HOP_WINDOW := 0.30
+const BOMB_RADIUS := Constants.TILE_SIZE * 0.38
+const BOMB_HEIGHT := BOMB_RADIUS
 const CELL_WALL := Constants.Cell.WALL
 const CELL_CRATE := Constants.Cell.CRATE
 
@@ -47,11 +49,11 @@ func try_place_bomb(player_index: int) -> bool:
 
 	var bomb := Node3D.new()
 	bomb.name = "Bomb_%d_%d" % [cell.x, cell.y]
-	bomb.position = Constants.grid_to_world(cell) + Vector3(0, 0.38, 0)
-	var shell := MeshHelpers.sphere(0.42, game.art.mat_bomb)
+	bomb.position = Constants.grid_to_world(cell) + Vector3(0, BOMB_HEIGHT, 0)
+	var shell := MeshHelpers.sphere(BOMB_RADIUS, game.art.mat_bomb)
 	shell.name = "BombShell"
 	bomb.add_child(shell)
-	var warning := MeshHelpers.sphere(0.28, MeshHelpers.make_mat(Color(1.0, 0.08, 0.02), true))
+	var warning := MeshHelpers.sphere(BOMB_RADIUS * 0.68, MeshHelpers.make_mat(Color(1.0, 0.08, 0.02), true))
 	warning.name = "CountdownFlash"
 	warning.transparency = 1.0
 	bomb.add_child(warning)
@@ -121,7 +123,7 @@ func kick_bomb_in_direction(player: Dictionary):
 	var node = entry.get("node")
 	if is_instance_valid(node):
 		var tween := game.create_tween().bind_node(node)
-		tween.tween_property(node, "position", Constants.grid_to_world(destination) + Vector3(0, 0.38, 0), 0.18)
+		tween.tween_property(node, "position", Constants.grid_to_world(destination) + Vector3(0, BOMB_HEIGHT, 0), 0.18)
 		if hit_obstacle:
 			tween.tween_callback(func(): explode_bomb(destination))
 	player["status"] = "Bomb kicked"
@@ -177,6 +179,7 @@ func spawn_explosion(cells: Array):
 		var cell := raw_cell as Vector2i
 		var flame_size := Constants.BLAST_HIT_RADIUS * 2.0 - 0.08
 		var flame = MeshHelpers.box(Vector3(flame_size, 0.16, flame_size), game.art.mat_fire)
+		flame.name = "Explosion_%d_%d" % [cell.x, cell.y]
 		flame.position = Constants.grid_to_world(cell) + Vector3(0, 0.12, 0)
 		game.add_child(flame)
 		var tween := game.create_tween().set_parallel()
