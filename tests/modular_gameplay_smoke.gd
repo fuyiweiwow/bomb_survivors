@@ -435,23 +435,29 @@ func _run():
 
 	var blast_cell := Vector2i(1, 1)
 	var blast_center := Constants.grid_to_world(blast_cell)
+	var ground_subgrid := game.get_node_or_null("GroundSubgrid_1_1") as MeshInstance3D
+	if not _check(ground_subgrid != null and int(ground_subgrid.get_meta("visual_subdivisions", 0)) == Constants.MOVE_SUBSTEPS_PER_TILE, "Ground tile did not expose a 3x3 movement-aligned visual grid"):
+		return
+	var ground_arrays := (ground_subgrid.mesh as ArrayMesh).surface_get_arrays(0)
+	if not _check((ground_arrays[Mesh.ARRAY_VERTEX] as PackedVector3Array).size() == Constants.GROUND_SUBDIVISIONS * Constants.GROUND_SUBDIVISIONS * 4, "Ground subgrid mesh did not contain nine visual tiles"):
+		return
 	player["shield"] = 0
 	player["alive"] = true
 	player["downed"] = false
 	player["grid_pos"] = blast_cell
-	player["node"].position = blast_center + Vector3(Constants.BLAST_HIT_RADIUS, 0.0, 0.0)
+	player["node"].position = blast_center + Vector3(Constants.BLAST_HIT_RADIUS + 0.01, 0.0, 0.0)
 	game.combat_manager.apply_explosion_damage([blast_cell])
-	if not _check(not player["downed"], "Player at one-third tile distance was still hit by an explosion"):
+	if not _check(not player["downed"], "Player outside the logical tile was still hit by an explosion"):
 		return
 	player["node"].position = blast_center + Vector3(Constants.BLAST_HIT_RADIUS - 0.01, 0.0, 0.0)
 	game.combat_manager.apply_explosion_damage([blast_cell])
-	if not _check(player["downed"], "Player inside one-third tile distance avoided an explosion"):
+	if not _check(player["downed"], "Player inside the logical tile avoided an explosion"):
 		return
 	game.combat_manager._revive_player(0)
 	player["node"].position = blast_center
-	player["node"].position = blast_center + Vector3(Constants.BLAST_HIT_RADIUS, 0.0, 0.0)
+	player["node"].position = blast_center + Vector3(Constants.BLAST_HIT_RADIUS + 0.01, 0.0, 0.0)
 	game.bomb_manager.detonate_cells([blast_cell])
-	if not _check(not player["downed"], "Explosion hit a player at the one-third safe point"):
+	if not _check(not player["downed"], "Explosion hit a player beyond the logical tile boundary"):
 		return
 	player["node"].position = blast_center
 	game.bomb_manager._process_active_explosions(0.05)
@@ -705,7 +711,7 @@ func _run():
 		if not _check(int(game.audio_manager.played_events.get(event_id, 0)) > 0, "Gameplay did not emit the %s audio event" % event_id):
 			return
 
-	print("GAME_DESIGN_SMOKE_OK modular_composition shared_art_catalog audio_events duel_token_immunity duel_arena_catalog duel_world_pause duel_locked_loadout duel_lava_launch duel_dive_damage duel_random_lava duel_win_restore progression_unique_ids boss_behavior_boundary expanded_grid visible_initial_spawn clear_first_wave shield_pickup_inventory duplicate_inventory_fifo boss_crate_refresh legacy_map attack_frontier crate_breach ai_lava_strategy difficulty_lava_probability ai_lava_wait winged_ai_lava_strategy airborne_ai_bomb_rule airborne_stomp shielded_stomp stomp_bounce stomp_overlap_safety stomp_single_hit subgrid_turning held_subgrid_motion shared_ai_movement active_world_blast timed_status_effects bomb_warning weather_bounds speed_curve forest_materials backpack_slots wall_hop chain_reaction overlap spawn_fx lava_launch wing_lava_launch wing_airborne_immunity wing_extended_flight airborne_movement vertical_attack_ranges safe_landing impact_support same_height_attack active_support_exit support_cracks support_fragments")
+	print("GAME_DESIGN_SMOKE_OK modular_composition shared_art_catalog audio_events duel_token_immunity duel_arena_catalog duel_world_pause duel_locked_loadout duel_lava_launch duel_dive_damage duel_random_lava duel_win_restore progression_unique_ids boss_behavior_boundary expanded_grid visible_initial_spawn clear_first_wave shield_pickup_inventory duplicate_inventory_fifo boss_crate_refresh legacy_map attack_frontier crate_breach ai_lava_strategy difficulty_lava_probability ai_lava_wait winged_ai_lava_strategy airborne_ai_bomb_rule airborne_stomp shielded_stomp stomp_bounce stomp_overlap_safety stomp_single_hit ground_subgrid full_cell_blast subgrid_turning held_subgrid_motion shared_ai_movement active_world_blast timed_status_effects bomb_warning weather_bounds speed_curve forest_materials backpack_slots wall_hop chain_reaction overlap spawn_fx lava_launch wing_lava_launch wing_airborne_immunity wing_extended_flight airborne_movement vertical_attack_ranges safe_landing impact_support same_height_attack active_support_exit support_cracks support_fragments")
 	quit(0)
 
 

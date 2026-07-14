@@ -80,8 +80,13 @@ func _refresh_view():
 	for y in GRID_H:
 		for x in GRID_W:
 			var cell := Vector2i(x, y)
-			var floor := MeshHelpers.box(Vector3(TILE_SIZE, 0.08, TILE_SIZE), _floor_mat_for_cell(x, y))
-			floor.position = _grid_to_world(cell) + Vector3(0, -0.04, 0)
+			var floor := TERRAIN_ART.create_subdivided_floor_tile(
+				cell,
+				_grid_to_world(cell),
+				TILE_SIZE,
+				Constants.GROUND_SUBDIVISIONS,
+				_floor_mat_for_cell(x, y)
+			)
 			map_root.add_child(floor)
 
 			if grid[y][x] == Cell.WALL:

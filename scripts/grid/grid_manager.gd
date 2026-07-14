@@ -80,8 +80,13 @@ func create_world():
 	for y in Constants.GRID_H:
 		for x in Constants.GRID_W:
 			var cell := Vector2i(x, y)
-			var floor := MeshHelpers.box(Vector3(Constants.TILE_SIZE, 0.08, Constants.TILE_SIZE), _floor_mat_for_cell(x, y))
-			floor.position = Constants.grid_to_world(Vector2i(x, y)) + Vector3(0, -0.04, 0)
+			var floor := TerrainArtFactory.create_subdivided_floor_tile(
+				cell,
+				Constants.grid_to_world(cell),
+				Constants.TILE_SIZE,
+				Constants.GROUND_SUBDIVISIONS,
+				_floor_mat_for_cell(x, y)
+			)
 			_game.add_child(floor)
 
 			if grid[y][x] == Constants.Cell.WALL:

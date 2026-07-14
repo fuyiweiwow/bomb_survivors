@@ -26,6 +26,7 @@ void fragment() {
 """
 
 static var _brush_images: Dictionary = {}
+static var _subdivided_floor_meshes: Dictionary = {}
 
 static func brushed_material(base_texture: Texture2D, tint: Color, brush_path: String, emission := 0.0) -> ShaderMaterial:
 	var shader := Shader.new()
@@ -50,6 +51,57 @@ static func create_rock_wall(cell: Vector2i, tile_size: float, material: Materia
 	node.material_override = material
 	node.rotation_degrees.y = fmod(float(cell.x * 37 + cell.y * 61), 360.0)
 	return node
+
+static func create_subdivided_floor_tile(cell: Vector2i, world_position: Vector3, tile_size: float, subdivisions: int, material: Material) -> MeshInstance3D:
+	var node := MeshInstance3D.new()
+	node.name = "GroundSubgrid_%d_%d" % [cell.x, cell.y]
+	node.mesh = _subdivided_floor_mesh(tile_size, subdivisions)
+	node.material_override = material
+	node.position = world_position + Vector3(0, 0.002, 0)
+	node.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	node.set_meta("visual_subdivisions", subdivisions)
+	return node
+
+static func _subdivided_floor_mesh(tile_size: float, subdivisions: int) -> ArrayMesh:
+	var safe_subdivisions := maxi(subdivisions, 1)
+	var cache_key := "%0.4f:%d" % [tile_size, safe_subdivisions]
+	if _subdivided_floor_meshes.has(cache_key):
+		return _subdivided_floor_meshes[cache_key] as ArrayMesh
+
+	var vertices := PackedVector3Array()
+	var normals := PackedVector3Array()
+	var uvs := PackedVector2Array()
+	var indices := PackedInt32Array()
+	var step := tile_size / float(safe_subdivisions)
+	var half_size := (step - tile_size * 0.025) * 0.5
+	for sub_y in safe_subdivisions:
+		for sub_x in safe_subdivisions:
+			var center_x := -tile_size * 0.5 + (float(sub_x) + 0.5) * step
+			var center_z := -tile_size * 0.5 + (float(sub_y) + 0.5) * step
+			var first_vertex := vertices.size()
+			vertices.append(Vector3(center_x - half_size, 0, center_z - half_size))
+			vertices.append(Vector3(center_x - half_size, 0, center_z + half_size))
+			vertices.append(Vector3(center_x + half_size, 0, center_z + half_size))
+			vertices.append(Vector3(center_x + half_size, 0, center_z - half_size))
+			for normal_index in 4:
+				normals.append(Vector3.UP)
+			uvs.append(Vector2(0, 0))
+			uvs.append(Vector2(0, 1))
+			uvs.append(Vector2(1, 1))
+			uvs.append(Vector2(1, 0))
+			for offset in [0, 2, 1, 0, 3, 2]:
+				indices.append(first_vertex + offset)
+
+	var arrays: Array = []
+	arrays.resize(Mesh.ARRAY_MAX)
+	arrays[Mesh.ARRAY_VERTEX] = vertices
+	arrays[Mesh.ARRAY_NORMAL] = normals
+	arrays[Mesh.ARRAY_TEX_UV] = uvs
+	arrays[Mesh.ARRAY_INDEX] = indices
+	var mesh := ArrayMesh.new()
+	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
+	_subdivided_floor_meshes[cache_key] = mesh
+	return mesh
 
 static func create_forest_tile(cell: Vector2i, world_position: Vector3, tile_size: float, floor_material: Material, trunk_material: Material, leaf_material: Material) -> Node3D:
 	var root := Node3D.new()
