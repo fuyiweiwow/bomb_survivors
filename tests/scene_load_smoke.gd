@@ -36,7 +36,7 @@ func _run() -> void:
 			var editor_map_root := scene.get("map_root") as Node3D
 			var editor_ground := editor_map_root.get_node_or_null("GroundSubgrid_1_1") as MeshInstance3D if editor_map_root != null else null
 			if editor_ground == null or int(editor_ground.get_meta("visual_subdivisions", 0)) != Constants.GROUND_SUBDIVISIONS:
-				_fail("Map editor did not use the shared 3x3 ground grid")
+				_fail("Map editor did not use the shared 2x2 ground grid")
 				return
 		scene.queue_free()
 		await process_frame

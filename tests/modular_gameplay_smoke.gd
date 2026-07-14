@@ -436,10 +436,10 @@ func _run():
 	var blast_cell := Vector2i(1, 1)
 	var blast_center := Constants.grid_to_world(blast_cell)
 	var ground_subgrid := game.get_node_or_null("GroundSubgrid_1_1") as MeshInstance3D
-	if not _check(ground_subgrid != null and int(ground_subgrid.get_meta("visual_subdivisions", 0)) == Constants.MOVE_SUBSTEPS_PER_TILE, "Ground tile did not expose a 3x3 movement-aligned visual grid"):
+	if not _check(ground_subgrid != null and int(ground_subgrid.get_meta("visual_subdivisions", 0)) == 2, "Ground tile did not expose a 2x2 visual grid"):
 		return
 	var ground_arrays := (ground_subgrid.mesh as ArrayMesh).surface_get_arrays(0)
-	if not _check((ground_arrays[Mesh.ARRAY_VERTEX] as PackedVector3Array).size() == Constants.GROUND_SUBDIVISIONS * Constants.GROUND_SUBDIVISIONS * 4, "Ground subgrid mesh did not contain nine visual tiles"):
+	if not _check((ground_arrays[Mesh.ARRAY_VERTEX] as PackedVector3Array).size() == Constants.GROUND_SUBDIVISIONS * Constants.GROUND_SUBDIVISIONS * 4, "Ground subgrid mesh did not contain four visual tiles"):
 		return
 	player["shield"] = 0
 	player["alive"] = true
