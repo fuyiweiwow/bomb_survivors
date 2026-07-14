@@ -205,12 +205,30 @@ func _run():
 		return
 	if not _check(game.duel_manager.round.actors[0].character_node.get_node_or_null("DuelWings") != null and game.duel_manager.round.actors[1].character_node.get_node_or_null("DuelWings") != null, "Duel fighters did not receive unlimited wings"):
 		return
-	if not _check(not game.consumable_effects.use(0, "shield_potion") and not game.bomb_manager.try_place_bomb(0) and game.bomb_map.size() == bombs_before_duel, "Duel did not lock the original backpack and bomb ability"):
+	if not _check(not game.consumable_effects.use(0, "shield_potion") and not game.bomb_manager.try_place_bomb(0) and game.bomb_map.size() == bombs_before_duel, "Duel leaked item or bomb actions into the paused original map"):
 		return
 	var duel_round = game.duel_manager.round
 	var duel_arena = game.duel_manager.arena
 	var human_duelist := duel_round.actors[0] as DuelActorState
 	var enemy_duelist := duel_round.actors[1] as DuelActorState
+	for duel_item_id in Constants.CONSUMABLE_IDS:
+		if duel_item_id not in ["dummy", "duel"] and not _check(DuelItemController.ACTIVE_ITEM_IDS.has(duel_item_id), "Duel item mapping omitted %s" % duel_item_id):
+			return
+	var duel_items_before: int = (player["consumables"] as Array).size()
+	if not _check(game.inventory_manager.selected_item(player) == "glue" and duel_round.use_selected_item(), "The selected backpack item could not be used during a duel"):
+		return
+	if not _check(enemy_duelist.slow_timer == DuelItemController.SLOW_DURATION and (player["consumables"] as Array).size() == duel_items_before - 1 and duel_arena.get_node_or_null("DuelItemActivation") != null, "Duel Glue did not slow the opponent, consume one item, or show feedback"):
+		return
+	duel_round.select_item(0)
+	if not _check(duel_round.use_selected_item() and human_duelist.shield_count == 1 and (player["consumables"] as Array).is_empty(), "Duel Shield did not apply through the backpack"):
+		return
+	human_duelist.character_node.position.y = duel_arena.floor_y() + DuelRoundController.MAX_FLIGHT_HEIGHT - 0.01
+	human_duelist.airborne = true
+	human_duelist.glide = true
+	human_duelist.vertical_velocity = 3.0
+	duel_round._advance_actor(human_duelist, 0.25)
+	if not _check(human_duelist.character_node.position.y <= duel_arena.floor_y() + DuelRoundController.MAX_FLIGHT_HEIGHT and human_duelist.vertical_velocity <= 0.0, "Duel flight exceeded its maximum height"):
+		return
 	human_duelist.character_node.position.x = float(duel_arena.lava_centers[0])
 	human_duelist.character_node.position.y = duel_arena.floor_y()
 	human_duelist.airborne = false
@@ -781,7 +799,7 @@ func _run():
 		if not _check(int(game.audio_manager.played_events.get(event_id, 0)) > 0, "Gameplay did not emit the %s audio event" % event_id):
 			return
 
-	print("GAME_DESIGN_SMOKE_OK modular_composition config_repository boss_catalog boss_skill_registry character_query character_registry character_presentation visual_factory state_factory shared_art_catalog audio_events duel_actor_state duel_token_immunity duel_arena_catalog duel_world_pause duel_locked_loadout duel_lava_launch duel_dive_damage duel_random_lava duel_win_restore progression_unique_ids boss_behavior_boundary refined_logical_grid visible_initial_spawn clear_first_wave shield_pickup_inventory duplicate_inventory_fifo boss_crate_refresh strict_map_config attack_frontier crate_breach ai_lava_strategy difficulty_lava_probability ai_lava_wait winged_ai_lava_strategy airborne_stomp shielded_stomp stomp_bounce stomp_overlap_safety stomp_single_hit one_cell_ground full_cell_blast cell_center_turning held_grid_motion shared_ai_movement active_world_blast timed_status_effects bomb_warning weather_bounds speed_curve forest_materials backpack_slots wall_hop chain_reaction overlap spawn_fx lava_launch wing_lava_launch wing_airborne_immunity wing_extended_flight airborne_movement vertical_attack_ranges safe_landing impact_support same_height_attack active_support_exit support_cracks support_fragments")
+	print("GAME_DESIGN_SMOKE_OK modular_composition config_repository boss_catalog boss_skill_registry character_query character_registry character_presentation visual_factory state_factory shared_art_catalog audio_events duel_actor_state duel_token_immunity duel_arena_catalog duel_world_pause duel_backpack_items duel_height_cap duel_lava_launch duel_dive_damage duel_random_lava duel_win_restore progression_unique_ids boss_behavior_boundary refined_logical_grid visible_initial_spawn clear_first_wave shield_pickup_inventory duplicate_inventory_fifo boss_crate_refresh strict_map_config attack_frontier crate_breach ai_lava_strategy difficulty_lava_probability ai_lava_wait winged_ai_lava_strategy airborne_stomp shielded_stomp stomp_bounce stomp_overlap_safety stomp_single_hit one_cell_ground full_cell_blast cell_center_turning held_grid_motion shared_ai_movement active_world_blast timed_status_effects bomb_warning weather_bounds speed_curve forest_materials backpack_slots wall_hop chain_reaction overlap spawn_fx lava_launch wing_lava_launch wing_airborne_immunity wing_extended_flight airborne_movement vertical_attack_ranges safe_landing impact_support same_height_attack active_support_exit support_cracks support_fragments")
 	quit(0)
 
 

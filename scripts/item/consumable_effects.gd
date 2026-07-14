@@ -27,7 +27,7 @@ func use(player_index: int, item_id: String) -> bool:
 	if state == null:
 		return false
 	if game.duel_manager and game.duel_manager.active:
-		state.set_status("Backpack locked during duel")
+		state.set_status("Use items through the duel backpack")
 		return false
 	match item_id:
 		"detonator":

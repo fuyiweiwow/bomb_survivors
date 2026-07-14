@@ -38,6 +38,19 @@ func _init() -> void:
 	duel_actor.tick_hit_cooldown(0.2)
 	if not _check(duel_actor.health == 3 and not duel_actor.take_damage(1) and duel_actor.health == 2 and is_equal_approx(duel_actor.hit_cooldown, 0.3), "DuelActorState did not own duel health and cooldown state"):
 		return
+	duel_actor.grant_shield(5.0)
+	if not _check(not duel_actor.take_damage(1) and duel_actor.health == 2 and duel_actor.shield_count == 0, "Duel shield did not absorb one hit"):
+		return
+	duel_actor.invincible_timer = 1.0
+	if not _check(not duel_actor.take_damage(1) and duel_actor.health == 2, "Duel invincibility did not block damage"):
+		return
+	duel_actor.slow_timer = 1.0
+	duel_actor.football_timer = 1.0
+	if not _check(duel_actor.movement_multiplier() > 0.55 and duel_actor.movement_multiplier() < 1.0, "Duel speed modifiers did not compose"):
+		return
+	duel_actor.prison_timer = 1.0
+	if not _check(is_zero_approx(duel_actor.movement_multiplier()), "Duel Prison did not stop movement"):
+		return
 	var boss_timer_state := CharacterState.new({"skill_timer": 0.0, "skill_interval": 0.0})
 	boss_timer_state.configure_boss("blast_king", "Blast King", 8, 5, 3, 5, 0.28, 0.75, 3.5)
 	if not _check(not boss_timer_state.advance_boss_skill_timer(3.0) and boss_timer_state.advance_boss_skill_timer(0.5), "CharacterState did not own the Boss skill countdown"):

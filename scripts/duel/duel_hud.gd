@@ -39,7 +39,7 @@ func setup(arena_name: String) -> void:
 	var bottom := PanelContainer.new()
 	bottom.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
 	bottom.offset_left = 14
-	bottom.offset_top = -62
+	bottom.offset_top = -92
 	bottom.offset_right = -14
 	bottom.offset_bottom = -12
 	var bottom_style := StyleBoxFlat.new()
@@ -49,14 +49,26 @@ func setup(arena_name: String) -> void:
 	status_label = Label.new()
 	status_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	status_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	status_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	status_label.add_theme_font_size_override("font_size", 16)
 	status_label.add_theme_color_override("font_color", Color(0.85, 0.90, 0.94))
 	bottom.add_child(status_label)
 
-func update_display(player_hp: int, player_max_hp: int, enemy_hp: int, enemy_max_hp: int, lava_refresh: float) -> void:
-	player_label.text = "YOU  HP %d/%d\nWINGS UNLIMITED" % [player_hp, player_max_hp]
-	enemy_label.text = "AI  HP %d/%d\nWINGS UNLIMITED" % [enemy_hp, enemy_max_hp]
-	status_label.text = "A/D Move   W Glide   S Dive   ·   Lava shifts in %.1fs   ·   Bombs and backpack disabled" % maxf(lava_refresh, 0.0)
+func update_display(
+	player_hp: int,
+	player_max_hp: int,
+	enemy_hp: int,
+	enemy_max_hp: int,
+	lava_refresh: float,
+	player_effects: String,
+	enemy_effects: String,
+	backpack_text: String,
+	item_status: String
+) -> void:
+	player_label.text = "YOU  HP %d/%d\n%s" % [player_hp, player_max_hp, player_effects]
+	enemy_label.text = "AI  HP %d/%d\n%s" % [enemy_hp, enemy_max_hp, enemy_effects]
+	var feedback := item_status if not item_status.is_empty() else "Lava shifts in %.1fs" % maxf(lava_refresh, 0.0)
+	status_label.text = "A/D Move   W Glide   S Dive   ·   1/2/3 Select   Q Cycle   E Use\n%s   ·   %s" % [backpack_text, feedback]
 
 func _make_fighter_label(color: Color, alignment: HorizontalAlignment) -> Label:
 	var label := Label.new()

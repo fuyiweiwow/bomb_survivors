@@ -4,6 +4,7 @@ extends Node
 signal finished(player_won: bool)
 
 const DUEL_HUD := preload("res://scripts/duel/duel_hud.gd")
+const DUEL_ITEMS := preload("res://scripts/duel/duel_item_controller.gd")
 const GROUND_SPEED := 4.8
 const AIR_SPEED := 3.8
 const WING_GRAVITY := 0.95
@@ -16,12 +17,14 @@ const HIT_HORIZONTAL_DISTANCE := 0.72
 const HIT_VERTICAL_DISTANCE := 0.90
 const HIT_COOLDOWN := 0.45
 const LAVA_REFRESH_TIME := 4.5
+const MAX_FLIGHT_HEIGHT := 6.0
 
 var game: Node
 var arena: Node3D
 var actors: Array[DuelActorState] = []
 var camera: Camera3D = null
 var hud: CanvasLayer = null
+var item_controller: DuelItemController = null
 var active := false
 var lava_refresh_timer := LAVA_REFRESH_TIME
 var ai_aggression := 0.65
@@ -37,10 +40,17 @@ func setup(game_manager: Node, duel_arena: Node3D, player_index: int, enemy_inde
 	]
 	var enemy_state := game.character_state_at(enemy_index) as CharacterState
 	ai_aggression = aggression_for_difficulty(enemy_state.ai_difficulty() if enemy_state != null else "normal")
+	item_controller = DUEL_ITEMS.new() as DuelItemController
+	add_child(item_controller)
+	item_controller.setup(game, arena, actors)
+	item_controller.changed.connect(_update_hud)
+	item_controller.finished.connect(_on_item_finished)
+	item_controller.lava_relocated.connect(_on_lava_relocated)
 	_setup_camera()
 	hud = DUEL_HUD.new()
 	add_child(hud)
 	hud.setup(arena.display_name)
+	set_process_unhandled_input(true)
 	active = true
 	_update_hud()
 
@@ -50,6 +60,7 @@ func _process(delta: float) -> void:
 	process_round(minf(delta, 0.05))
 
 func process_round(delta: float) -> void:
+	item_controller.tick(delta)
 	lava_refresh_timer -= delta
 	if lava_refresh_timer <= 0.0:
 		arena.refresh_lava()
@@ -74,7 +85,7 @@ func resolve_dive_collisions() -> void:
 			continue
 		if absf(attacker_node.position.y - target_node.position.y) > HIT_VERTICAL_DISTANCE:
 			continue
-		var target_defeated := target.take_damage(DIVE_DAMAGE)
+		var target_defeated := item_controller.damage_actor(target, DIVE_DAMAGE)
 		attacker.diving = false
 		attacker.vertical_velocity = 3.2
 		attacker.hit_cooldown = HIT_COOLDOWN
@@ -114,11 +125,21 @@ func _create_actor(player_index: int, human: bool, spawn_position: Vector3) -> D
 	return DuelActorState.new(player_index, node, human, maximum_hp)
 
 func _update_player_controls(actor: DuelActorState) -> void:
+	if actor.prison_timer > 0.0:
+		actor.move_axis = 0.0
+		actor.glide = false
+		actor.dive_requested = false
+		return
 	actor.move_axis = float(int(Input.is_key_pressed(KEY_D)) - int(Input.is_key_pressed(KEY_A)))
 	actor.glide = Input.is_key_pressed(KEY_W)
 	actor.dive_requested = Input.is_key_pressed(KEY_S)
 
 func _update_ai_controls(actor: DuelActorState, target: DuelActorState) -> void:
+	if actor.prison_timer > 0.0:
+		actor.move_axis = 0.0
+		actor.glide = false
+		actor.dive_requested = false
+		return
 	var node := actor.character_node
 	var target_node := target.character_node
 	if not actor.airborne:
@@ -138,7 +159,7 @@ func _update_ai_controls(actor: DuelActorState, target: DuelActorState) -> void:
 	var horizontal_distance := absf(target_node.position.x - node.position.x)
 	var pursuit_range := lerpf(3.5, 12.0, ai_aggression)
 	actor.move_axis = signf(target_node.position.x - node.position.x) * ai_aggression if horizontal_distance <= pursuit_range and horizontal_distance > 0.10 else 0.0
-	actor.glide = node.position.y < target_node.position.y + 1.8 and actor.vertical_velocity < 1.0
+	actor.glide = node.position.y < minf(target_node.position.y + 1.8, arena.floor_y() + MAX_FLIGHT_HEIGHT - 0.25) and actor.vertical_velocity < 1.0
 	var dive_height := lerpf(1.35, 0.75, ai_aggression)
 	var dive_alignment := lerpf(0.62, 1.15, ai_aggression)
 	actor.dive_requested = node.position.y > target_node.position.y + dive_height and horizontal_distance < dive_alignment
@@ -146,7 +167,7 @@ func _update_ai_controls(actor: DuelActorState, target: DuelActorState) -> void:
 func _advance_actor(actor: DuelActorState, delta: float) -> void:
 	var node := actor.character_node
 	actor.tick_hit_cooldown(delta)
-	var speed := AIR_SPEED if actor.airborne else GROUND_SPEED
+	var speed := (AIR_SPEED if actor.airborne else GROUND_SPEED) * actor.movement_multiplier()
 	node.position.x = clampf(node.position.x + actor.move_axis * speed * delta, arena.left_bound(), arena.right_bound())
 	node.position.z = arena.origin.z
 	if absf(actor.move_axis) > 0.01:
@@ -175,6 +196,10 @@ func _advance_actor(actor: DuelActorState, delta: float) -> void:
 		actor.vertical_velocity = minf(actor.vertical_velocity + GLIDE_LIFT * delta, 3.4)
 	actor.vertical_velocity -= WING_GRAVITY * delta
 	node.position.y += actor.vertical_velocity * delta
+	var maximum_height: float = float(arena.floor_y()) + MAX_FLIGHT_HEIGHT
+	if node.position.y >= maximum_height:
+		node.position.y = maximum_height
+		actor.vertical_velocity = minf(actor.vertical_velocity, 0.0)
 	if node.position.y <= arena.floor_y():
 		node.position.y = arena.floor_y()
 		actor.airborne = false
@@ -235,11 +260,43 @@ func _spawn_hit_flash(position: Vector3) -> void:
 	tween.set_parallel(false)
 	tween.tween_callback(flash.queue_free)
 
+func _unhandled_input(event: InputEvent) -> void:
+	if not active or _ending or not event is InputEventKey:
+		return
+	var key_event := event as InputEventKey
+	if not key_event.pressed or key_event.echo:
+		return
+	var keycode := key_event.physical_keycode if key_event.physical_keycode != KEY_NONE else key_event.keycode
+	if item_controller.handle_key(keycode):
+		get_viewport().set_input_as_handled()
+
+func use_selected_item() -> bool:
+	return item_controller.use_selected_item()
+
+func cycle_item() -> String:
+	return item_controller.cycle_item()
+
+func select_item(slot_index: int) -> String:
+	return item_controller.select_item(slot_index)
+
+func _on_item_finished(player_won: bool) -> void:
+	if _ending:
+		return
+	_ending = true
+	finished.emit(player_won)
+
+func _on_lava_relocated() -> void:
+	lava_refresh_timer = LAVA_REFRESH_TIME
+
 func _update_hud() -> void:
 	if not is_instance_valid(hud) or actors.size() < 2:
 		return
 	hud.update_display(
 		actors[0].health, actors[0].max_health,
 		actors[1].health, actors[1].max_health,
-		lava_refresh_timer
+		lava_refresh_timer,
+		item_controller.actor_effects(actors[0]),
+		item_controller.actor_effects(actors[1]),
+		item_controller.backpack_text(),
+		item_controller.item_status
 	)

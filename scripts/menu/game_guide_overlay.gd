@@ -201,8 +201,10 @@ You can steer while airborne. Ground attacks miss high targets, but aerial attac
 At zero health, a character enters Down. The timer, another blast, or an enemy stomp defeats them.
 
 [b][color=#ffd45a]Duel Controls[/color][/b]
-The original map, bombs, and backpack are frozen during a duel.
+The original map and bombs are frozen during a duel. Your 3-slot backpack remains available.
 [b]A / D[/b]  Move    [b]W[/b]  Glide while airborne    [b]S[/b]  Dive into the opponent
+[b]1 / 2 / 3[/b]  Select item    [b]Q[/b]  Cycle item    [b]E[/b]  Use item
+Flight is capped at 6 meters. Duel items provide shields, boosts, control, lava relocation, or a shockwave; Duel Tokens cannot nest.
 One random lava source appears at a time and disappears after launching one fighter. The duel has no time limit.
 
 [b][color=#ffd45a]Result Screen[/color][/b]

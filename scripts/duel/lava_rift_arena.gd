@@ -74,6 +74,12 @@ func refresh_lava() -> void:
 		lava_centers.append(origin.x - HALF_WIDTH + float(slot) + 0.5)
 	_update_floor_materials()
 
+func place_lava_near(world_x: float) -> void:
+	var local_x := clampf(world_x - origin.x + HALF_WIDTH, 1.0, float(SEGMENT_COUNT - 2))
+	var slot := clampi(floori(local_x), 1, SEGMENT_COUNT - 2)
+	lava_centers = [origin.x - HALF_WIDTH + float(slot) + 0.5]
+	_update_floor_materials()
+
 func _build_arena() -> void:
 	var backdrop := MeshHelpers.box(Vector3(HALF_WIDTH * 2.0 + 1.0, 11.0, 0.25), MeshHelpers.make_mat(Color(0.035, 0.045, 0.065)))
 	backdrop.position = Vector3(0, 4.5, -1.25)

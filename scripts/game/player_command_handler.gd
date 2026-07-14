@@ -69,6 +69,9 @@ func handle_bomb_action() -> void:
 		_game.bomb_manager.try_place_bomb(0)
 
 func use_consumable() -> void:
+	if _game.duel_manager and _game.duel_manager.active and _game.duel_manager.round:
+		_game.duel_manager.round.use_selected_item()
+		return
 	if _game.character_registry.is_empty():
 		return
 	var state := _game.character_state_at(0) as CharacterState
@@ -94,6 +97,9 @@ func use_consumable() -> void:
 		_game.inventory_manager.consume_selected(state)
 
 func cycle_consumable() -> void:
+	if _game.duel_manager and _game.duel_manager.active and _game.duel_manager.round:
+		_game.duel_manager.round.cycle_item()
+		return
 	var state := _game.character_state_at(0) as CharacterState
 	if state == null or not state.is_alive():
 		return
@@ -106,6 +112,9 @@ func cycle_consumable() -> void:
 	_game.audio_manager.play("ui_select")
 
 func select_consumable(slot_index: int) -> void:
+	if _game.duel_manager and _game.duel_manager.active and _game.duel_manager.round:
+		_game.duel_manager.round.select_item(slot_index)
+		return
 	var state := _game.character_state_at(0) as CharacterState
 	if state == null or not state.is_alive():
 		return

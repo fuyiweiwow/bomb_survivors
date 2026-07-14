@@ -54,7 +54,8 @@ GameManager3D                         共享运行时上下文与帧顺序
 │   ├── DuelArenaCatalog             随机竞技场注册入口
 │   ├── LavaRiftArena                首个横版岩浆竞技场
 │   └── DuelRoundController / HUD    独立飞行物理、AI、俯冲伤害与显示
-│       └── DuelActorState           决斗临时生命、飞行与输入状态
+│       ├── DuelActorState           决斗临时生命、飞行、道具增益与控制状态
+│       └── DuelItemController        决斗背包输入、道具适配、Dummy 与使用反馈
 ├── WallMechanics                    墙顶/箱顶承重与破坏
 ├── AirborneController               垂直运动和落点
 ├── GameUI / GameHUD                 显示与天气可见性
