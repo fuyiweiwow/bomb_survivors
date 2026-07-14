@@ -27,6 +27,8 @@ func _run() -> void:
 
 	if not _check(game.consumable_effects.use(0, "glue") and game.glue_areas.size() == 9, "Glue did not cover the complete 3x3 neighborhood"):
 		return
+	if not _check(game.get_node_or_null("ItemActivation_glue") != null, "Glue did not create a visible activation outline"):
+		return
 	var glue_probe := center + Vector2i(1, 1)
 	enemy_a.data["ai_difficulty"] = "easy"
 	var easy_navigation: Dictionary = game.ai_controller._ai_navigation_cells(enemy_a, {})
@@ -36,12 +38,19 @@ func _run() -> void:
 	var hard_navigation: Dictionary = game.ai_controller._ai_navigation_cells(enemy_a, {})
 	if not _check(easy_navigation.has(glue_probe) and normal_navigation.has(glue_probe) and not hard_navigation.has(glue_probe), "AI glue awareness did not differ by difficulty"):
 		return
+	_place_state(enemy_a, glue_probe)
+	game.consumable_effects.area_effects.process(0.05)
+	game.consumable_effects.status_visuals.refresh_player(enemy_a.data)
+	if not _check(enemy_a.effects.is_slowed() and enemy_a.node().get_node_or_null("GlueSlowEffect") != null, "Glue slow did not create a visible character effect"):
+		return
 
-	_place_state(enemy_a, center + Vector2i(1, 0))
-	_place_state(enemy_b, center + Vector2i(0, 1))
+	_place_state(enemy_a, center + Vector2i(4, 4))
+	_place_state(enemy_b, center + Vector2i(-4, -4))
 	if not _check(game.consumable_effects.use(0, "prison"), "Prison rejected nearby enemies"):
 		return
-	if not _check(enemy_a.effects.is_imprisoned() and enemy_b.effects.is_imprisoned(), "Prison did not trap every enemy in the 3x3 neighborhood"):
+	if not _check(enemy_a.effects.is_imprisoned() and enemy_b.effects.is_imprisoned(), "Prison did not trap every enemy at the 9x9 boundary"):
+		return
+	if not _check(game.get_node_or_null("ItemActivation_prison") != null, "Prison did not show its 9x9 activation boundary"):
 		return
 	if not _check(enemy_a.node().get_node_or_null("PrisonEffect") != null and enemy_b.node().get_node_or_null("PrisonEffect") != null, "Prison did not create visible cages"):
 		return
@@ -61,9 +70,13 @@ func _run() -> void:
 	_place_state(player, center)
 	if not _check(game.consumable_effects.use(0, "detonator") and game.bomb_map.is_empty(), "Detonator did not explode every bomb on the map"):
 		return
+	if not _check(game.get_node_or_null("ItemActivation_detonator") != null, "Detonator did not create a visible activation pulse"):
+		return
 
 	var air_blast_count: int = game.bomb_manager.active_explosions.size()
-	player.effects.grant_wings(Constants.WINGS_DURATION)
+	game.consumable_effects.use(0, "wings")
+	if not _check(player.node().get_node_or_null("WingsEffect") != null and game.get_node_or_null("ItemActivation_wings") != null, "Wings did not create persistent and activation visuals"):
+		return
 	player.set_cell(center)
 	player.node().position = Constants.grid_to_world(center) + Vector3(0, 2.0, 0)
 	player.begin_airborne(0.0, "Airborne")
@@ -84,9 +97,10 @@ func _run() -> void:
 	enemy_a.data["bomb_placed_count"] = 0
 	if not _check(game.bomb_manager.try_place_bomb(1), "Could not place a bomb inside the future fire area"):
 		return
-	for hit in range(4):
-		game.consumable_effects.damage_oil_barrel(barrel_cell)
-	if not _check(game.fire_areas.size() == 9 and not game.bomb_map.has(chained_bomb_cell), "Oil Barrel did not create a 3x3 fire area or chain an enclosed bomb"):
+	game.consumable_effects.damage_oil_barrel(barrel_cell)
+	if not _check(game.fire_areas.size() == 81 and not game.bomb_map.has(chained_bomb_cell), "Oil Barrel did not create a 9x9 fire area or chain an enclosed bomb"):
+		return
+	if not _check(game.get_node_or_null("OilIgnitionWave") != null, "Oil ignition did not create an outward visual wave"):
 		return
 
 	_place_state(enemy_a, center)
@@ -94,7 +108,11 @@ func _run() -> void:
 	enemy_a.data["shield"] = 0
 	enemy_a.data["shield_timer"] = 0.0
 	enemy_a.effects.reset_fire_exposure()
-	game.consumable_effects.area_effects.process(Constants.OIL_FIRE_DAMAGE_TIME + 0.01)
+	game.consumable_effects.area_effects.process(0.10)
+	game.consumable_effects.status_visuals.refresh_player(enemy_a.data)
+	if not _check(enemy_a.node().get_node_or_null("BurningEffect") != null, "Oil fire did not create a visible burning effect on the character"):
+		return
+	game.consumable_effects.area_effects.process(Constants.OIL_FIRE_DAMAGE_TIME)
 	if not _check(enemy_a.is_downed() and enemy_a.is_alive(), "Persistent oil fire did not put an exposed enemy into Down"):
 		return
 	game.consumable_effects.area_effects.process(Constants.OIL_FIRE_DAMAGE_TIME + 0.01)
@@ -107,7 +125,7 @@ func _run() -> void:
 		"Duel AI aggression does not increase with difficulty"
 	):
 		return
-	print("CONSUMABLE_EFFECTS_SMOKE_OK glue_3x3 glue_ai_awareness prison_3x3 detonator_all wing_air_bomb oil_fire_chain oil_fire_defeat duel_aggression")
+	print("CONSUMABLE_EFFECTS_SMOKE_OK glue_3x3 glue_ai_awareness prison_9x9 detonator_all wing_air_bomb oil_fire_9x9 oil_fire_chain oil_fire_defeat item_visual_feedback duel_aggression")
 	quit(0)
 
 func _clear_region(game: Node, center: Vector2i, radius: int) -> void:

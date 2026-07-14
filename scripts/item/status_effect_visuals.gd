@@ -5,6 +5,8 @@ const INVINCIBLE_EFFECT := "InvincibleEffect"
 const WINGS_EFFECT := "WingsEffect"
 const FOOTBALL_EFFECT := "FootballEffect"
 const PRISON_EFFECT := "PrisonEffect"
+const GLUE_EFFECT := "GlueSlowEffect"
+const BURNING_EFFECT := "BurningEffect"
 
 var _game: Node
 var _elapsed := 0.0
@@ -32,12 +34,17 @@ func refresh_player(player: Dictionary):
 	_sync_effect(player_node, WINGS_EFFECT, float(player.get("wings_timer", 0.0)) > 0.0, _create_wings_effect)
 	_sync_effect(player_node, FOOTBALL_EFFECT, float(player.get("football_timer", 0.0)) > 0.0, _create_football_effect)
 	_sync_effect(player_node, PRISON_EFFECT, float(player.get("prison_timer", 0.0)) > 0.0, _create_prison_effect)
+	_sync_effect(player_node, GLUE_EFFECT, float(player.get("slow_timer", 0.0)) > 0.0, _create_glue_effect)
+	_sync_effect(player_node, BURNING_EFFECT, float(player.get("fire_exposure_time", 0.0)) > 0.0, _create_burning_effect)
 
 
 func _sync_effect(parent: Node3D, effect_name: String, active: bool, create_effect: Callable):
 	var effect := parent.get_node_or_null(effect_name)
 	if active and effect == null:
-		parent.add_child(create_effect.call())
+		var created := create_effect.call() as Node3D
+		created.scale = Vector3.ONE * 0.12
+		parent.add_child(created)
+		create_tween().bind_node(created).tween_property(created, "scale", Vector3.ONE, 0.20).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 	elif not active and is_instance_valid(effect):
 		effect.queue_free()
 
@@ -63,6 +70,14 @@ func _animate_player_effects(player: Dictionary):
 	if football:
 		var boot_scale := 1.0 + sin(_elapsed * 8.0) * 0.08
 		football.scale = Vector3.ONE * boot_scale
+	var glue := (player_node as Node3D).get_node_or_null(GLUE_EFFECT) as Node3D
+	if glue and glue.get_child_count() > 0:
+		var glue_scale := 1.0 + sin(_elapsed * 5.5) * 0.10
+		(glue.get_child(0) as Node3D).scale = Vector3(glue_scale, 1.0, glue_scale)
+	var burning := (player_node as Node3D).get_node_or_null(BURNING_EFFECT) as Node3D
+	if burning:
+		burning.rotation.y = _elapsed * 2.8
+		burning.position.y = 0.30 + sin(_elapsed * 7.0) * 0.06
 
 
 func _create_shield_effect() -> Node3D:
@@ -125,6 +140,26 @@ func _create_prison_effect() -> Node3D:
 		var horizontal := MeshHelpers.box(Vector3(1.08, 0.07, 1.08), material)
 		horizontal.position.y = height
 		root.add_child(horizontal)
+	return root
+
+func _create_glue_effect() -> Node3D:
+	var root := Node3D.new()
+	root.name = GLUE_EFFECT
+	var puddle := MeshHelpers.cylinder(0.46, 0.035, _effect_material(Color(0.22, 0.92, 0.58, 0.68), true))
+	puddle.position.y = 0.035
+	root.add_child(puddle)
+	return root
+
+func _create_burning_effect() -> Node3D:
+	var root := Node3D.new()
+	root.name = BURNING_EFFECT
+	var material := _effect_material(Color(1.0, 0.28, 0.04, 0.88), true)
+	for angle_index in range(5):
+		var angle := TAU * float(angle_index) / 5.0
+		var flame := MeshHelpers.sphere(0.11, material)
+		flame.position = Vector3(cos(angle) * 0.42, 0.22 + float(angle_index % 2) * 0.18, sin(angle) * 0.42)
+		flame.scale = Vector3(0.70, 1.55, 0.70)
+		root.add_child(flame)
 	return root
 
 

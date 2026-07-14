@@ -129,10 +129,10 @@ func _build_item_page() -> void:
 		{"id": "shield_potion", "name": "Shield Potion", "description": "Block one hit for 5 seconds and enable a lava launch."},
 		{"id": "invincible_star", "name": "Invincible Star", "description": "Ignore damage and control effects for 5 seconds."},
 		{"id": "dummy", "name": "Dummy", "description": "Passive item consumed automatically to revive you from Down."},
-		{"id": "oil_barrel", "name": "Oil Barrel", "description": "Ignite a persistent 3 x 3 fire when destroyed; fire chains bombs and defeats characters who stay inside."},
+		{"id": "oil_barrel", "name": "Oil Barrel", "description": "One blast ignites an animated 9 x 9 fire; it chains bombs and defeats characters who stay inside."},
 		{"id": "wings", "name": "Wings", "description": "Cross obstacles, extend lava flight, and drop bombs from the air for immediate detonation."},
 		{"id": "football_shoes", "name": "Football Shoes", "description": "Replace bomb placement with a bomb kick for 8 seconds."},
-		{"id": "prison", "name": "Prison", "description": "Trap every enemy in the 3 x 3 area around you for 4 seconds."},
+		{"id": "prison", "name": "Prison", "description": "Trap every enemy in the 9 x 9 area around you for 4 seconds."},
 		{"id": "duel", "name": "Duel Token", "description": "Gain immunity until contact, then duel over one random single-use lava source."},
 	])
 	_add_section_title("Backpack")

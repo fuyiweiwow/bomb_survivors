@@ -3,10 +3,12 @@ extends Node
 const CELL_WALL := Constants.Cell.WALL
 const STATUS_EFFECT_VISUALS := preload("res://scripts/item/status_effect_visuals.gd")
 const AREA_EFFECT_CONTROLLER := preload("res://scripts/item/item_area_effect_controller.gd")
+const ACTIVATION_PRESENTATION := preload("res://scripts/item/consumable_activation_presentation.gd")
 
 var game: Node
 var status_visuals: Node
 var area_effects: ItemAreaEffectController
+var activation_presentation: ConsumableActivationPresentation
 
 func setup(game_manager: Node):
 	game = game_manager
@@ -16,6 +18,9 @@ func setup(game_manager: Node):
 	area_effects = AREA_EFFECT_CONTROLLER.new()
 	add_child(area_effects)
 	area_effects.setup(game)
+	activation_presentation = ACTIVATION_PRESENTATION.new()
+	add_child(activation_presentation)
+	activation_presentation.setup(game)
 
 func use(player_index: int, item_id: String) -> bool:
 	var state := game.character_state_at(player_index) as CharacterState
@@ -26,35 +31,35 @@ func use(player_index: int, item_id: String) -> bool:
 		return false
 	match item_id:
 		"detonator":
-			return _use_detonator(state)
+			return _complete_use(state, item_id, _use_detonator(state))
 		"glue":
-			return area_effects.place_glue(player_index)
+			return _complete_use(state, item_id, area_effects.place_glue(player_index))
 		"shield_potion":
 			game.combat_manager.grant_shield(player_index)
-			return true
+			return _complete_use(state, item_id, true)
 		"invincible_star":
 			state.effects.grant_invincibility(5.0)
 			state.set_status("Invincible 5s")
 			status_visuals.refresh_player(state.data)
-			return true
+			return _complete_use(state, item_id, true)
 		"oil_barrel":
-			return area_effects.place_oil_barrel(player_index)
+			return _complete_use(state, item_id, area_effects.place_oil_barrel(player_index))
 		"wings":
 			state.effects.grant_wings(Constants.WINGS_DURATION)
 			state.set_status("Wings %.0fs" % Constants.WINGS_DURATION)
 			if state.is_ai() and game.ai_controller:
 				game.ai_controller.on_wings_granted(player_index)
 			status_visuals.refresh_player(state.data)
-			return true
+			return _complete_use(state, item_id, true)
 		"football_shoes":
 			state.effects.grant_football(8.0)
 			state.set_status("Football shoes 8s")
 			status_visuals.refresh_player(state.data)
-			return true
+			return _complete_use(state, item_id, true)
 		"prison":
-			return _cast_prison(player_index)
+			return _complete_use(state, item_id, _cast_prison(player_index))
 		"duel":
-			return game.duel_manager.arm(player_index)
+			return _complete_use(state, item_id, game.duel_manager.arm(player_index))
 	return false
 
 func process(delta: float):
@@ -83,6 +88,11 @@ func damage_oil_barrel(cell: Vector2i):
 func should_ai_avoid_glue(state: CharacterState, cell: Vector2i) -> bool:
 	return area_effects.should_ai_avoid_glue(state, cell)
 
+func _complete_use(state: CharacterState, item_id: String, applied: bool) -> bool:
+	if applied:
+		activation_presentation.play(state, item_id)
+	return applied
+
 func _use_detonator(state: CharacterState) -> bool:
 	var detonated: int = game.bomb_manager.explode_all_bombs()
 	if detonated <= 0:
@@ -103,7 +113,7 @@ func _cast_prison(player_index: int) -> bool:
 		if target == null or not target.is_alive() or target.is_downed() or target.is_ai() == caster.is_ai():
 			continue
 		var offset := target.cell() - caster.cell()
-		if absi(offset.x) > 1 or absi(offset.y) > 1:
+		if absi(offset.x) > Constants.PRISON_RADIUS or absi(offset.y) > Constants.PRISON_RADIUS:
 			continue
 		target.effects.imprison(Constants.PRISON_DURATION)
 		target.set_status("Prison %.1fs" % Constants.PRISON_DURATION)

@@ -15,12 +15,16 @@ func place_glue(player_index: int) -> bool:
 	if state == null:
 		return false
 	var placed_cells := 0
-	for cell in _neighborhood(state.cell(), true):
+	for cell in _neighborhood(state.cell(), Constants.GLUE_AREA_RADIUS, true):
 		_replace_area_node(game.glue_areas, cell)
 		var puddle := MeshHelpers.cylinder(Constants.TILE_SIZE * 0.38, 0.035, game.art.mat_glue)
 		puddle.name = "Glue_%d_%d" % [cell.x, cell.y]
 		puddle.position = Constants.grid_to_world(cell) + Vector3(0, 0.07, 0)
 		game.add_child(puddle)
+		puddle.scale = Vector3.ONE * 0.08
+		var entrance := game.create_tween().bind_node(puddle)
+		entrance.tween_interval(float(Constants.grid_distance(cell, state.cell())) * 0.045)
+		entrance.tween_property(puddle, "scale", Vector3.ONE, 0.18).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 		game.glue_areas[cell] = {
 			"node": puddle,
 			"time": Constants.GLUE_AREA_DURATION,
@@ -55,7 +59,9 @@ func place_oil_barrel(player_index: int) -> bool:
 	band.position = Vector3(0, 0.48, 0)
 	root.add_child(band)
 	game.add_child(root)
-	game.oil_barrels[cell] = {"node": root, "hp": 4, "owner": player_index}
+	root.scale = Vector3.ONE * 0.12
+	game.create_tween().bind_node(root).tween_property(root, "scale", Vector3.ONE, 0.24).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	game.oil_barrels[cell] = {"node": root, "owner": player_index}
 	state.set_status("Oil barrel placed")
 	return true
 
@@ -63,14 +69,6 @@ func damage_oil_barrel(cell: Vector2i) -> void:
 	if not game.oil_barrels.has(cell):
 		return
 	var data: Dictionary = game.oil_barrels[cell]
-	data["hp"] = int(data["hp"]) - 1
-	if int(data["hp"]) > 0:
-		var barrel_node = data.get("node")
-		if is_instance_valid(barrel_node):
-			var tween := game.create_tween().bind_node(barrel_node)
-			tween.tween_property(barrel_node, "scale", Vector3(1.12, 0.86, 1.12), 0.07)
-			tween.tween_property(barrel_node, "scale", Vector3.ONE, 0.09)
-		return
 	var owner := int(data.get("owner", -1))
 	var barrel_node = data.get("node")
 	game.oil_barrels.erase(cell)
@@ -79,11 +77,12 @@ func damage_oil_barrel(cell: Vector2i) -> void:
 	ignite_oil(cell, owner)
 
 func ignite_oil(origin: Vector2i, owner := -1) -> Array[Vector2i]:
-	var fire_cells := _neighborhood(origin, false)
+	var fire_cells := _neighborhood(origin, Constants.OIL_FIRE_RADIUS, false)
 	var chained_bombs: Array[Vector2i] = []
+	_play_ignition_wave(origin)
 	for cell in fire_cells:
 		_replace_area_node(game.fire_areas, cell)
-		var fire_root := _create_fire_visual(cell)
+		var fire_root := _create_fire_visual(cell, origin)
 		game.add_child(fire_root)
 		game.fire_areas[cell] = {
 			"node": fire_root,
@@ -92,7 +91,7 @@ func ignite_oil(origin: Vector2i, owner := -1) -> Array[Vector2i]:
 		}
 		if game.bomb_map.has(cell):
 			chained_bombs.append(cell)
-	game.bomb_manager.detonate_cells(fire_cells, owner, origin)
+	game.bomb_manager.detonate_cells([origin], owner, origin)
 	for bomb_cell in chained_bombs:
 		game.bomb_manager.explode_bomb(bomb_cell)
 	return fire_cells
@@ -135,10 +134,10 @@ func _process_fire(delta: float) -> void:
 			state.effects.reset_fire_exposure()
 			game.combat_manager.damage_player(index, 1, "fire")
 
-func _neighborhood(origin: Vector2i, walkable_only: bool) -> Array[Vector2i]:
+func _neighborhood(origin: Vector2i, radius: int, walkable_only: bool) -> Array[Vector2i]:
 	var cells: Array[Vector2i] = []
-	for y_offset in range(-1, 2):
-		for x_offset in range(-1, 2):
+	for y_offset in range(-radius, radius + 1):
+		for x_offset in range(-radius, radius + 1):
 			var cell := origin + Vector2i(x_offset, y_offset)
 			if not Constants.is_grid_cell_valid(cell) or game.map_state.is_wall(cell):
 				continue
@@ -147,21 +146,43 @@ func _neighborhood(origin: Vector2i, walkable_only: bool) -> Array[Vector2i]:
 			cells.append(cell)
 	return cells
 
-func _create_fire_visual(cell: Vector2i) -> Node3D:
+func _create_fire_visual(cell: Vector2i, origin: Vector2i) -> Node3D:
 	var root := Node3D.new()
 	root.name = "OilFire_%d_%d" % [cell.x, cell.y]
 	root.position = Constants.grid_to_world(cell) + Vector3(0, 0.08, 0)
 	var base := MeshHelpers.cylinder(Constants.TILE_SIZE * 0.40, 0.04, game.art.mat_fire)
 	root.add_child(base)
-	for offset in [Vector3(-0.18, 0.16, 0.0), Vector3(0.18, 0.20, 0.06), Vector3(0.0, 0.26, -0.14)]:
+	for offset in [Vector3(-0.14, 0.18, 0.0), Vector3(0.14, 0.24, 0.04)]:
 		var flame := MeshHelpers.sphere(0.16, game.art.mat_fire)
 		flame.position = offset
 		flame.scale = Vector3(0.7, 1.6, 0.7)
 		root.add_child(flame)
+	root.scale = Vector3.ONE * 0.08
+	var entrance := game.create_tween().bind_node(root)
+	entrance.tween_interval(float(Constants.grid_distance(cell, origin)) * 0.035)
+	entrance.tween_property(root, "scale", Vector3.ONE, 0.18).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	entrance.tween_callback(func(): _start_fire_pulse(root))
+	return root
+
+func _start_fire_pulse(root: Node3D) -> void:
+	if not is_instance_valid(root):
+		return
 	var pulse := game.create_tween().bind_node(root).set_loops()
 	pulse.tween_property(root, "scale", Vector3(1.06, 1.18, 1.06), 0.22)
 	pulse.tween_property(root, "scale", Vector3.ONE, 0.22)
-	return root
+
+func _play_ignition_wave(origin: Vector2i) -> void:
+	var wave := MeshHelpers.cylinder(0.34, 0.055, MeshHelpers.make_mat(Color(1.0, 0.28, 0.02, 0.72), true))
+	wave.name = "OilIgnitionWave"
+	wave.position = Constants.grid_to_world(origin) + Vector3(0, 0.11, 0)
+	game.add_child(wave)
+	var target_radius := (float(Constants.OIL_FIRE_RADIUS) + 0.5) * Constants.TILE_SIZE
+	var target_scale := target_radius / 0.34
+	var tween := game.create_tween().bind_node(wave).set_parallel()
+	tween.tween_property(wave, "scale", Vector3(target_scale, 1.0, target_scale), 0.38).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	tween.tween_property(wave, "transparency", 1.0, 0.38)
+	tween.set_parallel(false)
+	tween.tween_callback(wave.queue_free)
 
 func _replace_area_node(collection: Dictionary, cell: Vector2i) -> void:
 	if collection.has(cell):
