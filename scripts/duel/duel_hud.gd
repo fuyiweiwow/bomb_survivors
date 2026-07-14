@@ -68,7 +68,7 @@ func update_display(
 	player_label.text = "YOU  HP %d/%d\n%s" % [player_hp, player_max_hp, player_effects]
 	enemy_label.text = "AI  HP %d/%d\n%s" % [enemy_hp, enemy_max_hp, enemy_effects]
 	var feedback := item_status if not item_status.is_empty() else "Lava shifts in %.1fs" % maxf(lava_refresh, 0.0)
-	status_label.text = "A/D Move   W Glide   S Dive   ·   1/2/3 Select   Q Cycle   E Use\n%s   ·   %s" % [backpack_text, feedback]
+	status_label.text = "A/D Move   W Glide   Hold S Fast Dive   ·   1/2/3 Select   Q Cycle   E Use\n%s   ·   %s" % [backpack_text, feedback]
 
 func _make_fighter_label(color: Color, alignment: HorizontalAlignment) -> Label:
 	var label := Label.new()

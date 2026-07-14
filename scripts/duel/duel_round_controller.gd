@@ -11,7 +11,10 @@ const WING_GRAVITY := 0.95
 const GLIDE_LIFT := 2.2
 const LAVA_CHARGE_TIME := 0.65
 const LAVA_LAUNCH_VELOCITY := 6.2
+const DUEL_MAX_HEALTH := 3
 const DIVE_VELOCITY := -8.5
+const DIVE_ACCELERATION := 13.0
+const MAX_DIVE_VELOCITY := -12.0
 const DIVE_DAMAGE := 1
 const HIT_HORIZONTAL_DISTANCE := 0.72
 const HIT_VERTICAL_DISTANCE := 0.90
@@ -121,8 +124,7 @@ func _create_actor(player_index: int, human: bool, spawn_position: Vector3) -> D
 	node.rotation_degrees = Vector3.ZERO
 	node.scale = Vector3.ONE
 	_add_wings(node, Color(0.34, 0.76, 1.0) if human else Color(1.0, 0.34, 0.24))
-	var maximum_hp := clampi(character.max_health(), 1, 5)
-	return DuelActorState.new(player_index, node, human, maximum_hp)
+	return DuelActorState.new(player_index, node, human, DUEL_MAX_HEALTH)
 
 func _update_player_controls(actor: DuelActorState) -> void:
 	if actor.prison_timer > 0.0:
@@ -189,9 +191,10 @@ func _advance_actor(actor: DuelActorState, delta: float) -> void:
 			actor.lava_charge = 0.0
 		return
 
-	if actor.dive_requested and not actor.diving:
+	if actor.dive_requested:
 		actor.diving = true
-		actor.vertical_velocity = DIVE_VELOCITY
+		actor.vertical_velocity = minf(actor.vertical_velocity, DIVE_VELOCITY)
+		actor.vertical_velocity = maxf(actor.vertical_velocity - DIVE_ACCELERATION * delta, MAX_DIVE_VELOCITY)
 	elif actor.glide and not actor.diving:
 		actor.vertical_velocity = minf(actor.vertical_velocity + GLIDE_LIFT * delta, 3.4)
 	actor.vertical_velocity -= WING_GRAVITY * delta

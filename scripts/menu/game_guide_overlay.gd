@@ -202,9 +202,9 @@ At zero health, a character enters Down. The timer, another blast, or an enemy s
 
 [b][color=#ffd45a]Duel Controls[/color][/b]
 The original map and bombs are frozen during a duel. Your 3-slot backpack remains available.
-[b]A / D[/b]  Move    [b]W[/b]  Glide while airborne    [b]S[/b]  Dive into the opponent
+[b]A / D[/b]  Move    [b]W[/b]  Glide while airborne    [b]Hold S[/b]  Accelerate downward into a dive
 [b]1 / 2 / 3[/b]  Select item    [b]Q[/b]  Cycle item    [b]E[/b]  Use item
-Flight is capped at 6 meters. Duel items provide shields, boosts, control, lava relocation, or a shockwave; Duel Tokens cannot nest.
+Both fighters use 3 HP. Flight is capped at 6 meters and fast-dive speed at 12 m/s. Duel items provide shields, boosts, control, lava relocation, or a shockwave; Duel Tokens cannot nest.
 One random lava source appears at a time and disappears after launching one fighter. The duel has no time limit.
 
 [b][color=#ffd45a]Result Screen[/color][/b]

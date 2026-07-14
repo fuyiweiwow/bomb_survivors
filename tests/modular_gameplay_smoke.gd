@@ -193,6 +193,10 @@ func _run():
 	if not _check(player["alive"] and not bool(player["downed"]), "Armed Duel Token did not grant damage immunity"):
 		return
 	var duel_enemy: Dictionary = game.players[1]
+	var enemy_health_before_duel: int = int(duel_enemy["hp"])
+	var enemy_max_health_before_duel: int = int(duel_enemy["max_hp"])
+	duel_enemy["hp"] = 12
+	duel_enemy["max_hp"] = 12
 	var duel_trigger_position: Vector3 = player["node"].position
 	duel_enemy["node"].position = duel_trigger_position
 	duel_enemy["grid_pos"] = player["grid_pos"]
@@ -211,6 +215,10 @@ func _run():
 	var duel_arena = game.duel_manager.arena
 	var human_duelist := duel_round.actors[0] as DuelActorState
 	var enemy_duelist := duel_round.actors[1] as DuelActorState
+	duel_enemy["hp"] = enemy_health_before_duel
+	duel_enemy["max_hp"] = enemy_max_health_before_duel
+	if not _check(human_duelist.health == DuelRoundController.DUEL_MAX_HEALTH and human_duelist.max_health == DuelRoundController.DUEL_MAX_HEALTH and enemy_duelist.health == DuelRoundController.DUEL_MAX_HEALTH and enemy_duelist.max_health == DuelRoundController.DUEL_MAX_HEALTH, "Duel did not normalize player and high-health enemy HP to 3/3"):
+		return
 	for duel_item_id in Constants.CONSUMABLE_IDS:
 		if duel_item_id not in ["dummy", "duel"] and not _check(DuelItemController.ACTIVE_ITEM_IDS.has(duel_item_id), "Duel item mapping omitted %s" % duel_item_id):
 			return
@@ -229,9 +237,21 @@ func _run():
 	duel_round._advance_actor(human_duelist, 0.25)
 	if not _check(human_duelist.character_node.position.y <= duel_arena.floor_y() + DuelRoundController.MAX_FLIGHT_HEIGHT and human_duelist.vertical_velocity <= 0.0, "Duel flight exceeded its maximum height"):
 		return
+	human_duelist.character_node.position.y = duel_arena.floor_y() + 4.0
+	human_duelist.airborne = true
+	human_duelist.diving = false
+	human_duelist.glide = false
+	human_duelist.dive_requested = true
+	human_duelist.vertical_velocity = 2.0
+	duel_round._advance_actor(human_duelist, 0.25)
+	if not _check(human_duelist.diving and human_duelist.vertical_velocity <= DuelRoundController.DIVE_VELOCITY and human_duelist.vertical_velocity >= DuelRoundController.MAX_DIVE_VELOCITY and human_duelist.character_node.position.y < duel_arena.floor_y() + 4.0, "Holding S did not accelerate the player into a bounded fast dive"):
+		return
 	human_duelist.character_node.position.x = float(duel_arena.lava_centers[0])
 	human_duelist.character_node.position.y = duel_arena.floor_y()
 	human_duelist.airborne = false
+	human_duelist.diving = false
+	human_duelist.dive_requested = false
+	human_duelist.vertical_velocity = 0.0
 	duel_round.process_round(DuelRoundController.LAVA_CHARGE_TIME + 0.01)
 	if not _check(human_duelist.airborne and human_duelist.vertical_velocity > 0.0, "Duel lava did not launch the winged player"):
 		return
