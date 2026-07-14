@@ -124,16 +124,16 @@ func _build_item_page() -> void:
 		{"id": "shield", "name": "Shield", "description": "Store a Shield Potion in the backpack."},
 	])
 	_add_item_section("Consumable Items", [
-		{"id": "detonator", "name": "Detonator", "description": "Detonate the first bomb in the direction you face."},
-		{"id": "glue", "name": "Glue", "description": "Leave a slowing area under your feet."},
+		{"id": "detonator", "name": "Detonator", "description": "Immediately detonate every bomb on the current map."},
+		{"id": "glue", "name": "Glue", "description": "Cover the 3 x 3 area around you with slowing glue; Easy and Normal AI do not avoid it."},
 		{"id": "shield_potion", "name": "Shield Potion", "description": "Block one hit for 5 seconds and enable a lava launch."},
 		{"id": "invincible_star", "name": "Invincible Star", "description": "Ignore damage and control effects for 5 seconds."},
 		{"id": "dummy", "name": "Dummy", "description": "Passive item consumed automatically to revive you from Down."},
-		{"id": "oil_barrel", "name": "Oil Barrel", "description": "Place a breakable barrel ahead; it explodes when destroyed."},
-		{"id": "wings", "name": "Wings", "description": "Cross ground obstacles for 8 seconds and gain a longer lava-powered flight."},
+		{"id": "oil_barrel", "name": "Oil Barrel", "description": "Ignite a persistent 3 x 3 fire when destroyed; fire chains bombs and defeats characters who stay inside."},
+		{"id": "wings", "name": "Wings", "description": "Cross obstacles, extend lava flight, and drop bombs from the air for immediate detonation."},
 		{"id": "football_shoes", "name": "Football Shoes", "description": "Replace bomb placement with a bomb kick for 8 seconds."},
-		{"id": "tianlao", "name": "Prison", "description": "Create a delayed cross-shaped bomb formation ahead."},
-		{"id": "duel", "name": "Duel Token", "description": "Gain immunity until you touch an enemy, then enter a separate wing duel."},
+		{"id": "prison", "name": "Prison", "description": "Trap every enemy in the 3 x 3 area around you for 4 seconds."},
+		{"id": "duel", "name": "Duel Token", "description": "Gain immunity until contact, then duel over one random single-use lava source."},
 	])
 	_add_section_title("Backpack")
 	var backpack := Label.new()
@@ -195,7 +195,7 @@ func _operation_guide_text() -> String:
 
 [b][color=#ffd45a]Combat Rules[/color][/b]
 Explosions travel in four directions. Walls block flames; crates can break and drop items.
-Only the center third of an explosion tile deals damage, so precise positioning can avoid a hit.
+An explosion damages the complete logical tile; crossing its edge is the only way to avoid that flame cell.
 Forests hide grounded characters. Lava burns unless a shield or wings trigger an eruption.
 You can steer while airborne. Ground attacks miss high targets, but aerial attacks still hit.
 At zero health, a character enters Down. The timer, another blast, or an enemy stomp defeats them.
@@ -203,7 +203,7 @@ At zero health, a character enters Down. The timer, another blast, or an enemy s
 [b][color=#ffd45a]Duel Controls[/color][/b]
 The original map, bombs, and backpack are frozen during a duel.
 [b]A / D[/b]  Move    [b]W[/b]  Glide while airborne    [b]S[/b]  Dive into the opponent
-Stand on shifting lava to launch. The duel has no time limit and ends when either fighter reaches 0 HP.
+One random lava source appears at a time and disappears after launching one fighter. The duel has no time limit.
 
 [b][color=#ffd45a]Result Screen[/color][/b]
 [b]R[/b]  Restart    [b]Esc[/b]  Main Menu    [b]Q[/b]  Quit Game"""

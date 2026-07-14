@@ -44,7 +44,8 @@ GameManager3D                         共享运行时上下文与帧顺序
 │   └── TerrainEffectProcessor       状态计时与森林/岩浆效果
 ├── BombManager                      炸弹生命周期和爆炸范围
 ├── PowerupManager                   掉落物生成与拾取
-├── ConsumableEffects                主动道具效果
+├── ConsumableEffects                主动道具分发与即时效果
+│   └── ItemAreaEffectController     胶水、油桶与持续火区生命周期
 ├── GameAudioManager                 音效资源映射、并发播放器池与防重叠节流
 ├── DuelManager                      主地图决斗触发、暂停、恢复与胜负回传
 │   ├── DuelArenaCatalog             随机竞技场注册入口
@@ -68,7 +69,7 @@ GameManager3D                         共享运行时上下文与帧顺序
 | `scripts/character` | 玩家/AI 状态、移动、浮空、寻路和 Boss 行为 |
 | `scripts/combat` | 伤害状态机、down/复活/死亡和胜负判断 |
 | `scripts/bomb` | 炸弹与地图掉落物；`powerup_manager.gd` 是保留路径，语义属于道具域 |
-| `scripts/item` | 三格背包、消耗品逻辑和状态视觉 |
+| `scripts/item` | 三格背包、消耗品分发、区域效果和状态视觉 |
 | `scripts/duel` | 决斗生命周期、竞技场目录、横版回合规则与决斗 HUD |
 | `scripts/grid` | 网格数据、地图编解码和地形实例 |
 | `scripts/terrain` | 地形美术工厂与动态地形机制 |
@@ -266,6 +267,7 @@ Duel Token → DuelManager.arm() → 触碰敌人
 - `tests/modular_gameplay_smoke.gd` 覆盖系统组合、Boss 策略注册、输入、移动、AI、背包、天气、爆炸和高度规则。
 - `tests/boss_strategy_smoke.gd` 实际触发爆破王炸弹、冰霜冻结、分身生成和分身自爆。
 - `tests/boundary_rules_smoke.gd` 独立覆盖三格背包 FIFO/重复道具/选中槽修正、爆炸高度与格子边缘、浮空落点 BFS 和踩踏接触边界。
+- `tests/consumable_effects_smoke.gd` 覆盖 3×3 Glue、分级 AI 认知、全图雷管、Wing 空投、油火连锁/持续伤害、Prison 群控和决斗进攻系数。
 - `tests/scene_load_smoke.gd` 验证地图编辑器组件组合以及地图元素与游戏逻辑格尺寸一致。
 - 架构重构必须先保持 smoke 行为不变，再增加边界初始化和唯一 ID 测试。
 - 新增脚本必须能被 Godot editor 全量扫描，并提交对应 `.gd.uid`。

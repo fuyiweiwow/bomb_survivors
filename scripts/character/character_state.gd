@@ -83,6 +83,9 @@ func set_move_direction(direction: Vector2i) -> void:
 func set_last_move_direction(direction: Vector2i) -> void:
 	data["last_move_dir"] = direction
 
+func last_move_direction() -> Vector2i:
+	return data.get("last_move_dir", Vector2i.DOWN) as Vector2i
+
 func begin_grid_move(from_cell: Vector2i, target_cell: Vector2i, target_world: Vector3, world_speed: float) -> void:
 	data["move_from_cell"] = from_cell
 	data["move_target_cell"] = target_cell

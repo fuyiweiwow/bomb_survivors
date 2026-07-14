@@ -57,11 +57,13 @@ func handle_bomb_action() -> void:
 	var state := _game.character_state_at(0) as CharacterState
 	if state == null:
 		return
-	if state.is_airborne():
-		state.set_status("Cannot place a ground bomb in the air")
-		return
 	if state.effects.has_football():
+		if state.is_airborne():
+			state.set_status("Cannot kick a bomb in the air")
+			return
 		_game.bomb_manager.kick_bomb_in_direction(state)
+	elif state.is_airborne() and not state.effects.has_wings():
+		state.set_status("Wings are required for an air bomb")
 	elif state.bombs.can_place():
 		_game.bomb_manager.try_place_bomb(0)
 

@@ -56,8 +56,11 @@ func process_ai(delta: float):
 				_game.movement_controller.try_move(i, state.move_direction())
 			continue
 
-		if not state.is_airborne() and state.is_ai_bomb_ready() and _ai_should_place_bomb(i):
+		if (not state.is_airborne() or state.effects.has_wings()) and state.is_ai_bomb_ready() and _ai_should_place_bomb(i):
 			state.reset_ai_bomb_timer()
+			if state.is_airborne():
+				_game.bomb_manager.try_place_bomb(i)
+				continue
 			var escape_dir := _ai_escape_dir_after_bomb(i)
 			if escape_dir != Vector2i.ZERO:
 				_game.bomb_manager.try_place_bomb(i)
@@ -156,11 +159,11 @@ func _choose_ai_direction(state: CharacterState) -> Vector2i:
 
 	for d in dirs:
 		var target: Vector2i = state.cell() + d
-		if _game.is_cell_walkable(target.x, target.y) and not danger_cells.has(target) and not _game.map_state.is_lava(target):
+		if _game.is_cell_walkable(target.x, target.y) and not danger_cells.has(target) and not _game.map_state.is_lava(target) and not _game.consumable_effects.should_ai_avoid_glue(state, target):
 			return d
 	for d in dirs:
 		var target: Vector2i = state.cell() + d
-		if _game.is_cell_walkable(target.x, target.y) and not danger_cells.has(target):
+		if _game.is_cell_walkable(target.x, target.y) and not danger_cells.has(target) and not _game.consumable_effects.should_ai_avoid_glue(state, target):
 			return d
 	return Vector2i.ZERO
 
@@ -179,6 +182,8 @@ func _ai_navigation_cells(state: CharacterState, danger_cells: Dictionary) -> Di
 			if _game.bomb_map.has(cell) or _game.oil_barrels.has(cell) or occupied.has(cell):
 				continue
 			if danger_cells.has(cell) or _game.map_state.is_lava(cell):
+				continue
+			if _game.consumable_effects.should_ai_avoid_glue(state, cell):
 				continue
 			result[cell] = true
 	result[start] = true

@@ -41,6 +41,7 @@ var bomb_map: Dictionary = {}
 var powerups: Dictionary = {}
 var oil_barrels: Dictionary = {}
 var glue_areas: Dictionary = {}
+var fire_areas: Dictionary = {}
 var world_environment: Environment = null
 var game_over := false
 var next_player_id := 2

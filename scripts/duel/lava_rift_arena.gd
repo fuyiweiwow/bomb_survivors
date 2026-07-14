@@ -4,7 +4,7 @@ extends Node3D
 const HALF_WIDTH := 8.0
 const SEGMENT_COUNT := 16
 const FLOOR_Y := 0.0
-const LAVA_ZONE_COUNT := 3
+const LAVA_ZONE_COUNT := 1
 
 var arena_id := "lava_rift"
 var display_name := "Lava Rift"
@@ -53,6 +53,14 @@ func nearest_lava_x(world_x: float) -> float:
 			nearest = center
 			best_distance = distance
 	return nearest
+
+func consume_lava_at(world_x: float) -> bool:
+	for index in range(lava_centers.size()):
+		if absf(world_x - lava_centers[index]) <= 0.48:
+			lava_centers.remove_at(index)
+			_update_floor_materials()
+			return true
+	return false
 
 func refresh_lava() -> void:
 	lava_refresh_count += 1

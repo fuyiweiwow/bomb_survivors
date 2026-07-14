@@ -62,7 +62,7 @@ static func create(item_id: String, art) -> Node3D:
 			for x in [-0.18, 0.18]:
 				_add_box(root, Vector3(0.22, 0.16, 0.42), Vector3(x, 0.02, -0.05), art.mat_bomb_power)
 				_add_box(root, Vector3(0.22, 0.30, 0.18), Vector3(x, 0.20, 0.08), art.mat_consumable)
-		"tianlao":
+		"prison":
 			_add_sphere(root, 0.15, Vector3(0, 0.18, 0), art.mat_range)
 			_add_box(root, Vector3(0.70, 0.10, 0.13), Vector3(0, 0.18, 0), art.mat_bomb_power)
 			_add_box(root, Vector3(0.13, 0.10, 0.70), Vector3(0, 0.18, 0), art.mat_bomb_power)

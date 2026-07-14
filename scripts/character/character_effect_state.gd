@@ -79,6 +79,16 @@ func frozen_time_left() -> float:
 func is_frozen() -> bool:
 	return frozen_time_left() > 0.0
 
+func imprison(duration: float) -> void:
+	data["prison_timer"] = maxf(float(data.get("prison_timer", 0.0)), duration)
+	freeze(duration)
+
+func prison_time_left() -> float:
+	return float(data.get("prison_timer", 0.0))
+
+func is_imprisoned() -> bool:
+	return prison_time_left() > 0.0
+
 func duel_return_grace_time() -> float:
 	return float(data.get("duel_return_grace", 0.0))
 
@@ -96,7 +106,18 @@ func tick_active(delta: float) -> Dictionary:
 	data["football_timer"] = maxf(football_time_left() - delta, 0.0)
 	data["slow_timer"] = maxf(slow_time_left() - delta, 0.0)
 	data["frozen_timer"] = maxf(frozen_time_left() - delta, 0.0)
+	data["prison_timer"] = maxf(prison_time_left() - delta, 0.0)
 	return {"wings_expired": had_wings and not has_wings()}
+
+func advance_fire_exposure(delta: float) -> float:
+	data["fire_exposure_time"] = float(data.get("fire_exposure_time", 0.0)) + delta
+	return float(data["fire_exposure_time"])
+
+func reset_fire_exposure() -> void:
+	data["fire_exposure_time"] = 0.0
+
+func fire_exposure_time() -> float:
+	return float(data.get("fire_exposure_time", 0.0))
 
 func reset_lava_exposure() -> void:
 	data["lava_time"] = 0.0

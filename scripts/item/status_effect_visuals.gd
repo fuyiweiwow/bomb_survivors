@@ -4,6 +4,7 @@ const SHIELD_EFFECT := "ShieldEffect"
 const INVINCIBLE_EFFECT := "InvincibleEffect"
 const WINGS_EFFECT := "WingsEffect"
 const FOOTBALL_EFFECT := "FootballEffect"
+const PRISON_EFFECT := "PrisonEffect"
 
 var _game: Node
 var _elapsed := 0.0
@@ -30,6 +31,7 @@ func refresh_player(player: Dictionary):
 	_sync_effect(player_node, INVINCIBLE_EFFECT, float(player.get("invincible_timer", 0.0)) > 0.0, _create_invincible_effect)
 	_sync_effect(player_node, WINGS_EFFECT, float(player.get("wings_timer", 0.0)) > 0.0, _create_wings_effect)
 	_sync_effect(player_node, FOOTBALL_EFFECT, float(player.get("football_timer", 0.0)) > 0.0, _create_football_effect)
+	_sync_effect(player_node, PRISON_EFFECT, float(player.get("prison_timer", 0.0)) > 0.0, _create_prison_effect)
 
 
 func _sync_effect(parent: Node3D, effect_name: String, active: bool, create_effect: Callable):
@@ -108,6 +110,21 @@ func _create_football_effect() -> Node3D:
 		var boot := MeshHelpers.box(Vector3(0.20, 0.14, 0.38), material)
 		boot.position = Vector3(x, 0.10, -0.12)
 		root.add_child(boot)
+	return root
+
+func _create_prison_effect() -> Node3D:
+	var root := Node3D.new()
+	root.name = PRISON_EFFECT
+	var material := _effect_material(Color(0.66, 0.72, 0.78, 0.92), false)
+	for x in [-0.48, 0.48]:
+		for z in [-0.48, 0.48]:
+			var bar := MeshHelpers.cylinder(0.045, 1.35, material)
+			bar.position = Vector3(x, 0.65, z)
+			root.add_child(bar)
+	for height in [0.08, 1.24]:
+		var horizontal := MeshHelpers.box(Vector3(1.08, 0.07, 1.08), material)
+		horizontal.position.y = height
+		root.add_child(horizontal)
 	return root
 
 

@@ -20,6 +20,11 @@ const LAVA_DAMAGE_TIME := 1.35
 const DOWNED_DURATION := 5.0
 const SHIELD_DURATION := 5.0
 const WINGS_DURATION := 8.0
+const GLUE_AREA_DURATION := 5.0
+const GLUE_SLOW_DURATION := 3.0
+const OIL_FIRE_DURATION := 5.0
+const OIL_FIRE_DAMAGE_TIME := 1.25
+const PRISON_DURATION := 4.0
 const LAVA_ERUPTION_TIME := 1.0
 const AIR_LAUNCH_HEIGHT := 1.15
 const AIR_LAUNCH_VELOCITY := 3.6
@@ -37,7 +42,7 @@ const AERIAL_ATTACK_MIN_HEIGHT := GROUND_ATTACK_MAX_HEIGHT
 const AERIAL_ATTACK_MAX_HEIGHT := 8.0
 const ATTACK_HEIGHT_EPSILON := 0.0001
 
-const CONSUMABLE_IDS := ["detonator", "glue", "shield_potion", "invincible_star", "dummy", "oil_barrel", "wings", "football_shoes", "tianlao", "duel"]
+const CONSUMABLE_IDS := ["detonator", "glue", "shield_potion", "invincible_star", "dummy", "oil_barrel", "wings", "football_shoes", "prison", "duel"]
 
 static func grid_to_world(cell: Vector2i) -> Vector3:
 	return Vector3((cell.x - (GRID_W - 1) / 2.0) * TILE_SIZE, FLOOR_Y, (cell.y - (GRID_H - 1) / 2.0) * TILE_SIZE)

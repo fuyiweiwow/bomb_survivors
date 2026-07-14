@@ -19,7 +19,7 @@ func _run() -> void:
 		return
 	if not _check(menu.guide_overlay.operation_text.text.contains("W / A / S / D") and menu.guide_overlay.operation_text.text.contains("Space") and menu.guide_overlay.operation_text.text.contains("Duel Controls"), "Operation guide is missing the actual controls"):
 		return
-	var expected_item_ids := ["speed", "bomb", "range", "shield", "detonator", "glue", "shield_potion", "invincible_star", "dummy", "oil_barrel", "wings", "football_shoes", "tianlao", "duel"]
+	var expected_item_ids := ["speed", "bomb", "range", "shield", "detonator", "glue", "shield_potion", "invincible_star", "dummy", "oil_barrel", "wings", "football_shoes", "prison", "duel"]
 	if not _check(menu.guide_overlay.item_icon_ids == expected_item_ids, "Item guide icon list is incomplete"):
 		return
 	var item_label_texts: Array[String] = []

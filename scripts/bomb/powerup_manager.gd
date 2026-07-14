@@ -85,7 +85,7 @@ func _item_display_name(item_id: String) -> String:
 		"oil_barrel": return "Oil Barrel"
 		"wings": return "Wings"
 		"football_shoes": return "Football Shoes"
-		"tianlao": return "Prison"
+		"prison": return "Prison"
 		"duel": return "Duel Token"
 	return item_id.capitalize()
 

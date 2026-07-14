@@ -24,6 +24,7 @@ var camera: Camera3D = null
 var hud: CanvasLayer = null
 var active := false
 var lava_refresh_timer := LAVA_REFRESH_TIME
+var ai_aggression := 0.65
 var _ending := false
 
 func setup(game_manager: Node, duel_arena: Node3D, player_index: int, enemy_index: int) -> void:
@@ -34,6 +35,8 @@ func setup(game_manager: Node, duel_arena: Node3D, player_index: int, enemy_inde
 		_create_actor(player_index, true, arena.player_spawn()),
 		_create_actor(enemy_index, false, arena.enemy_spawn()),
 	]
+	var enemy_state := game.character_state_at(enemy_index) as CharacterState
+	ai_aggression = aggression_for_difficulty(enemy_state.ai_difficulty() if enemy_state != null else "normal")
 	_setup_camera()
 	hud = DUEL_HUD.new()
 	add_child(hud)
@@ -119,14 +122,26 @@ func _update_ai_controls(actor: DuelActorState, target: DuelActorState) -> void:
 	var node := actor.character_node
 	var target_node := target.character_node
 	if not actor.airborne:
+		if arena.lava_centers.is_empty():
+			var away_axis := signf(node.position.x - target_node.position.x)
+			if is_zero_approx(away_axis):
+				away_axis = -1.0 if node.position.x >= arena.origin.x else 1.0
+			actor.move_axis = away_axis * maxf(ai_aggression, 0.72) if target.airborne else 0.0
+			actor.glide = false
+			actor.dive_requested = false
+			return
 		var lava_x: float = arena.nearest_lava_x(node.position.x)
-		actor.move_axis = signf(lava_x - node.position.x) if absf(lava_x - node.position.x) > 0.10 else 0.0
+		actor.move_axis = signf(lava_x - node.position.x) * ai_aggression if not arena.lava_centers.is_empty() and absf(lava_x - node.position.x) > 0.10 else 0.0
 		actor.glide = false
 		actor.dive_requested = false
 		return
-	actor.move_axis = signf(target_node.position.x - node.position.x) if absf(target_node.position.x - node.position.x) > 0.10 else 0.0
+	var horizontal_distance := absf(target_node.position.x - node.position.x)
+	var pursuit_range := lerpf(3.5, 12.0, ai_aggression)
+	actor.move_axis = signf(target_node.position.x - node.position.x) * ai_aggression if horizontal_distance <= pursuit_range and horizontal_distance > 0.10 else 0.0
 	actor.glide = node.position.y < target_node.position.y + 1.8 and actor.vertical_velocity < 1.0
-	actor.dive_requested = node.position.y > target_node.position.y + 0.75 and absf(target_node.position.x - node.position.x) < 1.15
+	var dive_height := lerpf(1.35, 0.75, ai_aggression)
+	var dive_alignment := lerpf(0.62, 1.15, ai_aggression)
+	actor.dive_requested = node.position.y > target_node.position.y + dive_height and horizontal_distance < dive_alignment
 
 func _advance_actor(actor: DuelActorState, delta: float) -> void:
 	var node := actor.character_node
@@ -142,10 +157,13 @@ func _advance_actor(actor: DuelActorState, delta: float) -> void:
 		if arena.is_lava_x(node.position.x):
 			actor.lava_charge += delta
 			if actor.lava_charge >= LAVA_CHARGE_TIME:
-				actor.airborne = true
-				actor.vertical_velocity = LAVA_LAUNCH_VELOCITY
-				actor.lava_charge = 0.0
-				_spawn_lava_burst(node.position)
+				if arena.consume_lava_at(node.position.x):
+					actor.airborne = true
+					actor.vertical_velocity = LAVA_LAUNCH_VELOCITY
+					actor.lava_charge = 0.0
+					_spawn_lava_burst(node.position)
+				else:
+					actor.lava_charge = 0.0
 		else:
 			actor.lava_charge = 0.0
 		return
@@ -162,6 +180,15 @@ func _advance_actor(actor: DuelActorState, delta: float) -> void:
 		actor.airborne = false
 		actor.diving = false
 		actor.vertical_velocity = 0.0
+
+static func aggression_for_difficulty(difficulty: String) -> float:
+	match difficulty:
+		"easy":
+			return 0.48
+		"hard":
+			return 1.0
+		_:
+			return 0.68
 
 func _setup_camera() -> void:
 	camera = Camera3D.new()

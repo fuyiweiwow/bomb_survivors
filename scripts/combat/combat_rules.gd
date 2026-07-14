@@ -19,7 +19,7 @@ func damage_route(state: CharacterState, source: String) -> int:
 	if state.is_invincible():
 		return DamageRoute.INVINCIBLE
 	if state.is_downed():
-		return DamageRoute.EXECUTE_DOWNED if source == "blast" else DamageRoute.IGNORE
+		return DamageRoute.EXECUTE_DOWNED if source in ["blast", "fire"] else DamageRoute.IGNORE
 	if state.has_shield():
 		return DamageRoute.ABSORB_SHIELD
 	if state.is_boss_like():

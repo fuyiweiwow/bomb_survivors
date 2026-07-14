@@ -122,6 +122,16 @@ func _init() -> void:
 	state.effects.tick_active(0.5)
 	if not _check(not state.effects.has_wings(), "Wings did not expire through CharacterEffectState"):
 		return
+	state.effects.imprison(0.5)
+	if not _check(state.effects.is_imprisoned() and state.effects.is_frozen(), "Prison did not own both its visible timer and movement lock"):
+		return
+	state.effects.tick_active(0.6)
+	if not _check(not state.effects.is_imprisoned() and not state.effects.is_frozen(), "Prison movement lock did not expire atomically"):
+		return
+	state.effects.advance_fire_exposure(0.4)
+	state.effects.reset_fire_exposure()
+	if not _check(is_zero_approx(state.effects.fire_exposure_time()), "Fire exposure did not reset after leaving its area"):
+		return
 	state.begin_airborne(3.0, "Airborne")
 	state.elevation.mark_stomped(9)
 	if not _check(state.is_airborne() and state.elevation.has_stomped(9), "Airborne state did not own the stomp registry"):
@@ -154,7 +164,7 @@ func _init() -> void:
 		return
 	state.consume_shield()
 	state.enter_downed("test", 1.0)
-	if not _check(state.is_downed() and rules.damage_route(state, "blast") == CombatRules.DamageRoute.EXECUTE_DOWNED, "Downed blast route changed"):
+	if not _check(state.is_downed() and rules.damage_route(state, "blast") == CombatRules.DamageRoute.EXECUTE_DOWNED and rules.damage_route(state, "fire") == CombatRules.DamageRoute.EXECUTE_DOWNED, "Downed blast or fire execution route changed"):
 		return
 	if not _check(not state.tick_downed(0.5) and state.tick_downed(0.6), "Downed timer transition changed"):
 		return

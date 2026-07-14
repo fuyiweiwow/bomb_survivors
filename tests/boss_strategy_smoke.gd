@@ -49,6 +49,10 @@ func _run() -> void:
 		return
 	game.next_player_id += 1
 	var clone_state := game.character_state_at(clone_index) as CharacterState
+	for direction in [Vector2i.UP, Vector2i.DOWN, Vector2i.LEFT, Vector2i.RIGHT]:
+		var clone_spawn_cell: Vector2i = clone_state.cell() + direction
+		if Constants.is_grid_cell_valid(clone_spawn_cell):
+			game.grid_manager.set_cell(clone_spawn_cell.x, clone_spawn_cell.y, Constants.Cell.EMPTY)
 	var count_before_minions: int = game.character_registry.count()
 	clone_state.advance_boss_skill_timer(clone_state.boss_skill_interval())
 	controller.process_skill(clone_index, 0.0)

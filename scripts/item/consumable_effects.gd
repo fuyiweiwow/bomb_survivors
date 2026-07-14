@@ -2,15 +2,20 @@ extends Node
 
 const CELL_WALL := Constants.Cell.WALL
 const STATUS_EFFECT_VISUALS := preload("res://scripts/item/status_effect_visuals.gd")
+const AREA_EFFECT_CONTROLLER := preload("res://scripts/item/item_area_effect_controller.gd")
 
 var game: Node
 var status_visuals: Node
+var area_effects: ItemAreaEffectController
 
 func setup(game_manager: Node):
 	game = game_manager
 	status_visuals = STATUS_EFFECT_VISUALS.new()
 	add_child(status_visuals)
 	status_visuals.setup(game)
+	area_effects = AREA_EFFECT_CONTROLLER.new()
+	add_child(area_effects)
+	area_effects.setup(game)
 
 func use(player_index: int, item_id: String) -> bool:
 	var state := game.character_state_at(player_index) as CharacterState
@@ -23,8 +28,7 @@ func use(player_index: int, item_id: String) -> bool:
 		"detonator":
 			return _use_detonator(state)
 		"glue":
-			_place_glue(player_index)
-			return true
+			return area_effects.place_glue(player_index)
 		"shield_potion":
 			game.combat_manager.grant_shield(player_index)
 			return true
@@ -34,7 +38,7 @@ func use(player_index: int, item_id: String) -> bool:
 			status_visuals.refresh_player(state.data)
 			return true
 		"oil_barrel":
-			return _place_oil_barrel(player_index)
+			return area_effects.place_oil_barrel(player_index)
 		"wings":
 			state.effects.grant_wings(Constants.WINGS_DURATION)
 			state.set_status("Wings %.0fs" % Constants.WINGS_DURATION)
@@ -47,28 +51,14 @@ func use(player_index: int, item_id: String) -> bool:
 			state.set_status("Football shoes 8s")
 			status_visuals.refresh_player(state.data)
 			return true
-		"tianlao":
-			_cast_tianlao(player_index)
-			return true
+		"prison":
+			return _cast_prison(player_index)
 		"duel":
 			return game.duel_manager.arm(player_index)
 	return false
 
 func process(delta: float):
-	for raw_cell in game.glue_areas.keys():
-		var cell := raw_cell as Vector2i
-		var data: Dictionary = game.glue_areas[cell]
-		data["time"] = float(data["time"]) - delta
-		if float(data["time"]) <= 0.0:
-			var node = data.get("node")
-			if is_instance_valid(node):
-				node.queue_free()
-			game.glue_areas.erase(cell)
-			continue
-		for index in range(game.character_registry.count()):
-			var state := game.character_state_at(index) as CharacterState
-			if index != int(data["owner"]) and state != null and state.is_alive() and state.cell() == cell:
-				state.effects.apply_slow(3.0)
+	area_effects.process(delta)
 
 func end_wings(state: CharacterState):
 	if state.is_airborne():
@@ -88,90 +78,36 @@ func end_wings(state: CharacterState):
 			return
 
 func damage_oil_barrel(cell: Vector2i):
-	if not game.oil_barrels.has(cell):
-		return
-	var data: Dictionary = game.oil_barrels[cell]
-	data["hp"] = int(data["hp"]) - 1
-	if int(data["hp"]) > 0:
-		var node = data.get("node")
-		if is_instance_valid(node):
-			var tween := game.create_tween().bind_node(node)
-			tween.tween_property(node, "scale", Vector3(1.12, 0.86, 1.12), 0.07)
-			tween.tween_property(node, "scale", Vector3.ONE, 0.09)
-		return
-	var owner := int(data.get("owner", -1))
-	var node = data.get("node")
-	game.oil_barrels.erase(cell)
-	if is_instance_valid(node):
-		node.queue_free()
-	var result: Dictionary = game.bomb_manager.get_explosion_cells(cell, 2, true)
-	game.bomb_manager.detonate_cells(result["cells"], owner, cell)
+	area_effects.damage_oil_barrel(cell)
+
+func should_ai_avoid_glue(state: CharacterState, cell: Vector2i) -> bool:
+	return area_effects.should_ai_avoid_glue(state, cell)
 
 func _use_detonator(state: CharacterState) -> bool:
-	var direction := state.data["last_move_dir"] as Vector2i
-	for distance in range(1, 7):
-		var cell: Vector2i = state.cell() + direction * distance
-		if not game.map_state.is_in_bounds(cell) or game.map_state.is_wall(cell):
-			break
-		if game.bomb_map.has(cell):
-			game.bomb_manager.explode_bomb(cell)
-			return true
-	state.set_status("No bomb in sight")
-	return false
-
-func _place_glue(player_index: int):
-	var state := game.character_state_at(player_index) as CharacterState
-	var cell := state.cell()
-	if game.glue_areas.has(cell):
-		var old_node = (game.glue_areas[cell] as Dictionary).get("node")
-		if is_instance_valid(old_node):
-			old_node.queue_free()
-	var node = MeshHelpers.cylinder(Constants.TILE_SIZE * 0.38, 0.035, game.art.mat_glue)
-	node.position = Constants.grid_to_world(cell) + Vector3(0, 0.07, 0)
-	game.add_child(node)
-	game.glue_areas[cell] = {"node": node, "time": 5.0, "owner": player_index}
-	state.set_status("Glue placed")
-
-func _place_oil_barrel(player_index: int) -> bool:
-	var state := game.character_state_at(player_index) as CharacterState
-	var cell: Vector2i = state.cell() + (state.data["last_move_dir"] as Vector2i)
-	if cell.x < 0 or cell.x >= Constants.GRID_W or cell.y < 0 or cell.y >= Constants.GRID_H:
+	var detonated: int = game.bomb_manager.explode_all_bombs()
+	if detonated <= 0:
+		state.set_status("No bombs on the map")
 		return false
-	if not game.map_state.is_walkable(cell) or game.bomb_map.has(cell) or game.oil_barrels.has(cell) or game.wall_mechanics.is_cell_occupied(cell):
-		state.set_status("No room for barrel")
-		return false
-	var root := Node3D.new()
-	root.position = Constants.grid_to_world(cell)
-	var body = MeshHelpers.cylinder(Constants.TILE_SIZE * 0.36, 0.92, game.art.mat_oil)
-	body.position = Vector3(0, 0.46, 0)
-	root.add_child(body)
-	var band = MeshHelpers.cylinder(Constants.TILE_SIZE * 0.38, 0.10, game.art.mat_bomb_power)
-	band.position = Vector3(0, 0.48, 0)
-	root.add_child(band)
-	game.add_child(root)
-	game.oil_barrels[cell] = {"node": root, "hp": 4, "owner": player_index}
-	state.set_status("Oil barrel placed")
+	state.set_status("Detonated %d bombs" % detonated)
 	return true
 
-func _cast_tianlao(player_index: int):
-	var state := game.character_state_at(player_index) as CharacterState
-	var origin := state.cell()
-	var cells: Array = [origin]
-	for direction in [Vector2i.UP, Vector2i.DOWN, Vector2i.LEFT, Vector2i.RIGHT]:
-		for distance in range(1, 6):
-			var cell: Vector2i = origin + direction * distance
-			if not game.map_state.is_in_bounds(cell) or game.map_state.is_wall(cell):
-				break
-			cells.append(cell)
-	for raw_cell in cells:
-		var marker = MeshHelpers.box(Vector3(Constants.TILE_SIZE * 0.72, 0.06, Constants.TILE_SIZE * 0.72), game.art.mat_bomb_power)
-		marker.position = Constants.grid_to_world(raw_cell as Vector2i) + Vector3(0, 0.10, 0)
-		game.add_child(marker)
-		var marker_tween := game.create_tween().bind_node(marker).set_loops()
-		marker_tween.tween_property(marker, "transparency", 0.75, 0.18)
-		marker_tween.tween_property(marker, "transparency", 0.05, 0.18)
-		game.get_tree().create_timer(1.5).timeout.connect(marker.queue_free)
-	game.get_tree().create_timer(1.5).timeout.connect(func():
-		game.bomb_manager.detonate_cells(cells, player_index)
-	)
-	state.set_status("Prison armed")
+func _cast_prison(player_index: int) -> bool:
+	var caster := game.character_state_at(player_index) as CharacterState
+	if caster == null:
+		return false
+	var trapped := 0
+	for target_index in range(game.character_registry.count()):
+		if target_index == player_index:
+			continue
+		var target := game.character_state_at(target_index) as CharacterState
+		if target == null or not target.is_alive() or target.is_downed() or target.is_ai() == caster.is_ai():
+			continue
+		var offset := target.cell() - caster.cell()
+		if absi(offset.x) > 1 or absi(offset.y) > 1:
+			continue
+		target.effects.imprison(Constants.PRISON_DURATION)
+		target.set_status("Prison %.1fs" % Constants.PRISON_DURATION)
+		status_visuals.refresh_player(target.data)
+		trapped += 1
+	caster.set_status("Prison trapped %d enemies" % trapped)
+	return trapped > 0

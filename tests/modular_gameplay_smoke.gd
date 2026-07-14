@@ -150,7 +150,7 @@ func _run():
 	game.game_ui.update_hud()
 	if not _check(game.game_hud.inventory_slot_labels[0].text.contains("Shield Potion"), "Backpack HUD does not show the starter item"):
 		return
-	if not _check(game.powerup_manager.item_display_name("tianlao") == "Prison", "Prison item still exposes its internal pinyin ID"):
+	if not _check(game.powerup_manager.item_display_name("prison") == "Prison" and not Constants.CONSUMABLE_IDS.has("tianlao"), "Prison still uses its internal pinyin ID"):
 		return
 	game._try_use_player_consumable()
 	if not _check((player["consumables"] as Array).is_empty() and int(player["shield"]) == 1, "Using the starter shield potion did not consume only the backpack item"):
@@ -216,6 +216,11 @@ func _run():
 	human_duelist.airborne = false
 	duel_round.process_round(DuelRoundController.LAVA_CHARGE_TIME + 0.01)
 	if not _check(human_duelist.airborne and human_duelist.vertical_velocity > 0.0, "Duel lava did not launch the winged player"):
+		return
+	if not _check(duel_arena.lava_centers.is_empty(), "A duel lava source remained available after launching one fighter"):
+		return
+	duel_round._update_ai_controls(enemy_duelist, human_duelist)
+	if not _check(not enemy_duelist.airborne and absf(enemy_duelist.move_axis) > 0.0, "Grounded duel AI did not evade after its opponent consumed the lava"):
 		return
 	var enemy_duel_hp_before := enemy_duelist.health
 	human_duelist.character_node.position = enemy_duelist.character_node.position + Vector3(0, 0.35, 0)

@@ -30,7 +30,10 @@ func try_place_bomb(player_index: int) -> bool:
 	if game.duel_manager and game.duel_manager.active:
 		return false
 	var state := game.character_state_at(player_index) as CharacterState
-	if state == null or state.is_airborne() or not state.bombs.can_place():
+	if state == null or not state.bombs.can_place():
+		return false
+	var airborne_drop := state.is_airborne()
+	if airborne_drop and not state.effects.has_wings():
 		return false
 	var cell := state.cell()
 	if game.bomb_map.has(cell):
@@ -63,7 +66,19 @@ func try_place_bomb(player_index: int) -> bool:
 	pulse.tween_property(bomb, "scale", Vector3.ONE, 0.35)
 	game.bomb_map[cell] = {"node": bomb, "player_index": player_index, "range": state.bombs.blast_range(), "pulse": pulse, "timer": timer, "placed_at": placed_at, "shell": shell, "warning": warning, "warning_started": false}
 	game.audio_manager.play("bomb_place")
+	if airborne_drop:
+		state.set_status("Air bomb detonated")
+		explode_bomb(cell)
 	return true
+
+func explode_all_bombs() -> int:
+	var bomb_cells: Array[Vector2i] = []
+	for raw_cell in game.bomb_map.keys():
+		bomb_cells.append(raw_cell as Vector2i)
+	for cell in bomb_cells:
+		if game.bomb_map.has(cell):
+			explode_bomb(cell)
+	return bomb_cells.size()
 
 func _update_bomb_warning(entry: Dictionary, time_left: float):
 	if time_left > BOMB_WARNING_SECONDS:

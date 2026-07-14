@@ -51,7 +51,9 @@ func process(delta: float) -> void:
 
 		if state.has_shield():
 			status_parts.append("Shield %d %.1fs" % [state.effects.shield_count(), state.effects.shield_time_left()])
-		if state.effects.is_frozen():
+		if state.effects.is_imprisoned():
+			status_parts.append("Prison %.1fs" % state.effects.prison_time_left())
+		elif state.effects.is_frozen():
 			status_parts.append("Frozen %.1fs" % state.effects.frozen_time_left())
 		if state.is_invincible():
 			status_parts.append("Invincible %.1fs" % state.effects.invincibility_time_left())

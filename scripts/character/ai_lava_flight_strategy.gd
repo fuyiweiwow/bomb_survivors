@@ -130,6 +130,8 @@ func _path_to_lava(state: CharacterState, target: Vector2i, danger_cells: Dictio
 				continue
 			if cell != target and _game.map_state.is_lava(cell):
 				continue
+			if _game.consumable_effects.should_ai_avoid_glue(state, cell):
+				continue
 			if _game.bomb_map.has(cell) or _game.oil_barrels.has(cell) or danger_cells.has(cell):
 				continue
 			if _is_occupied_by_other(cell, state):
