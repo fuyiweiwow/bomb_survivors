@@ -25,7 +25,8 @@ GameManager3D                         共享运行时上下文与帧顺序
 ├── CharacterState                   角色聚合根
 │   ├── CharacterEffectState         护盾、状态计时与熔岩暴露
 │   ├── CharacterElevationState      浮空、落地、踩踏与承重状态
-│   └── CharacterBombState           炸弹容量、范围、计数与卡位窗口
+│   ├── CharacterBombState           炸弹容量、范围、计数与卡位窗口
+│   └── CharacterQuery               HUD/AI/决斗使用的类型化只读查询
 ├── CharacterRegistry                角色集合、唯一 ID 与索引查询
 ├── GameConfigRepository             玩家配置与 AI 难度持久化、默认值和校验
 ├── PlayerManager                    角色生成与选点编排
@@ -46,6 +47,7 @@ GameManager3D                         共享运行时上下文与帧顺序
 │   ├── DuelArenaCatalog             随机竞技场注册入口
 │   ├── LavaRiftArena                首个横版岩浆竞技场
 │   └── DuelRoundController / HUD    独立飞行物理、AI、俯冲伤害与显示
+│       └── DuelActorState           决斗临时生命、飞行与输入状态
 ├── WallMechanics                    墙顶/箱顶承重与破坏
 ├── AirborneController               垂直运动和落点
 ├── GameUI / GameHUD                 显示与天气可见性
@@ -112,6 +114,7 @@ GameManager3D                         共享运行时上下文与帧顺序
 - `CharacterEffectState` 负责护盾、翅膀、无敌、冰冻、减速和熔岩暴露计时。
 - `CharacterElevationState` 负责浮空、垂直速度、单次飞行踩踏集合和墙/箱承重状态。
 - `CharacterBombState` 负责炸弹容量、爆炸范围、在场计数和连续放置卡位窗口。
+- `CharacterQuery` 包装实时角色数据，只提供类型化读取并对背包集合返回副本；HUD、静态 AI 策略和决斗初始化不得直接读角色字典。
 - `CharacterRegistry` 是局内角色集合的唯一所有者，原子维护顺序索引和唯一 ID 查询，并拒绝重复 ID。
 - `CharacterStateFactory` 是默认角色数据结构的唯一构建入口；`PlayerManager` 不拼装领域字典。
 - `GameConfigRepository` 是玩家初始属性与 AI 难度的唯一持久化入口；游戏、主菜单和玩家编辑器不得各自解析 JSON。
@@ -122,7 +125,7 @@ GameManager3D                         共享运行时上下文与帧顺序
 - `GridManager`、`PlayerManager`、`CombatManager` 负责各自跨领域编排，不重复领域规则或角色表现实现。
 - `TerrainEffectProcessor` 负责状态倒计时和森林/岩浆 tick；`CombatManager` 只保留兼容代理并接收最终伤害命令。
 
-`grid` 与 `players` 目前只作为迁移期兼容视图。`players` 每次返回从 `CharacterRegistry` 派生的数组快照，修改数组不会改变注册表成员。新代码使用 `character_registry` 查询集合，不得直接修改兼容视图；地图写入使用 `MapState.set_cell()`，角色写入使用 `CharacterState` 或其子状态方法。例外只有明确的数据所有者：`CharacterStateFactory` 创建初始数据，`InventoryManager` 修改背包槽位。表现 Tween 只能存放在 `CharacterPresentation` 内部，不能写入角色数据。
+`grid` 与 `players` 目前只作为迁移期兼容视图。`players` 每次返回从 `CharacterRegistry` 派生的数组快照，修改数组不会改变注册表成员。新代码使用 `character_registry.states()` 取得领域对象，或使用 `queries()` 取得只读查询，不得直接读取或修改兼容视图；地图写入使用 `MapState.set_cell()`，角色写入使用 `CharacterState` 或其子状态方法。例外只有明确的数据所有者：`CharacterStateFactory` 创建初始数据，`InventoryManager` 修改背包槽位。表现 Tween 只能存放在 `CharacterPresentation` 内部，不能写入角色数据。
 
 ### 4.4 共享运行时上下文
 
@@ -205,7 +208,7 @@ Bomb / Combat / Movement / UI 等领域事件
 Duel Token → DuelManager.arm() → 触碰敌人
 → 暂停原 SceneTree（炸弹、AI、天气与背包保持原状态）
 → DuelArenaCatalog 随机创建已注册竞技场
-→ DuelRoundController 独立运行横版移动、岩浆升空、翅膀与俯冲
+→ DuelRoundController + DuelActorState 独立运行横版移动、岩浆升空、翅膀与俯冲
 → 胜利：恢复原地图并 force_down 敌人
 → 失败：恢复原地图并进入原有失败结算
 ```
@@ -218,6 +221,7 @@ Duel Token → DuelManager.arm() → 触碰敌人
 - `Constants`：网格尺寸、世界坐标换算、速度曲线、攻击高度。
 - `MapState`：地图边界、Cell 数据和通行查询。
 - `CharacterState`：角色聚合根；子状态分别维护持续效果、垂直空间和炸弹装备状态。
+- `CharacterQuery`：角色聚合的实时只读投影，统一 HUD、AI 决策与决斗入口所需字段。
 - `CombatRules`：可独立测试的命中和伤害路由规则。
 - `MapDataCodec`：游戏和地图编辑器共用的当前格式编解码与严格版本校验；不迁移旧地图。
 - `GameArtCatalog`：游戏和地图编辑器共用的纹理与材质实例定义。
@@ -254,7 +258,7 @@ Duel Token → DuelManager.arm() → 触碰敌人
 
 ## 八、测试与约束
 
-- `tests/domain_model_smoke.gd` 独立覆盖配置校验和持久化、Boss 档案隔离、地图、编辑器文档边界、角色聚合、注册表唯一 ID、兼容视图隔离、移动事务、状态计时、浮空落地、炸弹卡位和战斗判定。
+- `tests/domain_model_smoke.gd` 独立覆盖配置校验和持久化、Boss 档案隔离、决斗临时状态、地图、编辑器文档边界、角色查询实时性与集合隔离、角色聚合、注册表唯一 ID、兼容视图隔离、移动事务、状态计时、浮空落地、炸弹卡位和战斗判定。
 - `tests/modular_gameplay_smoke.gd` 覆盖系统组合、输入、移动、AI、Boss、背包、天气、爆炸和高度规则。
 - `tests/scene_load_smoke.gd` 验证地图编辑器组件组合以及地图元素与游戏逻辑格尺寸一致。
 - 架构重构必须先保持 smoke 行为不变，再增加边界初始化和唯一 ID 测试。
@@ -265,8 +269,7 @@ Duel Token → DuelManager.arm() → 触碰敌人
 
 按收益优先级继续处理：
 
-1. 将 HUD、静态 AI 策略和决斗回合中剩余的角色字典读取迁移到类型化查询对象。
-2. 将三个 Boss 的技能实现从 `BossBehaviorController` 拆为可注册策略。
-3. 为爆炸高度、浮空落点和道具覆盖增加更细粒度的边界测试。
+1. 将三个 Boss 的技能实现从 `BossBehaviorController` 拆为可注册策略。
+2. 为爆炸高度、浮空落点和道具覆盖增加更细粒度的边界测试。
 
 不要一次性替换角色字典为 Resource；应先建立类型化适配器和当前格式编解码测试，再按领域逐步迁移。

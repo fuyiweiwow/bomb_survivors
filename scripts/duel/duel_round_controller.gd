@@ -19,7 +19,7 @@ const LAVA_REFRESH_TIME := 4.5
 
 var game: Node
 var arena: Node3D
-var actors: Array[Dictionary] = []
+var actors: Array[DuelActorState] = []
 var camera: Camera3D = null
 var hud: CanvasLayer = null
 var active := false
@@ -61,32 +61,32 @@ func process_round(delta: float) -> void:
 func resolve_dive_collisions() -> void:
 	for attacker_index in range(actors.size()):
 		var target_index := 1 - attacker_index
-		var attacker: Dictionary = actors[attacker_index]
-		var target: Dictionary = actors[target_index]
-		if not bool(attacker.get("diving", false)) or float(attacker.get("hit_cooldown", 0.0)) > 0.0:
+		var attacker := actors[attacker_index]
+		var target := actors[target_index]
+		if not attacker.diving or attacker.hit_cooldown > 0.0:
 			continue
-		var attacker_node := attacker["node"] as Node3D
-		var target_node := target["node"] as Node3D
+		var attacker_node := attacker.character_node
+		var target_node := target.character_node
 		if absf(attacker_node.position.x - target_node.position.x) > HIT_HORIZONTAL_DISTANCE:
 			continue
 		if absf(attacker_node.position.y - target_node.position.y) > HIT_VERTICAL_DISTANCE:
 			continue
-		target["hp"] = maxi(int(target["hp"]) - DIVE_DAMAGE, 0)
-		attacker["diving"] = false
-		attacker["vertical_velocity"] = 3.2
-		attacker["hit_cooldown"] = HIT_COOLDOWN
-		target["hit_cooldown"] = HIT_COOLDOWN
+		var target_defeated := target.take_damage(DIVE_DAMAGE)
+		attacker.diving = false
+		attacker.vertical_velocity = 3.2
+		attacker.hit_cooldown = HIT_COOLDOWN
+		target.hit_cooldown = HIT_COOLDOWN
 		game.audio_manager.play("stomp")
 		_spawn_hit_flash(target_node.position)
-		if int(target["hp"]) <= 0:
+		if target_defeated:
 			_ending = true
-			finished.emit(bool(attacker["human"]))
+			finished.emit(attacker.human)
 			return
 
 func cleanup() -> void:
 	active = false
 	for actor in actors:
-		var node = actor.get("node")
+		var node := actor.character_node
 		if is_instance_valid(node):
 			var wings = (node as Node3D).get_node_or_null("DuelWings")
 			if is_instance_valid(wings):
@@ -97,82 +97,71 @@ func cleanup() -> void:
 	if is_instance_valid(camera):
 		camera.queue_free()
 
-func _create_actor(player_index: int, human: bool, spawn_position: Vector3) -> Dictionary:
-	var player: Dictionary = game.character_registry.state_at(player_index).data
-	var node := player["node"] as Node3D
+func human_player_index() -> int:
+	return actors[0].player_index if not actors.is_empty() else 0
+
+func _create_actor(player_index: int, human: bool, spawn_position: Vector3) -> DuelActorState:
+	var character := game.character_registry.query_at(player_index) as CharacterQuery
+	var node := character.node()
 	node.position = spawn_position
 	node.rotation_degrees = Vector3.ZERO
 	node.scale = Vector3.ONE
 	_add_wings(node, Color(0.34, 0.76, 1.0) if human else Color(1.0, 0.34, 0.24))
-	var maximum_hp := clampi(int(player.get("max_hp", Constants.PLAYER_MAX_HP)), 1, 5)
-	return {
-		"player_index": player_index,
-		"node": node,
-		"human": human,
-		"hp": maximum_hp,
-		"max_hp": maximum_hp,
-		"airborne": false,
-		"vertical_velocity": 0.0,
-		"move_axis": 0.0,
-		"glide": false,
-		"dive_request": false,
-		"diving": false,
-		"lava_charge": 0.0,
-		"hit_cooldown": 0.0,
-	}
+	var maximum_hp := clampi(character.max_health(), 1, 5)
+	return DuelActorState.new(player_index, node, human, maximum_hp)
 
-func _update_player_controls(actor: Dictionary) -> void:
-	actor["move_axis"] = float(int(Input.is_key_pressed(KEY_D)) - int(Input.is_key_pressed(KEY_A)))
-	actor["glide"] = Input.is_key_pressed(KEY_W)
-	actor["dive_request"] = Input.is_key_pressed(KEY_S)
+func _update_player_controls(actor: DuelActorState) -> void:
+	actor.move_axis = float(int(Input.is_key_pressed(KEY_D)) - int(Input.is_key_pressed(KEY_A)))
+	actor.glide = Input.is_key_pressed(KEY_W)
+	actor.dive_requested = Input.is_key_pressed(KEY_S)
 
-func _update_ai_controls(actor: Dictionary, target: Dictionary) -> void:
-	var node := actor["node"] as Node3D
-	var target_node := target["node"] as Node3D
-	if not bool(actor["airborne"]):
+func _update_ai_controls(actor: DuelActorState, target: DuelActorState) -> void:
+	var node := actor.character_node
+	var target_node := target.character_node
+	if not actor.airborne:
 		var lava_x: float = arena.nearest_lava_x(node.position.x)
-		actor["move_axis"] = signf(lava_x - node.position.x) if absf(lava_x - node.position.x) > 0.10 else 0.0
-		actor["glide"] = false
-		actor["dive_request"] = false
+		actor.move_axis = signf(lava_x - node.position.x) if absf(lava_x - node.position.x) > 0.10 else 0.0
+		actor.glide = false
+		actor.dive_requested = false
 		return
-	actor["move_axis"] = signf(target_node.position.x - node.position.x) if absf(target_node.position.x - node.position.x) > 0.10 else 0.0
-	actor["glide"] = node.position.y < target_node.position.y + 1.8 and float(actor["vertical_velocity"]) < 1.0
-	actor["dive_request"] = node.position.y > target_node.position.y + 0.75 and absf(target_node.position.x - node.position.x) < 1.15
+	actor.move_axis = signf(target_node.position.x - node.position.x) if absf(target_node.position.x - node.position.x) > 0.10 else 0.0
+	actor.glide = node.position.y < target_node.position.y + 1.8 and actor.vertical_velocity < 1.0
+	actor.dive_requested = node.position.y > target_node.position.y + 0.75 and absf(target_node.position.x - node.position.x) < 1.15
 
-func _advance_actor(actor: Dictionary, delta: float) -> void:
-	var node := actor["node"] as Node3D
-	actor["hit_cooldown"] = maxf(float(actor["hit_cooldown"]) - delta, 0.0)
-	var speed := AIR_SPEED if bool(actor["airborne"]) else GROUND_SPEED
-	node.position.x = clampf(node.position.x + float(actor["move_axis"]) * speed * delta, arena.left_bound(), arena.right_bound())
+func _advance_actor(actor: DuelActorState, delta: float) -> void:
+	var node := actor.character_node
+	actor.tick_hit_cooldown(delta)
+	var speed := AIR_SPEED if actor.airborne else GROUND_SPEED
+	node.position.x = clampf(node.position.x + actor.move_axis * speed * delta, arena.left_bound(), arena.right_bound())
 	node.position.z = arena.origin.z
-	if absf(float(actor["move_axis"])) > 0.01:
-		node.rotation_degrees.y = -18.0 * signf(float(actor["move_axis"]))
+	if absf(actor.move_axis) > 0.01:
+		node.rotation_degrees.y = -18.0 * signf(actor.move_axis)
 
-	if not bool(actor["airborne"]):
+	if not actor.airborne:
 		node.position.y = arena.floor_y()
 		if arena.is_lava_x(node.position.x):
-			actor["lava_charge"] = float(actor["lava_charge"]) + delta
-			if float(actor["lava_charge"]) >= LAVA_CHARGE_TIME:
-				actor["airborne"] = true
-				actor["vertical_velocity"] = LAVA_LAUNCH_VELOCITY
-				actor["lava_charge"] = 0.0
+			actor.lava_charge += delta
+			if actor.lava_charge >= LAVA_CHARGE_TIME:
+				actor.airborne = true
+				actor.vertical_velocity = LAVA_LAUNCH_VELOCITY
+				actor.lava_charge = 0.0
 				_spawn_lava_burst(node.position)
 		else:
-			actor["lava_charge"] = 0.0
+			actor.lava_charge = 0.0
 		return
 
-	if bool(actor["dive_request"]) and not bool(actor["diving"]):
-		actor["diving"] = true
-		actor["vertical_velocity"] = DIVE_VELOCITY
-	elif bool(actor["glide"]) and not bool(actor["diving"]):
-		actor["vertical_velocity"] = minf(float(actor["vertical_velocity"]) + GLIDE_LIFT * delta, 3.4)
-	actor["vertical_velocity"] = float(actor["vertical_velocity"]) - WING_GRAVITY * delta
-	node.position.y += float(actor["vertical_velocity"]) * delta
+	if actor.dive_requested and not actor.diving:
+		actor.diving = true
+		actor.vertical_velocity = DIVE_VELOCITY
+	elif actor.glide and not actor.diving:
+		actor.vertical_velocity = minf(actor.vertical_velocity + GLIDE_LIFT * delta, 3.4)
+	actor.vertical_velocity -= WING_GRAVITY * delta
+	node.position.y += actor.vertical_velocity * delta
 	if node.position.y <= arena.floor_y():
 		node.position.y = arena.floor_y()
-		actor["airborne"] = false
-		actor["diving"] = false
-		actor["vertical_velocity"] = 0.0
+		actor.airborne = false
+		actor.diving = false
+		actor.vertical_velocity = 0.0
 
 func _setup_camera() -> void:
 	camera = Camera3D.new()
@@ -223,7 +212,7 @@ func _update_hud() -> void:
 	if not is_instance_valid(hud) or actors.size() < 2:
 		return
 	hud.update_display(
-		int(actors[0]["hp"]), int(actors[0]["max_hp"]),
-		int(actors[1]["hp"]), int(actors[1]["max_hp"]),
+		actors[0].health, actors[0].max_health,
+		actors[1].health, actors[1].max_health,
 		lava_refresh_timer
 	)

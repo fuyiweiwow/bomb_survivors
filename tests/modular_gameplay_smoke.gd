@@ -68,6 +68,8 @@ func _run():
 		return
 	if not _check(game.character_registry is CharacterRegistry and game.character_registry.count() == game.players.size() and game.character_state_at(0).data == player, "CharacterRegistry is not synchronized with the compatibility player view"):
 		return
+	if not _check(game.character_registry.query_at(0) is CharacterQuery and game.character_registry.queries().size() == game.character_registry.count(), "CharacterRegistry did not expose typed character queries"):
+		return
 	var detached_view: Array = game.players
 	detached_view.clear()
 	if not _check(game.character_registry.count() > 0 and not game.players.is_empty(), "Compatibility player view can mutate CharacterRegistry membership"):
@@ -123,9 +125,10 @@ func _run():
 	var frontier_actor := player.duplicate(true)
 	frontier_actor["grid_pos"] = Vector2i(1, 1)
 	frontier_actor["ai_difficulty"] = "hard"
+	var frontier_query := CharacterQuery.new(frontier_actor)
 	var frontier_walkable := {Vector2i(1, 1): true, Vector2i(2, 1): true, Vector2i(3, 1): true}
 	if not _check(
-		AIDecisionPolicy.choose_direction(frontier_actor, {}, frontier_walkable, Vector2i(5, 1), true) == Vector2i.RIGHT,
+		AIDecisionPolicy.choose_direction(frontier_query, {}, frontier_walkable, Vector2i(5, 1), true) == Vector2i.RIGHT,
 		"AI did not advance toward the closest reachable frontier on a blocked large map"
 	):
 		return
@@ -191,28 +194,28 @@ func _run():
 		return
 	if not _check(not game.game_hud.visible and game.duel_manager.round.actors.size() == 2, "Duel HUD or fighters were not initialized"):
 		return
-	if not _check(game.duel_manager.round.actors[0]["node"].get_node_or_null("DuelWings") != null and game.duel_manager.round.actors[1]["node"].get_node_or_null("DuelWings") != null, "Duel fighters did not receive unlimited wings"):
+	if not _check(game.duel_manager.round.actors[0].character_node.get_node_or_null("DuelWings") != null and game.duel_manager.round.actors[1].character_node.get_node_or_null("DuelWings") != null, "Duel fighters did not receive unlimited wings"):
 		return
 	if not _check(not game.consumable_effects.use(0, "shield_potion") and not game.bomb_manager.try_place_bomb(0) and game.bomb_map.size() == bombs_before_duel, "Duel did not lock the original backpack and bomb ability"):
 		return
 	var duel_round = game.duel_manager.round
 	var duel_arena = game.duel_manager.arena
-	var human_duelist: Dictionary = duel_round.actors[0]
-	var enemy_duelist: Dictionary = duel_round.actors[1]
-	human_duelist["node"].position.x = float(duel_arena.lava_centers[0])
-	human_duelist["node"].position.y = duel_arena.floor_y()
-	human_duelist["airborne"] = false
+	var human_duelist := duel_round.actors[0] as DuelActorState
+	var enemy_duelist := duel_round.actors[1] as DuelActorState
+	human_duelist.character_node.position.x = float(duel_arena.lava_centers[0])
+	human_duelist.character_node.position.y = duel_arena.floor_y()
+	human_duelist.airborne = false
 	duel_round.process_round(DuelRoundController.LAVA_CHARGE_TIME + 0.01)
-	if not _check(bool(human_duelist["airborne"]) and float(human_duelist["vertical_velocity"]) > 0.0, "Duel lava did not launch the winged player"):
+	if not _check(human_duelist.airborne and human_duelist.vertical_velocity > 0.0, "Duel lava did not launch the winged player"):
 		return
-	var enemy_duel_hp_before := int(enemy_duelist["hp"])
-	human_duelist["node"].position = enemy_duelist["node"].position + Vector3(0, 0.35, 0)
-	human_duelist["airborne"] = true
-	human_duelist["diving"] = true
-	human_duelist["vertical_velocity"] = DuelRoundController.DIVE_VELOCITY
-	human_duelist["hit_cooldown"] = 0.0
+	var enemy_duel_hp_before := enemy_duelist.health
+	human_duelist.character_node.position = enemy_duelist.character_node.position + Vector3(0, 0.35, 0)
+	human_duelist.airborne = true
+	human_duelist.diving = true
+	human_duelist.vertical_velocity = DuelRoundController.DIVE_VELOCITY
+	human_duelist.hit_cooldown = 0.0
 	duel_round.resolve_dive_collisions()
-	if not _check(int(enemy_duelist["hp"]) == enemy_duel_hp_before - 1, "A duel dive did not damage the opponent"):
+	if not _check(enemy_duelist.health == enemy_duel_hp_before - 1, "A duel dive did not damage the opponent"):
 		return
 	var lava_refreshes_before := int(duel_arena.lava_refresh_count)
 	duel_round.lava_refresh_timer = 0.0
@@ -702,8 +705,8 @@ func _run():
 	if not _check(is_equal_approx(player["node"].position.y, Constants.CRATE_SUPPORT_HEIGHT), "Crate landing used the wrong height layer"):
 		return
 	if not _check(
-		not game.combat_manager.is_player_in_attack_cells(player, [impact_crate_cell], Constants.GROUND_ATTACK_MIN_HEIGHT, Constants.GROUND_ATTACK_MAX_HEIGHT)
-		and game.combat_manager.is_player_in_attack_cells(player, [impact_crate_cell], 0.96, 1.02),
+		not game.combat_manager.is_player_in_attack_cells(game.character_state_at(0), [impact_crate_cell], Constants.GROUND_ATTACK_MIN_HEIGHT, Constants.GROUND_ATTACK_MAX_HEIGHT)
+		and game.combat_manager.is_player_in_attack_cells(game.character_state_at(0), [impact_crate_cell], 0.96, 1.02),
 		"Support height did not separate ground and same-height attacks"
 	):
 		return
@@ -764,7 +767,7 @@ func _run():
 		if not _check(int(game.audio_manager.played_events.get(event_id, 0)) > 0, "Gameplay did not emit the %s audio event" % event_id):
 			return
 
-	print("GAME_DESIGN_SMOKE_OK modular_composition config_repository boss_catalog character_registry character_presentation visual_factory state_factory shared_art_catalog audio_events duel_token_immunity duel_arena_catalog duel_world_pause duel_locked_loadout duel_lava_launch duel_dive_damage duel_random_lava duel_win_restore progression_unique_ids boss_behavior_boundary refined_logical_grid visible_initial_spawn clear_first_wave shield_pickup_inventory duplicate_inventory_fifo boss_crate_refresh strict_map_config attack_frontier crate_breach ai_lava_strategy difficulty_lava_probability ai_lava_wait winged_ai_lava_strategy airborne_ai_bomb_rule airborne_stomp shielded_stomp stomp_bounce stomp_overlap_safety stomp_single_hit one_cell_ground full_cell_blast cell_center_turning held_grid_motion shared_ai_movement active_world_blast timed_status_effects bomb_warning weather_bounds speed_curve forest_materials backpack_slots wall_hop chain_reaction overlap spawn_fx lava_launch wing_lava_launch wing_airborne_immunity wing_extended_flight airborne_movement vertical_attack_ranges safe_landing impact_support same_height_attack active_support_exit support_cracks support_fragments")
+	print("GAME_DESIGN_SMOKE_OK modular_composition config_repository boss_catalog character_query character_registry character_presentation visual_factory state_factory shared_art_catalog audio_events duel_actor_state duel_token_immunity duel_arena_catalog duel_world_pause duel_locked_loadout duel_lava_launch duel_dive_damage duel_random_lava duel_win_restore progression_unique_ids boss_behavior_boundary refined_logical_grid visible_initial_spawn clear_first_wave shield_pickup_inventory duplicate_inventory_fifo boss_crate_refresh strict_map_config attack_frontier crate_breach ai_lava_strategy difficulty_lava_probability ai_lava_wait winged_ai_bomb_rule airborne_stomp shielded_stomp stomp_bounce stomp_overlap_safety stomp_single_hit one_cell_ground full_cell_blast cell_center_turning held_grid_motion shared_ai_movement active_world_blast timed_status_effects bomb_warning weather_bounds speed_curve forest_materials backpack_slots wall_hop chain_reaction overlap spawn_fx lava_launch wing_lava_launch wing_airborne_immunity wing_extended_flight airborne_movement vertical_attack_ranges safe_landing impact_support same_height_attack active_support_exit support_cracks support_fragments")
 	quit(0)
 
 

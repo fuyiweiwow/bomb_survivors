@@ -91,10 +91,9 @@ func apply_explosion_damage(
 			continue
 		_damage_player(i, 1, "blast")
 
-func is_player_in_attack_cells(player: Dictionary, cells: Array, min_height: float, max_height: float) -> bool:
-	var state := _game.character_state_by_id(int(player.get("id", -1))) as CharacterState
+func is_player_in_attack_cells(state: CharacterState, cells: Array, min_height: float, max_height: float) -> bool:
 	if state == null:
-		state = CharacterState.new(player)
+		return false
 	return rules.is_in_attack_cells(state, cells, min_height, max_height)
 
 func damage_player(index: int, amount: int, source: String):

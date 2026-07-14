@@ -15,7 +15,7 @@ func _ready() -> void:
 	_build()
 
 func update_display(
-	players: Array,
+	characters: Array[CharacterQuery],
 	wave_number: int,
 	wave_time: float,
 	weather_text: String,
@@ -23,24 +23,24 @@ func update_display(
 	camera: Camera3D,
 	item_display_name: Callable
 ) -> void:
-	if players.is_empty() or hud_label == null:
+	if characters.is_empty() or hud_label == null:
 		return
-	var player: Dictionary = players[0]
+	var player := characters[0]
 	var wave_text := "W -" if wave_number <= 0 else "W %d/7 %.0fs" % [wave_number, wave_time]
 	hud_label.text = "%s  |  %s  |  AI %s  |  SPD %d  BOMB %d/%d  RNG %d  SH %d" % [
 		wave_text,
 		weather_text,
 		difficulty_text,
-		player["speed"],
-		player["bomb_placed_count"],
-		player["bomb_max"],
-		player["bomb_range"],
-		player["shield"]
+		player.speed(),
+		player.bomb_placed_count(),
+		player.bomb_capacity(),
+		player.bomb_range(),
+		player.shield_count(),
 	]
 	_update_inventory(player, item_display_name)
 	player_card_label.text = _player_card_text(player)
-	var featured := _featured_enemy(players)
-	enemy_card_label.text = _player_card_text(featured) if not featured.is_empty() else "No enemies\nNext wave"
+	var featured := _featured_enemy(characters)
+	enemy_card_label.text = _player_card_text(featured) if featured != null else "No enemies\nNext wave"
 	_position_status_cards(camera)
 
 func _build():
@@ -141,9 +141,9 @@ func _make_status_card(avatar_text: String, color: Color) -> Dictionary:
 	row.add_child(label)
 	return {"panel": panel, "label": label}
 
-func _update_inventory(player: Dictionary, item_display_name: Callable):
-	var items: Array = player.get("consumables", [])
-	var selected := clampi(int(player.get("selected_consumable_index", 0)), 0, maxi(items.size() - 1, 0))
+func _update_inventory(player: CharacterQuery, item_display_name: Callable):
+	var items := player.consumables()
+	var selected := player.selected_consumable_index()
 	if inventory_count_label:
 		inventory_count_label.text = "BACKPACK  %d/%d" % [items.size(), MAX_INVENTORY_SLOTS]
 	for i in range(inventory_slot_labels.size()):
@@ -155,24 +155,23 @@ func _update_inventory(player: Dictionary, item_display_name: Callable):
 		style.border_color = Color(0.40, 0.95, 0.78) if i == selected and i < items.size() else Color(0.25, 0.28, 0.32)
 		slot.add_theme_stylebox_override("normal", style)
 
-func _player_card_text(player: Dictionary) -> String:
-	if not player["alive"]:
-		return "HP 0/%d\nDown" % int(player["max_hp"])
-	if bool(player.get("downed", false)):
-		return "HP %d/%d\nDown %.1fs" % [int(player["hp"]), int(player["max_hp"]), float(player["downed_timer"])]
-	var title := str(player.get("boss_name", ""))
-	if title != "":
-		return "%s  HP %d/%d\n%s" % [title, int(player["hp"]), int(player["max_hp"]), str(player["status"])]
-	return "HP %d/%d\n%s" % [int(player["hp"]), int(player["max_hp"]), str(player["status"])]
+func _player_card_text(character: CharacterQuery) -> String:
+	if not character.is_alive():
+		return "HP 0/%d\nDown" % character.max_health()
+	if character.is_downed():
+		return "HP %d/%d\nDown %.1fs" % [character.health(), character.max_health(), character.downed_time_left()]
+	if not character.boss_name().is_empty():
+		return "%s  HP %d/%d\n%s" % [character.boss_name(), character.health(), character.max_health(), character.status()]
+	return "HP %d/%d\n%s" % [character.health(), character.max_health(), character.status()]
 
-func _featured_enemy(players: Array) -> Dictionary:
-	for i in range(1, players.size()):
-		if players[i]["alive"] and str(players[i].get("boss_id", "")) != "":
-			return players[i]
-	for i in range(1, players.size()):
-		if players[i]["alive"]:
-			return players[i]
-	return {}
+func _featured_enemy(characters: Array[CharacterQuery]) -> CharacterQuery:
+	for i in range(1, characters.size()):
+		if characters[i].is_alive() and characters[i].is_boss():
+			return characters[i]
+	for i in range(1, characters.size()):
+		if characters[i].is_alive():
+			return characters[i]
+	return null
 
 func _position_status_cards(camera: Camera3D):
 	if camera == null:

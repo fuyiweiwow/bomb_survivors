@@ -17,7 +17,7 @@ const BLOCKED_PATH_PENALTY := 3.0
 
 
 static func choose_direction(
-	actor: Dictionary,
+	actor: CharacterQuery,
 	powerups: Dictionary,
 	walkable_cells: Dictionary,
 	player_cell: Vector2i,
@@ -36,17 +36,17 @@ static func choose_direction(
 	var path: Array[Vector2i] = selected_plan["path"]
 	if path.is_empty():
 		return Vector2i.ZERO
-	return path[0] - (actor["grid_pos"] as Vector2i)
+	return path[0] - actor.cell()
 
 
 static func _best_powerup_plan(
-	actor: Dictionary,
+	actor: CharacterQuery,
 	powerups: Dictionary,
 	walkable_cells: Dictionary
 ) -> Dictionary:
 	var best_path: Array[Vector2i] = []
 	var best_score: float = INVALID_SCORE
-	var start: Vector2i = actor["grid_pos"]
+	var start := actor.cell()
 	for raw_cell: Variant in powerups.keys():
 		var target: Vector2i = raw_cell as Vector2i
 		var path: Array[Vector2i] = AI_PATHFINDER.find_path(start, target, walkable_cells)
@@ -60,8 +60,8 @@ static func _best_powerup_plan(
 	return {"path": best_path, "score": best_score}
 
 
-static func _powerup_score(actor: Dictionary, powerup_type: String, distance: int) -> float:
-	var difficulty: String = str(actor.get("ai_difficulty", "normal"))
+static func _powerup_score(actor: CharacterQuery, powerup_type: String, distance: int) -> float:
+	var difficulty := actor.ai_difficulty()
 	var score: float = NORMAL_POWERUP_SCORE
 	match difficulty:
 		"easy":
@@ -70,23 +70,22 @@ static func _powerup_score(actor: Dictionary, powerup_type: String, distance: in
 			score = HARD_POWERUP_SCORE
 	match powerup_type:
 		"speed":
-			score += float(maxi(10 - int(actor["speed"]), 0)) * 0.8
+			score += float(maxi(10 - actor.speed(), 0)) * 0.8
 		"bomb":
-			score += float(maxi(5 - int(actor["bomb_max"]), 0)) * 1.4
+			score += float(maxi(5 - actor.bomb_capacity(), 0)) * 1.4
 		"range":
-			score += float(maxi(6 - int(actor["bomb_range"]), 0))
+			score += float(maxi(6 - actor.bomb_range(), 0))
 		"shield":
-			score += 9.0 if int(actor["shield"]) == 0 else 3.0
+			score += 9.0 if actor.shield_count() == 0 else 3.0
 		"dummy":
-			var items: Array = actor.get("consumables", [])
-			score += 12.0 if not items.has("dummy") else 4.0
+			score += 12.0 if not actor.has_consumable("dummy") else 4.0
 	if distance <= 2:
 		score += NEARBY_POWERUP_BONUS
 	return score - float(distance) * DISTANCE_POWERUP_COST
 
 
 static func _attack_plan(
-	actor: Dictionary,
+	actor: CharacterQuery,
 	walkable_cells: Dictionary,
 	player_cell: Vector2i,
 	can_target_player: bool
@@ -94,7 +93,7 @@ static func _attack_plan(
 	var empty_path: Array[Vector2i] = []
 	if not can_target_player:
 		return {"path": empty_path, "score": INVALID_SCORE}
-	var start: Vector2i = actor["grid_pos"]
+	var start := actor.cell()
 	var path: Array[Vector2i] = AI_PATHFINDER.find_path(
 		start,
 		player_cell,
@@ -108,7 +107,7 @@ static func _attack_plan(
 	if path.is_empty():
 		return {"path": empty_path, "score": INVALID_SCORE}
 	var aggression: float = EASY_AGGRESSION_SCORE
-	match str(actor.get("ai_difficulty", "normal")):
+	match actor.ai_difficulty():
 		"normal":
 			aggression = NORMAL_AGGRESSION_SCORE
 		"hard":

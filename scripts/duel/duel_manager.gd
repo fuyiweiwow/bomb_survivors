@@ -12,7 +12,7 @@ var current_enemy_index := -1
 var current_arena_id := ""
 var arena_catalog: RefCounted = ARENA_CATALOG.new()
 var arena: Node3D = null
-var round: Node = null
+var round: DuelRoundController = null
 var _original_states: Dictionary = {}
 var _hud_was_visible := true
 var _finishing := false
@@ -85,7 +85,7 @@ func start_duel_with_enemy(player_index: int, enemy_index: int) -> bool:
 	current_arena_id = str(arena_data["id"])
 	arena = arena_data["node"] as Node3D
 	add_child(arena)
-	round = ROUND_CONTROLLER.new()
+	round = ROUND_CONTROLLER.new() as DuelRoundController
 	add_child(round)
 	round.finished.connect(_on_round_finished)
 	round.setup(game, arena, player_index, enemy_index)
@@ -111,7 +111,7 @@ func _on_round_finished(player_won: bool) -> void:
 func _finish_duel(player_won: bool) -> void:
 	if not active:
 		return
-	var player_index := int(round.actors[0]["player_index"]) if round and not round.actors.is_empty() else 0
+	var player_index := round.human_player_index() if round else 0
 	var enemy_index := current_enemy_index
 	_restore_world(true)
 	if player_won:

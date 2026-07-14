@@ -28,7 +28,7 @@ func setup_hud():
 func update_hud():
 	if _game.game_hud == null or _game.character_registry.is_empty():
 		return
-	var players: Array = _game.character_registry.data_view()
+	var characters: Array[CharacterQuery] = _game.character_registry.queries()
 	var wave_number := 0
 	var wave_time := 0.0
 	var weather_text := "Clear"
@@ -38,7 +38,7 @@ func update_hud():
 	if _game.weather_manager:
 		weather_text = str(_game.weather_manager.display_name())
 	_game.game_hud.update_display(
-		players,
+		characters,
 		wave_number,
 		wave_time,
 		weather_text,
@@ -176,7 +176,7 @@ func _strike_thunder(cell: Vector2i, warning: Node3D):
 			state != null
 			and state.is_alive()
 			and _game.combat_manager.is_player_in_attack_cells(
-				state.data,
+				state,
 				[cell],
 				Constants.GROUND_ATTACK_MIN_HEIGHT,
 				Constants.AERIAL_ATTACK_MAX_HEIGHT

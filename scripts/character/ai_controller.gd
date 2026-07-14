@@ -122,7 +122,6 @@ func _is_target_in_ground_attack_layer(target: Dictionary) -> bool:
 	return Constants.is_player_in_attack_height(target, Constants.GROUND_ATTACK_MIN_HEIGHT, Constants.GROUND_ATTACK_MAX_HEIGHT)
 
 func _choose_ai_direction(state: CharacterState) -> Vector2i:
-	var p := state.data
 	var dirs := [Vector2i(0, -1), Vector2i(0, 1), Vector2i(-1, 0), Vector2i(1, 0)]
 	dirs.shuffle()
 	var danger_cells: Dictionary = _game.bomb_manager.active_blast_cell_set()
@@ -141,7 +140,7 @@ func _choose_ai_direction(state: CharacterState) -> Vector2i:
 		if Constants.grid_distance(state.cell(), player_cell) <= 1:
 			return Vector2i.ZERO
 	var strategic_direction: Vector2i = AIDecisionPolicy.choose_direction(
-		p,
+		state.query(),
 		_game.powerups,
 		walkable_cells,
 		player_cell,

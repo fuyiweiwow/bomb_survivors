@@ -4,17 +4,23 @@ extends RefCounted
 const EFFECT_STATE_SCRIPT := preload("res://scripts/character/character_effect_state.gd")
 const ELEVATION_STATE_SCRIPT := preload("res://scripts/character/character_elevation_state.gd")
 const BOMB_STATE_SCRIPT := preload("res://scripts/character/character_bomb_state.gd")
+const CHARACTER_QUERY_SCRIPT := preload("res://scripts/character/character_query.gd")
 
 var data: Dictionary
 var effects: CharacterEffectState
 var elevation: CharacterElevationState
 var bombs: CharacterBombState
+var _query: CharacterQuery
 
 func _init(initial_data := {}):
 	data = initial_data
 	effects = EFFECT_STATE_SCRIPT.new(data)
 	elevation = ELEVATION_STATE_SCRIPT.new(data)
 	bombs = BOMB_STATE_SCRIPT.new(data)
+	_query = CHARACTER_QUERY_SCRIPT.new(data)
+
+func query() -> CharacterQuery:
+	return _query
 
 func id() -> int:
 	return int(data.get("id", -1))

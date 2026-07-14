@@ -43,6 +43,16 @@ func by_id(character_id: int) -> CharacterState:
 func states() -> Array[CharacterState]:
 	return _states.duplicate()
 
+func query_at(index: int) -> CharacterQuery:
+	var state := state_at(index)
+	return state.query() if state != null else null
+
+func queries() -> Array[CharacterQuery]:
+	var result: Array[CharacterQuery] = []
+	for state in _states:
+		result.append(state.query())
+	return result
+
 func data_view() -> Array:
 	var result: Array = []
 	result.resize(_states.size())

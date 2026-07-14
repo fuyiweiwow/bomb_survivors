@@ -33,6 +33,11 @@ func _init() -> void:
 		return
 	if not _check(boss_catalog.profile("missing")["name"] == "Blast King", "BossCatalog fallback changed"):
 		return
+	var duel_actor := DuelActorState.new(4, null, true, 3)
+	duel_actor.hit_cooldown = 0.5
+	duel_actor.tick_hit_cooldown(0.2)
+	if not _check(duel_actor.health == 3 and not duel_actor.take_damage(1) and duel_actor.health == 2 and is_equal_approx(duel_actor.hit_cooldown, 0.3), "DuelActorState did not own duel health and cooldown state"):
+		return
 
 	var map_state := MapState.new(5, 5, Constants.Cell.EMPTY, Constants.Cell.WALL)
 	if not _check(map_state.is_wall(Vector2i.ZERO), "MapState did not build its border"):
@@ -74,10 +79,27 @@ func _init() -> void:
 		"duel_pending": false,
 		"hp": 3,
 		"max_hp": 3,
+		"speed": 5,
+		"bomb_max": 1,
+		"bomb_range": 2,
+		"bomb_placed_count": 0,
+		"consumables": ["shield_potion", "dummy"],
+		"selected_consumable_index": 1,
 		"status": "Ready",
 		"is_moving": false,
 	}
 	var state := CharacterState.new(data)
+	var query := state.query()
+	if not _check(query is CharacterQuery and state.query() == query and query.id() == 7 and query.cell() == Vector2i(3, 3), "CharacterState did not expose a stable typed query"):
+		return
+	data["hp"] = 2
+	if not _check(query.health() == 2 and query.max_health() == 3 and query.selected_consumable_index() == 1, "CharacterQuery did not reflect live character state"):
+		return
+	var detached_consumables := query.consumables()
+	detached_consumables.clear()
+	if not _check(query.consumables().size() == 2 and query.has_consumable("dummy"), "CharacterQuery exposed mutable inventory storage"):
+		return
+	data["hp"] = 3
 	var rules := CombatRules.new()
 	state.begin_grid_move(Vector2i(3, 3), Vector2i(4, 3), Vector3(1, 0, 0), 4.5)
 	if not _check(state.is_moving() and state.is_grid_motion_active() and state.move_target_cell() == Vector2i(4, 3), "Grid movement did not begin atomically"):
@@ -141,6 +163,8 @@ func _init() -> void:
 	var registry := CharacterRegistry.new()
 	if not _check(registry.register(state) and not registry.register(state), "CharacterRegistry accepted a duplicate id"):
 		return
+	if not _check(registry.query_at(0) == query and registry.queries().size() == 1 and registry.queries()[0] == query, "CharacterRegistry typed queries lost state order or identity"):
+		return
 	var compatibility_view := registry.data_view()
 	compatibility_view.clear()
 	if not _check(registry.count() == 1 and registry.state_at(0) == state and registry.by_id(7) == state, "CharacterRegistry exposed mutable collection ownership"):
@@ -148,7 +172,7 @@ func _init() -> void:
 	if not _check(registry.unregister_last() == state and registry.is_empty(), "CharacterRegistry did not remove all indexes atomically"):
 		return
 
-	print("DOMAIN_MODEL_SMOKE_OK config_repository boss_catalog map_state map_editor_document character_state character_registry combat_rules")
+	print("DOMAIN_MODEL_SMOKE_OK config_repository boss_catalog duel_actor_state map_state map_editor_document character_query character_state character_registry combat_rules")
 	quit(0)
 
 func _check(condition: bool, message: String) -> bool:
