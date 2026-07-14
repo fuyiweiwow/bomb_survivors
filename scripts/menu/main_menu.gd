@@ -1,7 +1,9 @@
 extends Control
 
 const GAME_GUIDE_OVERLAY := preload("res://scripts/menu/game_guide_overlay.gd")
+const GAME_CONFIG_REPOSITORY_SCRIPT := preload("res://scripts/config/game_config_repository.gd")
 
+var config_repository: GameConfigRepository = GAME_CONFIG_REPOSITORY_SCRIPT.new()
 var difficulty_option: OptionButton = null
 var difficulty_ids := ["easy", "normal", "hard"]
 var guide_button: Button = null
@@ -107,23 +109,7 @@ func _add_difficulty_picker(parent: Node):
 	row.add_child(difficulty_option)
 
 func _load_ai_difficulty() -> String:
-	if not FileAccess.file_exists("user://ai_settings.json"):
-		return "normal"
-	var file := FileAccess.open("user://ai_settings.json", FileAccess.READ)
-	if file == null:
-		return "normal"
-	var result := "normal"
-	var json := JSON.new()
-	if json.parse(file.get_as_text()) == OK:
-		var data = json.get_data()
-		result = str(data.get("difficulty", "normal"))
-	file.close()
-	if not difficulty_ids.has(result):
-		result = "normal"
-	return result
+	return config_repository.load_ai_difficulty()
 
-func _save_ai_difficulty(value: String):
-	var file := FileAccess.open("user://ai_settings.json", FileAccess.WRITE)
-	if file:
-		file.store_string(JSON.stringify({"difficulty": value}))
-		file.close()
+func _save_ai_difficulty(value: String) -> void:
+	config_repository.save_ai_difficulty(value)

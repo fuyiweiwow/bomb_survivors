@@ -1,6 +1,39 @@
 extends SceneTree
 
 func _init() -> void:
+	var player_config_path := "user://domain_model_player_config.json"
+	var ai_settings_path := "user://domain_model_ai_settings.json"
+	_remove_file(player_config_path)
+	_remove_file(ai_settings_path)
+	var config_repository := GameConfigRepository.new(player_config_path, ai_settings_path)
+	var defaults := config_repository.load_player_config()
+	if not _check(defaults["gender"] == "male" and defaults["start_speed"] == 5, "GameConfigRepository defaults changed"):
+		return
+	var sanitized := config_repository.sanitize_player_config({"gender": "robot", "start_speed": 99, "start_bombs": 0, "start_range": 99, "start_shields": -1})
+	if not _check(sanitized["gender"] == "male" and sanitized["start_speed"] == 10 and sanitized["start_bombs"] == 1 and sanitized["start_range"] == 10 and sanitized["start_shields"] == 0, "GameConfigRepository did not constrain invalid player settings"):
+		return
+	if not _check(config_repository.save_player_config({"gender": "female", "start_speed": 7, "start_bombs": 3, "start_range": 4, "start_shields": 2}), "GameConfigRepository did not save player settings"):
+		return
+	var loaded_config := config_repository.load_player_config()
+	if not _check(loaded_config["gender"] == "female" and loaded_config["start_speed"] == 7 and loaded_config["start_bombs"] == 3 and loaded_config["start_range"] == 4 and loaded_config["start_shields"] == 2, "GameConfigRepository did not restore player settings"):
+		return
+	if not _check(config_repository.save_ai_difficulty("hard") and config_repository.load_ai_difficulty() == "hard", "GameConfigRepository did not restore AI difficulty"):
+		return
+	if not _check(config_repository.save_ai_difficulty("impossible") and config_repository.load_ai_difficulty() == "normal", "GameConfigRepository accepted an invalid AI difficulty"):
+		return
+	_remove_file(player_config_path)
+	_remove_file(ai_settings_path)
+
+	var boss_catalog := BossCatalog.new()
+	var frost_profile := boss_catalog.profile("frost_giant")
+	if not _check(boss_catalog.boss_ids().size() == 3 and frost_profile["name"] == "Frost Giant" and frost_profile["hp"] == 12, "BossCatalog profiles changed"):
+		return
+	frost_profile["hp"] = 0
+	if not _check(boss_catalog.profile("frost_giant")["hp"] == 12, "BossCatalog exposed its mutable profile template"):
+		return
+	if not _check(boss_catalog.profile("missing")["name"] == "Blast King", "BossCatalog fallback changed"):
+		return
+
 	var map_state := MapState.new(5, 5, Constants.Cell.EMPTY, Constants.Cell.WALL)
 	if not _check(map_state.is_wall(Vector2i.ZERO), "MapState did not build its border"):
 		return
@@ -115,7 +148,7 @@ func _init() -> void:
 	if not _check(registry.unregister_last() == state and registry.is_empty(), "CharacterRegistry did not remove all indexes atomically"):
 		return
 
-	print("DOMAIN_MODEL_SMOKE_OK map_state map_editor_document character_state character_registry combat_rules")
+	print("DOMAIN_MODEL_SMOKE_OK config_repository boss_catalog map_state map_editor_document character_state character_registry combat_rules")
 	quit(0)
 
 func _check(condition: bool, message: String) -> bool:
@@ -124,3 +157,7 @@ func _check(condition: bool, message: String) -> bool:
 	push_error(message)
 	quit(1)
 	return false
+
+func _remove_file(path: String) -> void:
+	if FileAccess.file_exists(path):
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(path))

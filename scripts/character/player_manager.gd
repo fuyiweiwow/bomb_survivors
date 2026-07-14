@@ -2,13 +2,16 @@ extends Node
 
 const PLAYER_VISUAL_FACTORY_SCRIPT := preload("res://scripts/character/player_visual_factory.gd")
 const CHARACTER_STATE_FACTORY_SCRIPT := preload("res://scripts/character/character_state_factory.gd")
+const BOSS_CATALOG_SCRIPT := preload("res://scripts/character/boss_catalog.gd")
 
 var _game: Node
 var visual_factory: PlayerVisualFactory = PLAYER_VISUAL_FACTORY_SCRIPT.new()
 var state_factory: CharacterStateFactory = CHARACTER_STATE_FACTORY_SCRIPT.new()
+var boss_catalog: BossCatalog = BOSS_CATALOG_SCRIPT.new()
 
-func setup(game_manager: Node):
+func setup(game_manager: Node) -> void:
 	_game = game_manager
+	boss_catalog.setup(_game.art)
 
 func create_player(id: int, cell: Vector2i, ai: bool, mat: Material, style := "male") -> CharacterState:
 	var visual_data := visual_factory.create(id, cell, mat, style)
@@ -16,46 +19,6 @@ func create_player(id: int, cell: Vector2i, ai: bool, mat: Material, style := "m
 	var visual_root := visual_data["visual"] as Node3D
 	_game.add_child(root)
 	return state_factory.create(id, root, visual_root, cell, ai, style)
-
-func load_player_config() -> Dictionary:
-	var config := {
-		"gender": "male",
-		"start_speed": 5,
-		"start_bombs": 1,
-		"start_range": 2,
-		"start_shields": 0
-	}
-	if not FileAccess.file_exists("user://player_config.json"):
-		return config
-	var file := FileAccess.open("user://player_config.json", FileAccess.READ)
-	if file == null:
-		return config
-	var json := JSON.new()
-	if json.parse(file.get_as_text()) == OK:
-		var data = json.get_data()
-		config["gender"] = str(data.get("gender", config["gender"]))
-		config["start_speed"] = clampi(int(data.get("start_speed", config["start_speed"])), 1, 10)
-		config["start_bombs"] = clampi(int(data.get("start_bombs", config["start_bombs"])), 1, 8)
-		config["start_range"] = clampi(int(data.get("start_range", config["start_range"])), 1, 10)
-		config["start_shields"] = clampi(int(data.get("start_shields", config["start_shields"])), 0, 3)
-	file.close()
-	return config
-
-func load_ai_difficulty() -> String:
-	if not FileAccess.file_exists("user://ai_settings.json"):
-		return "normal"
-	var file := FileAccess.open("user://ai_settings.json", FileAccess.READ)
-	if file == null:
-		return "normal"
-	var result := "normal"
-	var json := JSON.new()
-	if json.parse(file.get_as_text()) == OK:
-		var data = json.get_data()
-		result = str(data.get("difficulty", "normal"))
-	file.close()
-	if not ["easy", "normal", "hard"].has(result):
-		result = "normal"
-	return result
 
 func apply_ai_difficulty(state: CharacterState, difficulty: String):
 	match difficulty:
@@ -91,15 +54,6 @@ func find_spawn_cell() -> Vector2i:
 	var pool_size := mini(12, candidates.size())
 	return candidates[randi_range(0, pool_size - 1)]
 
-func boss_data(boss_id: String) -> Dictionary:
-	match boss_id:
-		"frost_giant":
-			return {"name": "Frost Giant", "hp": 12, "speed": 3, "range": 1, "bomb_max": 0, "move_interval": 0.48, "bomb_interval": 99.0, "skill_interval": 4.5, "material": _game.art.mat_boss_frost}
-		"clone_demon":
-			return {"name": "Clone Demon", "hp": 6, "speed": 6, "range": 2, "bomb_max": 2, "move_interval": 0.20, "bomb_interval": 1.4, "skill_interval": 5.0, "material": _game.art.mat_boss_clone}
-		_:
-			return {"name": "Blast King", "hp": 8, "speed": 5, "range": 5, "bomb_max": 3, "move_interval": 0.28, "bomb_interval": 0.75, "skill_interval": 3.5, "material": _game.art.mat_boss_blast}
-
 func spawn_player(config: Dictionary, inventory_manager):
 	var state := create_player(1, Constants.PLAYER_START_CELL, false, player_material_from_config(config), str(config["gender"]))
 	state.configure_gameplay_stats(int(config["start_speed"]), int(config["start_bombs"]), int(config["start_range"]))
@@ -126,7 +80,7 @@ func spawn_boss(boss_id: String, boss_id_val: int) -> bool:
 	var spawn_cell := find_spawn_cell()
 	if spawn_cell == Vector2i(-1, -1):
 		return false
-	var boss_data_dict := boss_data(boss_id)
+	var boss_data_dict := boss_catalog.profile(boss_id)
 	var boss_state := create_player(boss_id_val, spawn_cell, true, boss_data_dict["material"], "boss")
 	boss_state.configure_boss(
 		boss_id,

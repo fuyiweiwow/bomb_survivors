@@ -6,6 +6,7 @@ const SYSTEM_INSTALLER := preload("res://scripts/game/game_system_installer.gd")
 const PLAYER_COMMAND_HANDLER := preload("res://scripts/game/player_command_handler.gd")
 const PROGRESSION_COORDINATOR := preload("res://scripts/game/progression_coordinator.gd")
 const CHARACTER_REGISTRY_SCRIPT := preload("res://scripts/character/character_registry.gd")
+const GAME_CONFIG_REPOSITORY_SCRIPT := preload("res://scripts/config/game_config_repository.gd")
 
 var grid_manager: Node
 var player_manager: Node
@@ -31,6 +32,7 @@ var game_hud: Node
 var player_commands: Node
 var progression_coordinator: Node
 var art: RefCounted = ART_CATALOG_SCRIPT.new()
+var config_repository: GameConfigRepository = GAME_CONFIG_REPOSITORY_SCRIPT.new()
 
 var character_registry: CharacterRegistry = CHARACTER_REGISTRY_SCRIPT.new()
 var players: Array:
@@ -55,7 +57,7 @@ func _ready():
 	add_to_group("game")
 	randomize()
 	_setup_gameplay_systems()
-	ai_difficulty = player_manager.load_ai_difficulty()
+	ai_difficulty = config_repository.load_ai_difficulty()
 	grid_manager.init_grid()
 	grid_manager.create_world()
 	_spawn_players()
@@ -81,7 +83,7 @@ func _setup_progression():
 	progression_coordinator.setup(self)
 
 func _spawn_players():
-	var config: Dictionary = player_manager.load_player_config()
+	var config: Dictionary = config_repository.load_player_config()
 	inventory_manager = INVENTORY_MANAGER_SCRIPT.new()
 	register_character_state(player_manager.spawn_player(config, inventory_manager))
 

@@ -1,5 +1,8 @@
 extends Control
 
+const GAME_CONFIG_REPOSITORY_SCRIPT := preload("res://scripts/config/game_config_repository.gd")
+
+var config_repository: GameConfigRepository = GAME_CONFIG_REPOSITORY_SCRIPT.new()
 var current_gender := "male"
 var start_speed := 5
 var start_bombs := 1
@@ -240,35 +243,24 @@ func _refresh_preview():
 		player_visor.material_override = _make_mat(Color(0.2, 0.85, 1.0), true)
 
 func _load_player():
-	if not FileAccess.file_exists("user://player_config.json"):
-		return
-	var file := FileAccess.open("user://player_config.json", FileAccess.READ)
-	if file == null:
-		return
-	var json := JSON.new()
-	if json.parse(file.get_as_text()) == OK:
-		var data = json.get_data()
-		current_gender = str(data.get("gender", current_gender))
-		start_speed = clampi(int(data.get("start_speed", start_speed)), 1, 10)
-		start_bombs = clampi(int(data.get("start_bombs", start_bombs)), 1, 8)
-		start_range = clampi(int(data.get("start_range", start_range)), 1, 10)
-		start_shields = clampi(int(data.get("start_shields", start_shields)), 0, 3)
-	file.close()
+	var config := config_repository.load_player_config()
+	current_gender = str(config["gender"])
+	start_speed = int(config["start_speed"])
+	start_bombs = int(config["start_bombs"])
+	start_range = int(config["start_range"])
+	start_shields = int(config["start_shields"])
 
 func _save_player():
-	var file := FileAccess.open("user://player_config.json", FileAccess.WRITE)
-	if file:
-		start_speed = int(speed_spin.value) if speed_spin else start_speed
-		start_bombs = int(bombs_spin.value) if bombs_spin else start_bombs
-		start_range = int(range_spin.value) if range_spin else start_range
-		start_shields = int(shields_spin.value) if shields_spin else start_shields
-		var data := {
-			"gender": current_gender,
-			"start_speed": start_speed,
-			"start_bombs": start_bombs,
-			"start_range": start_range,
-			"start_shields": start_shields
-		}
-		file.store_string(JSON.stringify(data))
-		file.close()
+	start_speed = int(speed_spin.value) if speed_spin else start_speed
+	start_bombs = int(bombs_spin.value) if bombs_spin else start_bombs
+	start_range = int(range_spin.value) if range_spin else start_range
+	start_shields = int(shields_spin.value) if shields_spin else start_shields
+	var config := {
+		"gender": current_gender,
+		"start_speed": start_speed,
+		"start_bombs": start_bombs,
+		"start_range": start_range,
+		"start_shields": start_shields,
+	}
+	if config_repository.save_player_config(config):
 		print("Player saved!")

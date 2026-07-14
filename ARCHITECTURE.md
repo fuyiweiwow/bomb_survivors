@@ -27,9 +27,11 @@ GameManager3D                         共享运行时上下文与帧顺序
 │   ├── CharacterElevationState      浮空、落地、踩踏与承重状态
 │   └── CharacterBombState           炸弹容量、范围、计数与卡位窗口
 ├── CharacterRegistry                角色集合、唯一 ID 与索引查询
-├── PlayerManager                    角色配置与生成编排
+├── GameConfigRepository             玩家配置与 AI 难度持久化、默认值和校验
+├── PlayerManager                    角色生成与选点编排
 │   ├── CharacterStateFactory        合法角色默认数据构建
-│   └── PlayerVisualFactory          碰撞根与角色 Mesh 构建
+│   ├── PlayerVisualFactory          碰撞根与角色 Mesh 构建
+│   └── BossCatalog                  Boss 静态档案与共享材质绑定
 ├── CharacterPresentation            出生、受伤、倒地、复活与死亡表现
 ├── AIController                     通用 AI 决策和逃生
 │   ├── AILavaFlightStrategy
@@ -48,9 +50,9 @@ GameManager3D                         共享运行时上下文与帧顺序
 ├── AirborneController               垂直运动和落点
 ├── GameUI / GameHUD                 显示与天气可见性
 └── MapEditor                        编辑器场景编排与地图预览渲染
-    ├── MapEditorDocument            编辑、保存与严格版本加载
-    ├── MapEditorPicker              屏幕射线到逻辑格子的换算
-    └── MapEditorToolbar             工具选择、保存与退出信号
+	├── MapEditorDocument            编辑、保存与严格版本加载
+	├── MapEditorPicker              屏幕射线到逻辑格子的换算
+	└── MapEditorToolbar             工具选择、保存与退出信号
 ```
 
 ## 三、目录职责
@@ -69,6 +71,7 @@ GameManager3D                         共享运行时上下文与帧顺序
 | `scripts/wave` | 纯波次计时与波次配置 |
 | `scripts/ui` | HUD、结果界面和视觉反馈 |
 | `scripts/audio` | 全局音效事件映射、音量/音高设置和播放器复用 |
+| `scripts/config` | 跨场景用户配置的默认值、校验与 JSON 持久化 |
 | `scripts/editor` | 地图/角色编辑器，只调用共享数据与美术模块 |
 | `scripts/core` | 无场景状态的常量、网格换算、Mesh 工具和美术目录 |
 
@@ -111,8 +114,10 @@ GameManager3D                         共享运行时上下文与帧顺序
 - `CharacterBombState` 负责炸弹容量、爆炸范围、在场计数和连续放置卡位窗口。
 - `CharacterRegistry` 是局内角色集合的唯一所有者，原子维护顺序索引和唯一 ID 查询，并拒绝重复 ID。
 - `CharacterStateFactory` 是默认角色数据结构的唯一构建入口；`PlayerManager` 不拼装领域字典。
+- `GameConfigRepository` 是玩家初始属性与 AI 难度的唯一持久化入口；游戏、主菜单和玩家编辑器不得各自解析 JSON。
+- `BossCatalog` 是 Boss 静态数值的唯一目录，返回模板副本并在运行时绑定 `GameArtCatalog` 材质。
 - `CombatRules` 是无场景状态的纯判定对象，负责伤害路由、攻击高度/格内命中和角色重叠规则。
-- `PlayerVisualFactory` 只构造碰撞根和 Mesh，不进入场景树；`PlayerManager` 只负责配置、选点和生成编排。
+- `PlayerVisualFactory` 只构造碰撞根和 Mesh，不进入场景树；`PlayerManager` 只负责配置应用、选点和生成编排。
 - `CharacterPresentation` 独占角色 Tween、临时战斗特效和死亡节点清理；领域数据不保存动画句柄。
 - `GridManager`、`PlayerManager`、`CombatManager` 负责各自跨领域编排，不重复领域规则或角色表现实现。
 - `TerrainEffectProcessor` 负责状态倒计时和森林/岩浆 tick；`CombatManager` 只保留兼容代理并接收最终伤害命令。
@@ -216,6 +221,8 @@ Duel Token → DuelManager.arm() → 触碰敌人
 - `CombatRules`：可独立测试的命中和伤害路由规则。
 - `MapDataCodec`：游戏和地图编辑器共用的当前格式编解码与严格版本校验；不迁移旧地图。
 - `GameArtCatalog`：游戏和地图编辑器共用的纹理与材质实例定义。
+- `GameConfigRepository`：主菜单、玩家编辑器和游戏启动共用的配置默认值、范围约束与文件读写。
+- `BossCatalog`：Boss ID、显示名、战斗数值和材质选择目录；调用方只接收副本。
 - `PowerupModelFactory`：游戏掉落物与菜单道具图标共用的程序化 3D 模型定义。
 - `TerrainArtFactory`：只负责根据材质创建地形表现。
 - `MeshHelpers`：基础 Mesh 与材质构造。
@@ -233,7 +240,7 @@ Duel Token → DuelManager.arm() → 触碰敌人
 
 ### 新增 Boss
 
-1. 在 `PlayerManager.boss_data()` 增加静态配置。
+1. 在 `BossCatalog` 注册静态档案与材质映射。
 2. 在 `BossBehaviorController.process_skill()` 注册技能入口。
 3. 将超过约 40 行的独立技能拆成策略脚本。
 4. 在 `WaveManager.BOSS_WAVES` 配置波次。
@@ -247,7 +254,7 @@ Duel Token → DuelManager.arm() → 触碰敌人
 
 ## 八、测试与约束
 
-- `tests/domain_model_smoke.gd` 独立覆盖地图、编辑器文档边界、角色聚合、注册表唯一 ID、兼容视图隔离、移动事务、状态计时、浮空落地、炸弹卡位和战斗判定。
+- `tests/domain_model_smoke.gd` 独立覆盖配置校验和持久化、Boss 档案隔离、地图、编辑器文档边界、角色聚合、注册表唯一 ID、兼容视图隔离、移动事务、状态计时、浮空落地、炸弹卡位和战斗判定。
 - `tests/modular_gameplay_smoke.gd` 覆盖系统组合、输入、移动、AI、Boss、背包、天气、爆炸和高度规则。
 - `tests/scene_load_smoke.gd` 验证地图编辑器组件组合以及地图元素与游戏逻辑格尺寸一致。
 - 架构重构必须先保持 smoke 行为不变，再增加边界初始化和唯一 ID 测试。
@@ -258,9 +265,8 @@ Duel Token → DuelManager.arm() → 触碰敌人
 
 按收益优先级继续处理：
 
-1. 将玩家配置文件读取和 Boss 静态档案从 `PlayerManager` 移入配置仓库与目录对象。
-2. 将 HUD、静态 AI 策略和决斗回合中剩余的角色字典读取迁移到类型化查询对象。
-3. 将三个 Boss 的技能实现从 `BossBehaviorController` 拆为可注册策略。
-4. 为爆炸高度、浮空落点和道具覆盖增加更细粒度的边界测试。
+1. 将 HUD、静态 AI 策略和决斗回合中剩余的角色字典读取迁移到类型化查询对象。
+2. 将三个 Boss 的技能实现从 `BossBehaviorController` 拆为可注册策略。
+3. 为爆炸高度、浮空落点和道具覆盖增加更细粒度的边界测试。
 
 不要一次性替换角色字典为 Resource；应先建立类型化适配器和当前格式编解码测试，再按领域逐步迁移。

@@ -21,7 +21,7 @@ func _run() -> void:
 		await process_frame
 		await process_frame
 		if scene_path.ends_with("main_menu.tscn"):
-			if scene.get("guide_button") == null or scene.get("guide_overlay") == null:
+			if scene.get("guide_button") == null or scene.get("guide_overlay") == null or not scene.get("config_repository") is GameConfigRepository:
 				_fail("Main menu did not expose the game guide")
 				return
 		elif scene_path.ends_with("main_3d.tscn"):
@@ -61,6 +61,10 @@ func _run() -> void:
 			var editor_crate_mesh := editor_crate.mesh as BoxMesh
 			if editor_wall_mesh.bottom_radius * 2.0 > Constants.TILE_SIZE or editor_crate_mesh.size.x > Constants.TILE_SIZE:
 				_fail("Map editor elements exceed one refined logical cell")
+				return
+		elif scene_path.ends_with("player_editor.tscn"):
+			if not scene.get("config_repository") is GameConfigRepository:
+				_fail("Player editor did not use the shared configuration repository")
 				return
 		scene.queue_free()
 		await process_frame

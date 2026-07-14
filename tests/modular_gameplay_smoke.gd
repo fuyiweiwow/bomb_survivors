@@ -44,6 +44,8 @@ func _run():
 		return
 	if not _check(game.art != null and game.art.terrain_materials()["wall"] == game.art.mat_wall, "Shared art catalog was not initialized"):
 		return
+	if not _check(game.config_repository is GameConfigRepository, "GameManager3D did not own the shared configuration boundary"):
+		return
 	if not _check(not game.players.is_empty(), "Game did not create a player"):
 		return
 	if not _check(Constants.GRID_W == 38 and Constants.GRID_H == 26 and is_equal_approx(Constants.TILE_SIZE, 0.9), "Refined logical grid dimensions are incorrect"):
@@ -75,6 +77,8 @@ func _run():
 	if not _check(game.player_manager.visual_factory is PlayerVisualFactory, "PlayerManager still owns player mesh construction"):
 		return
 	if not _check(game.player_manager.state_factory is CharacterStateFactory, "PlayerManager still owns the character data schema"):
+		return
+	if not _check(game.player_manager.boss_catalog is BossCatalog and game.player_manager.boss_catalog.profile("clone_demon")["material"] == game.art.mat_boss_clone, "PlayerManager still owns Boss profile data or the catalog art binding failed"):
 		return
 	if not _check(not player.has("state_tween"), "Character domain data still stores presentation Tween state"):
 		return
@@ -760,7 +764,7 @@ func _run():
 		if not _check(int(game.audio_manager.played_events.get(event_id, 0)) > 0, "Gameplay did not emit the %s audio event" % event_id):
 			return
 
-	print("GAME_DESIGN_SMOKE_OK modular_composition character_registry character_presentation visual_factory state_factory shared_art_catalog audio_events duel_token_immunity duel_arena_catalog duel_world_pause duel_locked_loadout duel_lava_launch duel_dive_damage duel_random_lava duel_win_restore progression_unique_ids boss_behavior_boundary refined_logical_grid visible_initial_spawn clear_first_wave shield_pickup_inventory duplicate_inventory_fifo boss_crate_refresh strict_map_config attack_frontier crate_breach ai_lava_strategy difficulty_lava_probability ai_lava_wait winged_ai_lava_strategy airborne_ai_bomb_rule airborne_stomp shielded_stomp stomp_bounce stomp_overlap_safety stomp_single_hit one_cell_ground full_cell_blast cell_center_turning held_grid_motion shared_ai_movement active_world_blast timed_status_effects bomb_warning weather_bounds speed_curve forest_materials backpack_slots wall_hop chain_reaction overlap spawn_fx lava_launch wing_lava_launch wing_airborne_immunity wing_extended_flight airborne_movement vertical_attack_ranges safe_landing impact_support same_height_attack active_support_exit support_cracks support_fragments")
+	print("GAME_DESIGN_SMOKE_OK modular_composition config_repository boss_catalog character_registry character_presentation visual_factory state_factory shared_art_catalog audio_events duel_token_immunity duel_arena_catalog duel_world_pause duel_locked_loadout duel_lava_launch duel_dive_damage duel_random_lava duel_win_restore progression_unique_ids boss_behavior_boundary refined_logical_grid visible_initial_spawn clear_first_wave shield_pickup_inventory duplicate_inventory_fifo boss_crate_refresh strict_map_config attack_frontier crate_breach ai_lava_strategy difficulty_lava_probability ai_lava_wait winged_ai_lava_strategy airborne_ai_bomb_rule airborne_stomp shielded_stomp stomp_bounce stomp_overlap_safety stomp_single_hit one_cell_ground full_cell_blast cell_center_turning held_grid_motion shared_ai_movement active_world_blast timed_status_effects bomb_warning weather_bounds speed_curve forest_materials backpack_slots wall_hop chain_reaction overlap spawn_fx lava_launch wing_lava_launch wing_airborne_immunity wing_extended_flight airborne_movement vertical_attack_ranges safe_landing impact_support same_height_attack active_support_exit support_cracks support_fragments")
 	quit(0)
 
 
