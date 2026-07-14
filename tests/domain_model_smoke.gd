@@ -32,6 +32,22 @@ func _init() -> void:
 	}
 	var state := CharacterState.new(data)
 	var rules := CombatRules.new()
+	state.begin_grid_move(Vector2i(3, 3), Vector2i(4, 3), Vector3(1, 0, 0), 4.5)
+	if not _check(state.is_moving() and state.is_grid_motion_active() and state.move_target_cell() == Vector2i(4, 3), "Grid movement did not begin atomically"):
+		return
+	state.complete_grid_move()
+	if not _check(not state.is_moving() and state.cell() == Vector2i(4, 3), "Grid movement did not complete atomically"):
+		return
+	data["ai"] = true
+	data["move_timer"] = 0.0
+	data["move_interval"] = 0.25
+	data["bomb_timer"] = 0.0
+	data["bomb_interval"] = 0.5
+	data["bomb_placed_count"] = 0
+	data["bomb_max"] = 1
+	state.advance_ai_clocks(0.5)
+	if not _check(state.is_ai_move_ready() and state.is_ai_bomb_ready(), "AI clocks are not owned by CharacterState"):
+		return
 	if not _check(rules.damage_route(state, "blast") == CombatRules.DamageRoute.ENTER_DOWNED, "Normal damage route changed"):
 		return
 	data["shield"] = 1

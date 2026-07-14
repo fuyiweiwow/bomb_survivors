@@ -27,6 +27,7 @@ GameManager3D                         共享运行时上下文与帧顺序
 │   ├── AILavaFlightStrategy
 │   └── BossBehaviorController       Boss 技能与分身行为
 ├── CombatRules / CombatManager      纯战斗判定与效果编排
+│   └── TerrainEffectProcessor       状态计时与森林/岩浆效果
 ├── BombManager                      炸弹生命周期和爆炸范围
 ├── PowerupManager                   掉落物生成与拾取
 ├── ConsumableEffects                主动道具效果
@@ -92,9 +93,10 @@ GameManager3D                         共享运行时上下文与帧顺序
 ### 4.3 领域状态对象
 
 - `MapState` 是地图格子的唯一所有者，负责边界、读写、类型和通行查询；只有 `GridManager`、`MapEditor` 与 `MapDataCodec` 可以访问底层 `cells`。
-- `CharacterState` 是单个角色生命周期和数值状态的所有者，负责 down、复活、死亡、护盾与生命值转换。
+- `CharacterState` 是单个角色生命周期和数值状态的所有者，负责 down、复活、死亡、护盾、生命值、移动事务和 AI 计时器转换。
 - `CombatRules` 是无场景状态的纯判定对象，负责伤害路由、攻击高度/格内命中和角色重叠规则。
 - `GridManager`、`PlayerManager`、`CombatManager` 负责场景节点、音效、动画和跨领域编排，不重复领域规则。
+- `TerrainEffectProcessor` 负责状态倒计时和森林/岩浆 tick；`CombatManager` 只保留兼容代理并接收最终伤害命令。
 
 `grid` 与 `players` 目前只作为迁移期兼容视图。新代码不得直接修改这两个视图；地图写入使用 `MapState.set_cell()`，角色生命周期写入使用 `CharacterState` 方法。
 
@@ -131,6 +133,7 @@ PlayerCommandHandler 或 AIController
 ```
 
 通行判断、移动启动和物理推进必须保留在同一控制器中，避免不同调用方出现两套速度或格子规则。
+`GridMovementController` 只计算目标与位移，`CharacterState` 通过 begin/sync/complete/cancel 四个原子操作维护移动状态。
 
 ### 波次
 
@@ -227,8 +230,8 @@ Duel Token → DuelManager.arm() → 触碰敌人
 
 按收益优先级继续处理：
 
-1. 按模块将 `players` 兼容视图的字段访问迁移到 `CharacterState` 查询与命令。
-2. 将 `CombatManager` 的地形 tick 拆为独立地形效果处理器。
+1. 将背包、浮空、墙体机制中的 `players` 兼容字段访问迁移到 `CharacterState` 查询与命令。
+2. 将 `TerrainEffectProcessor` 中剩余的状态计时字段收口到 `CharacterState`。
 3. 将 `PlayerManager` 的角色 Mesh 工厂与生成/配置职责拆开。
 4. 将 `MapEditor` 的 UI 构建、射线选格和地图数据操作拆成三个组件。
 5. 把仍在使用的跨 manager 私有调用改为公开领域接口。

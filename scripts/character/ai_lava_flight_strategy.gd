@@ -9,60 +9,67 @@ var _game: Node
 func setup(game_manager: Node):
 	_game = game_manager
 
+func notify_state(state: CharacterState):
+	if state != null:
+		state.grant_lava_flight_opportunity()
+
 func notify_protection_granted(player: Dictionary):
-	if not bool(player.get("ai", false)):
-		return
-	player["lava_flight_available"] = true
-	player["lava_flight_target"] = INVALID_CELL
+	var state := _game.character_state_by_id(int(player.get("id", -1))) as CharacterState
+	if state != null:
+		notify_state(state)
+	elif bool(player.get("ai", false)):
+		player["lava_flight_available"] = true
+		player["lava_flight_target"] = INVALID_CELL
 
 func choose_action(player_index: int, danger_cells: Dictionary, roll_override: Variant = null) -> Dictionary:
 	var inactive := {"active": false, "waiting": false, "direction": Vector2i.ZERO, "target": INVALID_CELL}
-	if player_index < 0 or player_index >= _game.players.size():
+	var state := _game.character_state_at(player_index) as CharacterState
+	if state == null:
 		return inactive
-	var player: Dictionary = _game.players[player_index]
-	if _protection_time_left(player) <= 0.0:
-		cancel(player, true)
+	var player := state.data
+	if state.protection_time_left() <= 0.0:
+		_cancel_state(state, true)
 		return inactive
-	if bool(player.get("airborne", false)):
-		cancel(player, false)
+	if state.is_airborne():
+		_cancel_state(state, false)
 		return inactive
 
-	var target := player.get("lava_flight_target", INVALID_CELL) as Vector2i
+	var target := state.lava_flight_target()
 	if target == INVALID_CELL:
-		if not bool(player.get("lava_flight_available", false)):
+		if not state.has_lava_flight_opportunity():
 			return inactive
-		player["lava_flight_available"] = false
+		state.consume_lava_flight_opportunity()
 		var roll := randf() if roll_override == null else float(roll_override)
 		if not should_activate(player, roll):
 			return inactive
-		target = _find_reachable_lava_target(player, danger_cells)
+		target = _find_reachable_lava_target(state, danger_cells)
 		if target == INVALID_CELL:
 			return inactive
-		player["lava_flight_target"] = target
+		state.set_lava_flight_target(target)
 
 	if not _game.map_state.is_lava(target):
-		cancel(player, false)
+		_cancel_state(state, false)
 		return inactive
-	if player["grid_pos"] == target:
-		var eruption_remaining := maxf(Constants.LAVA_ERUPTION_TIME - float(player.get("lava_eruption_time", 0.0)), 0.0)
-		if eruption_remaining + SAFETY_MARGIN > _protection_time_left(player):
-			cancel(player, true)
+	if state.cell() == target:
+		var eruption_remaining := maxf(Constants.LAVA_ERUPTION_TIME - state.lava_eruption_time(), 0.0)
+		if eruption_remaining + SAFETY_MARGIN > state.protection_time_left():
+			_cancel_state(state, true)
 			return inactive
-		player["status"] = "Lava launch %.1fs" % maxf(Constants.LAVA_ERUPTION_TIME - float(player.get("lava_eruption_time", 0.0)), 0.0)
+		state.set_status("Lava launch %.1fs" % maxf(Constants.LAVA_ERUPTION_TIME - state.lava_eruption_time(), 0.0))
 		return {"active": true, "waiting": true, "direction": Vector2i.ZERO, "target": target}
 
-	var path := _path_to_lava(player, target, danger_cells)
+	var path := _path_to_lava(state, target, danger_cells)
 	if path.is_empty():
-		cancel(player, false)
+		_cancel_state(state, false)
 		return inactive
-	if not _protection_lasts_for_path(player, path):
-		cancel(player, true)
+	if not _protection_lasts_for_path(state, path):
+		_cancel_state(state, true)
 		return inactive
-	player["status"] = "Seeking lava lift"
+	state.set_status("Seeking lava lift")
 	return {
 		"active": true,
 		"waiting": false,
-		"direction": path[0] - (player["grid_pos"] as Vector2i),
+		"direction": path[0] - state.cell(),
 		"target": target,
 	}
 
@@ -78,34 +85,41 @@ func activation_probability(player: Dictionary) -> float:
 	return 0.34
 
 func cancel(player: Dictionary, consume_opportunity := false):
-	player["lava_flight_target"] = INVALID_CELL
-	if consume_opportunity:
-		player["lava_flight_available"] = false
+	var state := _game.character_state_by_id(int(player.get("id", -1))) as CharacterState
+	if state != null:
+		_cancel_state(state, consume_opportunity)
+	else:
+		player["lava_flight_target"] = INVALID_CELL
+		if consume_opportunity:
+			player["lava_flight_available"] = false
 
-func _find_reachable_lava_target(player: Dictionary, danger_cells: Dictionary) -> Vector2i:
+func _cancel_state(state: CharacterState, consume_opportunity := false):
+	state.cancel_lava_flight(consume_opportunity)
+
+func _find_reachable_lava_target(state: CharacterState, danger_cells: Dictionary) -> Vector2i:
 	var best_target := INVALID_CELL
 	var best_length := 999999
-	var start: Vector2i = player["grid_pos"]
+	var start := state.cell()
 	for y in range(1, Constants.GRID_H - 1):
 		for x in range(1, Constants.GRID_W - 1):
 			var candidate := Vector2i(x, y)
 			if not _game.map_state.is_lava(candidate) or danger_cells.has(candidate):
 				continue
-			if _is_occupied_by_other(candidate, player):
+			if _is_occupied_by_other(candidate, state):
 				continue
-			var path := _path_to_lava(player, candidate, danger_cells)
+			var path := _path_to_lava(state, candidate, danger_cells)
 			var path_length := 0 if candidate == start else path.size()
 			if candidate != start and path.is_empty():
 				continue
-			if not _protection_lasts_for_path(player, path):
+			if not _protection_lasts_for_path(state, path):
 				continue
 			if path_length < best_length:
 				best_length = path_length
 				best_target = candidate
 	return best_target
 
-func _path_to_lava(player: Dictionary, target: Vector2i, danger_cells: Dictionary) -> Array[Vector2i]:
-	var start: Vector2i = player["grid_pos"]
+func _path_to_lava(state: CharacterState, target: Vector2i, danger_cells: Dictionary) -> Array[Vector2i]:
+	var start := state.cell()
 	if start == target:
 		return []
 	var walkable: Dictionary = {}
@@ -118,30 +132,25 @@ func _path_to_lava(player: Dictionary, target: Vector2i, danger_cells: Dictionar
 				continue
 			if _game.bomb_map.has(cell) or _game.oil_barrels.has(cell) or danger_cells.has(cell):
 				continue
-			if _is_occupied_by_other(cell, player):
+			if _is_occupied_by_other(cell, state):
 				continue
 			walkable[cell] = true
 	walkable[start] = true
 	return AI_PATHFINDER.find_path(start, target, walkable)
 
-func _protection_lasts_for_path(player: Dictionary, path: Array[Vector2i]) -> bool:
+func _protection_lasts_for_path(state: CharacterState, path: Array[Vector2i]) -> bool:
 	var travel_time := 0.0
-	var base_duration := Constants.move_duration_for_speed(int(player.get("speed", 5)))
+	var base_duration := Constants.move_duration_for_speed(state.speed_value())
 	for cell in path:
 		var cell_duration := base_duration
 		if _game.weather_manager:
 			cell_duration *= _game.weather_manager.movement_duration_multiplier(cell)
-		if float(player.get("slow_timer", 0.0)) > 0.0:
-			cell_duration *= 3.33
+		cell_duration *= state.movement_duration_multiplier()
 		travel_time += cell_duration
-	return travel_time + Constants.LAVA_ERUPTION_TIME + SAFETY_MARGIN <= _protection_time_left(player)
+	return travel_time + Constants.LAVA_ERUPTION_TIME + SAFETY_MARGIN <= state.protection_time_left()
 
-func _protection_time_left(player: Dictionary) -> float:
-	var shield_time := float(player.get("shield_timer", 0.0)) if int(player.get("shield", 0)) > 0 else 0.0
-	return maxf(shield_time, float(player.get("wings_timer", 0.0)))
-
-func _is_occupied_by_other(cell: Vector2i, player: Dictionary) -> bool:
-	for other: Dictionary in _game.players:
-		if other != player and other["alive"] and other["grid_pos"] == cell:
+func _is_occupied_by_other(cell: Vector2i, state: CharacterState) -> bool:
+	for other_state in _game.character_states:
+		if other_state != state and other_state.is_alive() and other_state.cell() == cell:
 			return true
 	return false

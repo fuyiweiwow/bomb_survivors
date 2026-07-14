@@ -19,6 +19,162 @@ func cell() -> Vector2i:
 func set_cell(value: Vector2i) -> void:
 	data["grid_pos"] = value
 
+func can_start_grid_move() -> bool:
+	return (
+		is_alive()
+		and not is_downed()
+		and not is_moving()
+		and float(data.get("frozen_timer", 0.0)) <= 0.0
+		and node() != null
+	)
+
+func is_moving() -> bool:
+	return bool(data.get("is_moving", false))
+
+func is_grid_motion_active() -> bool:
+	return bool(data.get("grid_motion_active", false))
+
+func move_speed_world() -> float:
+	return float(data.get("move_speed_world", 0.0))
+
+func move_target_world() -> Vector3:
+	return data.get("move_target_world", Vector3.ZERO) as Vector3
+
+func set_move_target_world(value: Vector3) -> void:
+	data["move_target_world"] = value
+
+func move_target_cell() -> Vector2i:
+	return data.get("move_target_cell", cell()) as Vector2i
+
+func move_direction() -> Vector2i:
+	return data.get("move_dir", Vector2i.ZERO) as Vector2i
+
+func set_move_direction(direction: Vector2i) -> void:
+	data["move_dir"] = direction
+
+func set_last_move_direction(direction: Vector2i) -> void:
+	data["last_move_dir"] = direction
+
+func begin_grid_move(from_cell: Vector2i, target_cell: Vector2i, target_world: Vector3, world_speed: float) -> void:
+	data["move_from_cell"] = from_cell
+	data["move_target_cell"] = target_cell
+	data["move_target_world"] = target_world
+	data["move_speed_world"] = world_speed
+	data["grid_motion_active"] = true
+	data["is_moving"] = true
+	data["move_tween"] = null
+
+func sync_grid_position(world_position: Vector3, force_target := false) -> void:
+	var actual_cell := move_target_cell() if force_target else Constants.world_to_grid(world_position)
+	if Constants.is_grid_cell_valid(actual_cell):
+		set_cell(actual_cell)
+
+func complete_grid_move() -> Vector2i:
+	var arrived_cell := move_target_cell()
+	set_cell(arrived_cell)
+	data["move_from_cell"] = arrived_cell
+	data["move_target_cell"] = arrived_cell
+	data["is_moving"] = false
+	data["move_speed_world"] = 0.0
+	data["grid_motion_active"] = false
+	return arrived_cell
+
+func cancel_grid_move(resting_position: Vector3) -> void:
+	data["is_moving"] = false
+	data["move_from_cell"] = cell()
+	data["move_target_cell"] = cell()
+	data["move_target_world"] = resting_position
+	data["move_speed_world"] = 0.0
+	data["grid_motion_active"] = false
+	data["move_tween"] = null
+
+func movement_duration_multiplier() -> float:
+	return 3.33 if float(data.get("slow_timer", 0.0)) > 0.0 else 1.0
+
+func movement_height() -> float:
+	var character_node := node()
+	if is_airborne() and character_node != null:
+		return character_node.position.y
+	return 0.92 if float(data.get("wings_timer", 0.0)) > 0.0 else 0.0
+
+func can_process_ai() -> bool:
+	return is_ai() and is_alive() and not is_downed() and float(data.get("frozen_timer", 0.0)) <= 0.0
+
+func advance_ai_clocks(delta: float) -> void:
+	data["move_timer"] = float(data.get("move_timer", 0.0)) + delta
+	data["bomb_timer"] = float(data.get("bomb_timer", 0.0)) + delta
+
+func is_ai_move_ready() -> bool:
+	return float(data.get("move_timer", 0.0)) >= float(data.get("move_interval", 0.0))
+
+func reset_ai_move_timer(fraction := 0.0) -> void:
+	data["move_timer"] = float(data.get("move_interval", 0.0)) * fraction
+
+func is_ai_bomb_ready() -> bool:
+	return (
+		float(data.get("bomb_timer", 0.0)) >= float(data.get("bomb_interval", 0.0))
+		and int(data.get("bomb_placed_count", 0)) < int(data.get("bomb_max", 0))
+	)
+
+func reset_ai_bomb_timer() -> void:
+	data["bomb_timer"] = 0.0
+
+func ai_difficulty() -> String:
+	return str(data.get("ai_difficulty", "normal"))
+
+func is_minion() -> bool:
+	return bool(data.get("is_minion", false))
+
+func boss_id() -> String:
+	return str(data.get("boss_id", ""))
+
+func bomb_range() -> int:
+	return int(data.get("bomb_range", 1))
+
+func last_bomb_cell() -> Vector2i:
+	return data.get("last_bomb_pos", Vector2i(-1, -1)) as Vector2i
+
+func set_last_bomb_cell(value: Vector2i) -> void:
+	data["last_bomb_pos"] = value
+
+func remember_target(cell_value: Vector2i) -> void:
+	data["last_seen_player_pos"] = cell_value
+
+func set_status(value: String) -> void:
+	data["status"] = value
+
+func grant_lava_flight_opportunity() -> void:
+	if is_ai():
+		data["lava_flight_available"] = true
+		data["lava_flight_target"] = Vector2i(-1, -1)
+
+func has_lava_flight_opportunity() -> bool:
+	return bool(data.get("lava_flight_available", false))
+
+func consume_lava_flight_opportunity() -> void:
+	data["lava_flight_available"] = false
+
+func lava_flight_target() -> Vector2i:
+	return data.get("lava_flight_target", Vector2i(-1, -1)) as Vector2i
+
+func set_lava_flight_target(value: Vector2i) -> void:
+	data["lava_flight_target"] = value
+
+func cancel_lava_flight(consume_opportunity := false) -> void:
+	set_lava_flight_target(Vector2i(-1, -1))
+	if consume_opportunity:
+		consume_lava_flight_opportunity()
+
+func protection_time_left() -> float:
+	var shield_time := float(data.get("shield_timer", 0.0)) if has_shield() else 0.0
+	return maxf(shield_time, float(data.get("wings_timer", 0.0)))
+
+func lava_eruption_time() -> float:
+	return float(data.get("lava_eruption_time", 0.0))
+
+func speed_value() -> int:
+	return int(data.get("speed", 5))
+
 func is_alive() -> bool:
 	return bool(data.get("alive", false))
 

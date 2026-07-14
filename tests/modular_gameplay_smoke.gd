@@ -68,6 +68,8 @@ func _run():
 		return
 	if not _check(game.combat_manager.rules is CombatRules, "CombatManager does not delegate decisions to CombatRules"):
 		return
+	if not _check(game.combat_manager.terrain_effects is TerrainEffectProcessor, "Terrain effects remain embedded in CombatManager"):
+		return
 	var player_shape := ((player["node"] as Area3D).get_child(0) as CollisionShape3D).shape as CapsuleShape3D
 	if not _check(player_shape != null and player_shape.radius * 2.0 <= Constants.TILE_SIZE, "Player footprint exceeds one refined cell"):
 		return

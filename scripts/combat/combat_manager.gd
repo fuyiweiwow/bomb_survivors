@@ -1,12 +1,17 @@
 extends Node
 
 const COMBAT_RULES_SCRIPT := preload("res://scripts/combat/combat_rules.gd")
+const TERRAIN_EFFECT_PROCESSOR_SCRIPT := preload("res://scripts/combat/terrain_effect_processor.gd")
 
 var _game: Node
 var rules: CombatRules = COMBAT_RULES_SCRIPT.new()
+var terrain_effects: TerrainEffectProcessor
 
 func setup(game_manager: Node):
 	_game = game_manager
+	terrain_effects = TERRAIN_EFFECT_PROCESSOR_SCRIPT.new()
+	add_child(terrain_effects)
+	terrain_effects.setup(_game, self)
 
 func kill_player(player_index: int) -> void:
 	_kill_player(player_index)
@@ -58,78 +63,7 @@ func process_character_overlaps():
 				break
 
 func process_terrain_effects(delta: float):
-	for i in range(_game.players.size()):
-		var p: Dictionary = _game.players[i]
-		if not p["alive"]:
-			continue
-		p["duel_return_grace"] = maxf(float(p.get("duel_return_grace", 0.0)) - delta, 0.0)
-		if int(p.get("shield", 0)) > 0:
-			p["shield_timer"] = maxf(float(p.get("shield_timer", Constants.SHIELD_DURATION)) - delta, 0.0)
-			if float(p["shield_timer"]) <= 0.0:
-				p["shield"] = 0
-		else:
-			p["shield_timer"] = 0.0
-		if bool(p.get("downed", false)):
-			continue
-		var had_wings := float(p.get("wings_timer", 0.0)) > 0.0
-		p["invincible_timer"] = maxf(float(p.get("invincible_timer", 0.0)) - delta, 0.0)
-		p["wings_timer"] = maxf(float(p.get("wings_timer", 0.0)) - delta, 0.0)
-		p["football_timer"] = maxf(float(p.get("football_timer", 0.0)) - delta, 0.0)
-		p["slow_timer"] = maxf(float(p.get("slow_timer", 0.0)) - delta, 0.0)
-		if had_wings and float(p["wings_timer"]) <= 0.0:
-			_game.consumable_effects.end_wings(p)
-		p["frozen_timer"] = maxf(float(p.get("frozen_timer", 0.0)) - delta, 0.0)
-		var cell: Vector2i = p["grid_pos"]
-		var cell_type: int = _game.map_state.cell_at(cell)
-		var status_parts: Array = []
-		if bool(p.get("duel_pending", false)):
-			status_parts.append("Duel ready: touch an enemy")
-
-		if bool(p.get("airborne", false)):
-			p["lava_time"] = 0.0
-			p["lava_eruption_time"] = 0.0
-			status_parts.append("Airborne %.1fm" % Constants.player_world_height(p))
-		elif cell_type == Constants.Cell.FOREST:
-			status_parts.append("Hidden")
-		if not bool(p.get("airborne", false)) and cell_type == Constants.Cell.LAVA:
-			if _has_lava_lift_protection(p):
-				p["lava_time"] = 0.0
-				p["lava_eruption_time"] = float(p.get("lava_eruption_time", 0.0)) + delta
-				status_parts.append("Lava pressure %.1fs" % maxf(Constants.LAVA_ERUPTION_TIME - float(p["lava_eruption_time"]), 0.0))
-				if float(p["lava_eruption_time"]) >= Constants.LAVA_ERUPTION_TIME and _game.airborne_controller:
-					if _game.airborne_controller.launch_from_lava(i):
-						status_parts.clear()
-						status_parts.append("Airborne %.1fm" % Constants.player_world_height(p))
-			else:
-				p["lava_eruption_time"] = 0.0
-				p["lava_time"] = float(p["lava_time"]) + delta
-				status_parts.append("Burning %.1fs" % maxf(Constants.LAVA_DAMAGE_TIME - float(p["lava_time"]), 0.0))
-				if float(p["lava_time"]) >= Constants.LAVA_DAMAGE_TIME:
-					p["lava_time"] = 0.0
-					_damage_player(i, 1, "lava")
-		elif not bool(p.get("airborne", false)):
-			p["lava_time"] = 0.0
-			p["lava_eruption_time"] = 0.0
-
-		if int(p.get("shield", 0)) > 0:
-			status_parts.append("Shield %d %.1fs" % [int(p["shield"]), float(p["shield_timer"])])
-		if float(p.get("frozen_timer", 0.0)) > 0.0:
-			status_parts.append("Frozen %.1fs" % float(p["frozen_timer"]))
-		if float(p["invincible_timer"]) > 0.0:
-			status_parts.append("Invincible %.1fs" % float(p["invincible_timer"]))
-		if float(p["wings_timer"]) > 0.0:
-			status_parts.append("Wings %.1fs" % float(p["wings_timer"]))
-		if float(p["football_timer"]) > 0.0:
-			status_parts.append("Football %.1fs" % float(p["football_timer"]))
-		if float(p["slow_timer"]) > 0.0:
-			status_parts.append("Glued %.1fs" % float(p["slow_timer"]))
-		if status_parts.is_empty():
-			p["status"] = "Ready"
-		else:
-			p["status"] = " / ".join(status_parts)
-
-func _has_lava_lift_protection(player: Dictionary) -> bool:
-	return int(player.get("shield", 0)) > 0 or float(player.get("wings_timer", 0.0)) > 0.0
+	terrain_effects.process(delta)
 
 func apply_explosion_damage(
 	cells: Array,

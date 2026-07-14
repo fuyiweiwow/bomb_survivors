@@ -17,82 +17,77 @@ func setup(game_manager: Node):
 	boss_behavior.setup(_game)
 
 func on_shield_granted(player_index: int):
-	if player_index < 0 or player_index >= _game.players.size():
-		return
-	lava_flight_strategy.notify_protection_granted(_game.players[player_index])
+	lava_flight_strategy.notify_state(_game.character_state_at(player_index))
 
 func on_wings_granted(player_index: int):
-	if player_index < 0 or player_index >= _game.players.size():
-		return
-	lava_flight_strategy.notify_protection_granted(_game.players[player_index])
+	lava_flight_strategy.notify_state(_game.character_state_at(player_index))
 
 func process_ai(delta: float):
 	for i in range(_game.players.size()):
-		var p: Dictionary = _game.players[i]
-		if not p["ai"] or not p["alive"] or bool(p.get("downed", false)):
+		var state := _game.character_state_at(i) as CharacterState
+		if state == null or not state.can_process_ai():
 			continue
-		if float(p.get("frozen_timer", 0.0)) > 0.0:
-			continue
-		if bool(p.get("is_minion", false)) and not _game.players.is_empty():
-			if Constants.grid_distance(p["grid_pos"], _game.players[0]["grid_pos"]) <= 1:
+		if state.is_minion() and not _game.players.is_empty():
+			if Constants.grid_distance(state.cell(), _game.character_state_at(0).cell()) <= 1:
 				boss_behavior.explode_clone_minion(i)
 				continue
-		if str(p.get("boss_id", "")) != "":
+		if state.boss_id() != "":
 			boss_behavior.process_skill(i, delta)
 
-		_update_ai_target_memory(p)
-		p["move_timer"] += delta
-		p["bomb_timer"] += delta
-		if p["is_moving"]:
+		_update_ai_target_memory(state)
+		state.advance_ai_clocks(delta)
+		if state.is_moving():
 			continue
 
 		var danger_escape := _ai_escape_dir_from_active_bombs(i)
 		if danger_escape != Vector2i.ZERO:
-			p["move_dir"] = danger_escape
+			state.set_move_direction(danger_escape)
 			if _game.movement_controller.try_move(i, danger_escape):
-				p["move_timer"] = 0.0
+				state.reset_ai_move_timer()
 				continue
-			p["move_dir"] = Vector2i.ZERO
+			state.set_move_direction(Vector2i.ZERO)
 
 		var lava_action: Dictionary = lava_flight_strategy.choose_action(i, _game.bomb_manager.active_blast_cell_set())
 		if bool(lava_action["active"]):
-			p["move_dir"] = lava_action["direction"]
-			p["move_timer"] = 0.0
+			state.set_move_direction(lava_action["direction"])
+			state.reset_ai_move_timer()
 			if not bool(lava_action["waiting"]):
-				_game.movement_controller.try_move(i, p["move_dir"])
+				_game.movement_controller.try_move(i, state.move_direction())
 			continue
 
-		if not bool(p.get("airborne", false)) and p["bomb_timer"] >= p["bomb_interval"] and p["bomb_placed_count"] < p["bomb_max"] and _ai_should_place_bomb(i):
-			p["bomb_timer"] = 0.0
+		if not state.is_airborne() and state.is_ai_bomb_ready() and _ai_should_place_bomb(i):
+			state.reset_ai_bomb_timer()
 			var escape_dir := _ai_escape_dir_after_bomb(i)
 			if escape_dir != Vector2i.ZERO:
 				_game.bomb_manager.try_place_bomb(i)
-				p["last_bomb_pos"] = p["grid_pos"]
-				p["move_dir"] = escape_dir
+				state.set_last_bomb_cell(state.cell())
+				state.set_move_direction(escape_dir)
 				if _game.movement_controller.try_move(i, escape_dir):
-					p["move_timer"] = 0.0
+					state.reset_ai_move_timer()
 					continue
 
-		if p["move_timer"] < p["move_interval"]:
+		if not state.is_ai_move_ready():
 			continue
-		p["move_timer"] = 0.0
-		p["move_dir"] = _choose_ai_direction(p)
-		if p["move_dir"] != Vector2i.ZERO and not _game.movement_controller.try_move(i, p["move_dir"]):
-			p["move_dir"] = Vector2i.ZERO
-			p["move_timer"] = float(p["move_interval"]) * 0.75
+		state.reset_ai_move_timer()
+		state.set_move_direction(_choose_ai_direction(state))
+		if state.move_direction() != Vector2i.ZERO and not _game.movement_controller.try_move(i, state.move_direction()):
+			state.set_move_direction(Vector2i.ZERO)
+			state.reset_ai_move_timer(0.75)
 
-func _update_ai_target_memory(p: Dictionary):
-	if str(p.get("ai_difficulty", "normal")) != "hard" or _game.players.is_empty():
+func _update_ai_target_memory(state: CharacterState):
+	if state.ai_difficulty() != "hard" or _game.players.is_empty():
 		return
-	var target: Dictionary = _game.players[0]
-	if not target["alive"] or (_game.weather_manager and not _game.weather_manager.can_see(p["grid_pos"], target["grid_pos"])):
+	var target := _game.character_state_at(0) as CharacterState
+	if target == null or not target.is_alive() or (_game.weather_manager and not _game.weather_manager.can_see(state.cell(), target.cell())):
 		return
-	p["last_seen_player_pos"] = target["grid_pos"]
+	state.remember_target(target.cell())
 
 func _ai_should_place_bomb(player_index: int) -> bool:
-	var p: Dictionary = _game.players[player_index]
-	var difficulty := str(p.get("ai_difficulty", "normal"))
-	var blast_cells: Dictionary = _game.bomb_manager.blast_cell_set(p["grid_pos"], p["bomb_range"])
+	var state := _game.character_state_at(player_index) as CharacterState
+	if state == null:
+		return false
+	var difficulty := state.ai_difficulty()
+	var blast_cells: Dictionary = _game.bomb_manager.blast_cell_set(state.cell(), state.bomb_range())
 	if difficulty == "hard" and _game.character_state_at(0).is_hidden_in(_game.map_state) and _is_target_in_ground_attack_layer(_game.players[0]) and blast_cells.has(_game.players[0]["grid_pos"]):
 		return true
 	for i: int in range(_game.players.size()):
@@ -104,7 +99,7 @@ func _ai_should_place_bomb(player_index: int) -> bool:
 
 	var dirs := [Vector2i(0, -1), Vector2i(0, 1), Vector2i(-1, 0), Vector2i(1, 0)]
 	for d in dirs:
-		var check: Vector2i = p["grid_pos"] + d
+		var check: Vector2i = state.cell() + d
 		if _game.map_state.is_crate(check):
 			return true
 	var can_breach_toward_player: bool = (
@@ -114,7 +109,7 @@ func _ai_should_place_bomb(player_index: int) -> bool:
 	)
 	if difficulty in ["normal", "hard"] and can_breach_toward_player:
 		var player_cell: Vector2i = _game.players[0]["grid_pos"]
-		var current_distance := Constants.grid_distance(p["grid_pos"], player_cell)
+		var current_distance := Constants.grid_distance(state.cell(), player_cell)
 		for cell in blast_cells.keys():
 			var c := cell as Vector2i
 			if _game.map_state.is_crate(c) and Constants.grid_distance(c, player_cell) < current_distance:
@@ -124,22 +119,23 @@ func _ai_should_place_bomb(player_index: int) -> bool:
 func _is_target_in_ground_attack_layer(target: Dictionary) -> bool:
 	return Constants.is_player_in_attack_height(target, Constants.GROUND_ATTACK_MIN_HEIGHT, Constants.GROUND_ATTACK_MAX_HEIGHT)
 
-func _choose_ai_direction(p: Dictionary) -> Vector2i:
+func _choose_ai_direction(state: CharacterState) -> Vector2i:
+	var p := state.data
 	var dirs := [Vector2i(0, -1), Vector2i(0, 1), Vector2i(-1, 0), Vector2i(1, 0)]
 	dirs.shuffle()
 	var danger_cells: Dictionary = _game.bomb_manager.active_blast_cell_set()
-	var walkable_cells: Dictionary = _ai_navigation_cells(p, danger_cells)
-	var difficulty: String = str(p.get("ai_difficulty", "normal"))
+	var walkable_cells: Dictionary = _ai_navigation_cells(state, danger_cells)
+	var difficulty := state.ai_difficulty()
 	var can_target_player: bool = (
 		not _game.players.is_empty()
 		and _game.players[0]["alive"]
 		and (difficulty == "hard" or not _game.character_state_at(0).is_hidden_in(_game.map_state))
-		and (not _game.weather_manager or _game.weather_manager.can_see(p["grid_pos"], _game.players[0]["grid_pos"]))
+		and (not _game.weather_manager or _game.weather_manager.can_see(state.cell(), _game.character_state_at(0).cell()))
 	)
 	var player_cell := Vector2i(-1, -1)
 	if can_target_player:
 		player_cell = _game.players[0]["grid_pos"]
-		if Constants.grid_distance(p["grid_pos"], player_cell) <= 1:
+		if Constants.grid_distance(state.cell(), player_cell) <= 1:
 			return Vector2i.ZERO
 	var strategic_direction: Vector2i = AIDecisionPolicy.choose_direction(
 		p,
@@ -150,29 +146,29 @@ func _choose_ai_direction(p: Dictionary) -> Vector2i:
 	)
 	if strategic_direction != Vector2i.ZERO:
 		return strategic_direction
-	var last_bomb: Vector2i = p["last_bomb_pos"]
+	var last_bomb := state.last_bomb_cell()
 	if last_bomb != Vector2i(-1, -1):
-		var away := _filter_away(dirs, p["grid_pos"], last_bomb)
+		var away := _filter_away(dirs, state.cell(), last_bomb)
 		if not away.is_empty():
 			dirs = away
 
 	for d in dirs:
-		var target: Vector2i = p["grid_pos"] + d
+		var target: Vector2i = state.cell() + d
 		if _game.is_cell_walkable(target.x, target.y) and not danger_cells.has(target) and not _game.map_state.is_lava(target):
 			return d
 	for d in dirs:
-		var target: Vector2i = p["grid_pos"] + d
+		var target: Vector2i = state.cell() + d
 		if _game.is_cell_walkable(target.x, target.y) and not danger_cells.has(target):
 			return d
 	return Vector2i.ZERO
 
-func _ai_navigation_cells(p: Dictionary, danger_cells: Dictionary) -> Dictionary:
+func _ai_navigation_cells(state: CharacterState, danger_cells: Dictionary) -> Dictionary:
 	var result: Dictionary = {}
-	var start: Vector2i = p["grid_pos"]
+	var start := state.cell()
 	var occupied: Dictionary = {}
-	for other: Dictionary in _game.players:
-		if other["alive"] and other["grid_pos"] != start:
-			occupied[other["grid_pos"]] = true
+	for other_state in _game.character_states:
+		if other_state.is_alive() and other_state.cell() != start:
+			occupied[other_state.cell()] = true
 	for y: int in range(Constants.GRID_H):
 		for x: int in range(Constants.GRID_W):
 			var cell := Vector2i(x, y)
@@ -201,9 +197,11 @@ func _filter_away(dirs: Array, pos: Vector2i, away_from: Vector2i) -> Array:
 	return result
 
 func _ai_escape_dir_after_bomb(player_index: int) -> Vector2i:
-	var p: Dictionary = _game.players[player_index]
-	var bomb_cell: Vector2i = p["grid_pos"]
-	var blast_cells: Dictionary = _game.bomb_manager.blast_cell_set(bomb_cell, p["bomb_range"])
+	var state := _game.character_state_at(player_index) as CharacterState
+	if state == null:
+		return Vector2i.ZERO
+	var bomb_cell := state.cell()
+	var blast_cells: Dictionary = _game.bomb_manager.blast_cell_set(bomb_cell, state.bomb_range())
 	var queue: Array = [{"pos": bomb_cell, "first": Vector2i.ZERO}]
 	var visited := {bomb_cell: true}
 	var head := 0
@@ -218,7 +216,6 @@ func _ai_escape_dir_after_bomb(player_index: int) -> Vector2i:
 
 		if first_step != Vector2i.ZERO and not blast_cells.has(pos):
 			return first_step
-
 		for d in dirs:
 			var next: Vector2i = pos + d
 			if visited.has(next):
@@ -234,8 +231,10 @@ func _ai_escape_dir_after_bomb(player_index: int) -> Vector2i:
 	return Vector2i.ZERO
 
 func _ai_escape_dir_from_active_bombs(player_index: int) -> Vector2i:
-	var p: Dictionary = _game.players[player_index]
-	var start: Vector2i = p["grid_pos"]
+	var state := _game.character_state_at(player_index) as CharacterState
+	if state == null:
+		return Vector2i.ZERO
+	var start := state.cell()
 	var danger_cells: Dictionary = _game.bomb_manager.active_blast_cell_set()
 	if not danger_cells.has(start):
 		return Vector2i.ZERO
