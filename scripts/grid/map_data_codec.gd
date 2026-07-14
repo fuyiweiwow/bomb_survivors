@@ -2,6 +2,19 @@ extends RefCounted
 
 const FORMAT_VERSION := 3
 
+static func encode_state(map_state: MapState) -> Dictionary:
+	return encode(map_state.cells, map_state.width, map_state.height, map_state.empty_cell)
+
+static func decode_into_state(raw_data: Variant, map_state: MapState) -> bool:
+	return decode_into_grid(
+		raw_data,
+		map_state.cells,
+		map_state.width,
+		map_state.height,
+		map_state.empty_cell,
+		map_state.border_cell
+	)
+
 
 static func encode(grid: Array, width: int, height: int, empty_cell: int) -> Dictionary:
 	var cells := {}

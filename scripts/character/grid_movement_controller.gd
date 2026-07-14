@@ -31,7 +31,7 @@ func try_move(player_index: int, direction: Vector2i) -> bool:
 	var target_cell := Constants.world_to_grid(target_world)
 	if not Constants.is_grid_cell_valid(target_cell):
 		return false
-	if not is_airborne and target_cell != current_cell and _game.grid[target_cell.y][target_cell.x] == Constants.Cell.WALL:
+	if not is_airborne and target_cell != current_cell and _game.map_state.is_wall(target_cell):
 		return _game.wall_mechanics.try_wall_hop(player_index, direction)
 	if not is_airborne and target_cell != current_cell and not is_cell_walkable(target_cell, player_index):
 		return false
@@ -53,7 +53,7 @@ func is_cell_walkable(cell: Vector2i, player_index := -1) -> bool:
 	if not Constants.is_grid_cell_valid(cell):
 		return false
 	var has_wings: bool = player_index >= 0 and player_index < _game.players.size() and float(_game.players[player_index].get("wings_timer", 0.0)) > 0.0
-	if _game.grid[cell.y][cell.x] == Constants.Cell.WALL or (not has_wings and not Constants.is_walkable_cell(_game.grid[cell.y][cell.x])):
+	if _game.map_state.is_wall(cell) or (not has_wings and not _game.map_state.is_walkable(cell)):
 		return false
 	if _game.oil_barrels.has(cell) and not has_wings:
 		return false

@@ -20,13 +20,13 @@ GameManager3D                         共享运行时上下文与帧顺序
 ├── ProgressionCoordinator           波次、天气和生成编排
 │   ├── WaveManager
 │   └── WeatherManager
-├── GridManager                      地图数据与地形实例
+├── MapState / GridManager           地图领域对象与地形实例
 ├── GridMovementController           通行、移动开始和连续推进
-├── PlayerManager                    角色配置、创建与生成
+├── CharacterState / PlayerManager   角色状态领域对象、配置与生成
 ├── AIController                     通用 AI 决策和逃生
 │   ├── AILavaFlightStrategy
 │   └── BossBehaviorController       Boss 技能与分身行为
-├── CombatManager                    伤害、down、死亡与胜负
+├── CombatRules / CombatManager      纯战斗判定与效果编排
 ├── BombManager                      炸弹生命周期和爆炸范围
 ├── PowerupManager                   掉落物生成与拾取
 ├── ConsumableEffects                主动道具效果
@@ -65,7 +65,7 @@ GameManager3D                         共享运行时上下文与帧顺序
 
 允许持有：
 
-- 共享集合：`players`、`bomb_map`、`powerups`、动态地形集合。
+- 领域状态：`MapState`、`character_states`、炸弹/掉落物/动态地形集合。
 - 系统引用：`combat_manager`、`movement_controller` 等。
 - 全局局内状态：`game_over`、`next_player_id`、难度。
 - `_process()` 中明确可读的系统执行顺序。
@@ -89,7 +89,16 @@ GameManager3D                         共享运行时上下文与帧顺序
 - `ProgressionCoordinator` 创建并拥有 `WaveManager`、`WeatherManager`。
 - `AIController` 创建并拥有 AI 策略和 `BossBehaviorController`。
 
-### 4.3 共享运行时上下文
+### 4.3 领域状态对象
+
+- `MapState` 是地图格子的唯一所有者，负责边界、读写、类型和通行查询；只有 `GridManager`、`MapEditor` 与 `MapDataCodec` 可以访问底层 `cells`。
+- `CharacterState` 是单个角色生命周期和数值状态的所有者，负责 down、复活、死亡、护盾与生命值转换。
+- `CombatRules` 是无场景状态的纯判定对象，负责伤害路由、攻击高度/格内命中和角色重叠规则。
+- `GridManager`、`PlayerManager`、`CombatManager` 负责场景节点、音效、动画和跨领域编排，不重复领域规则。
+
+`grid` 与 `players` 目前只作为迁移期兼容视图。新代码不得直接修改这两个视图；地图写入使用 `MapState.set_cell()`，角色生命周期写入使用 `CharacterState` 方法。
+
+### 4.4 共享运行时上下文
 
 当前项目使用注入的 `game` 引用访问局内共享状态。这是一个有意保留的显式依赖，而不是全局单例。
 
@@ -172,6 +181,9 @@ Duel Token → DuelManager.arm() → 触碰敌人
 ## 六、共享数据与美术
 
 - `Constants`：网格尺寸、世界坐标换算、速度曲线、攻击高度。
+- `MapState`：地图边界、Cell 数据和通行查询。
+- `CharacterState`：角色生命周期与状态转换。
+- `CombatRules`：可独立测试的命中和伤害路由规则。
 - `MapDataCodec`：游戏和地图编辑器共用的当前格式编解码与严格版本校验；不迁移旧地图。
 - `GameArtCatalog`：游戏和地图编辑器共用的纹理与材质实例定义。
 - `PowerupModelFactory`：游戏掉落物与菜单道具图标共用的程序化 3D 模型定义。
@@ -205,6 +217,7 @@ Duel Token → DuelManager.arm() → 触碰敌人
 
 ## 八、测试与约束
 
+- `tests/domain_model_smoke.gd` 独立覆盖地图、角色和战斗领域对象。
 - `tests/modular_gameplay_smoke.gd` 覆盖系统组合、输入、移动、AI、Boss、背包、天气、爆炸和高度规则。
 - 架构重构必须先保持 smoke 行为不变，再增加边界初始化和唯一 ID 测试。
 - 新增脚本必须能被 Godot editor 全量扫描，并提交对应 `.gd.uid`。
@@ -214,9 +227,10 @@ Duel Token → DuelManager.arm() → 触碰敌人
 
 按收益优先级继续处理：
 
-1. 将 `CombatManager` 的地形 tick 与 down 状态机拆开。
-2. 将 `PlayerManager` 的角色 Mesh 工厂与生成/配置职责拆开。
-3. 将 `MapEditor` 的 UI 构建、射线选格和地图数据操作拆成三个组件。
-4. 把仍在使用的跨 manager 私有调用改为公开领域接口。
+1. 按模块将 `players` 兼容视图的字段访问迁移到 `CharacterState` 查询与命令。
+2. 将 `CombatManager` 的地形 tick 拆为独立地形效果处理器。
+3. 将 `PlayerManager` 的角色 Mesh 工厂与生成/配置职责拆开。
+4. 将 `MapEditor` 的 UI 构建、射线选格和地图数据操作拆成三个组件。
+5. 把仍在使用的跨 manager 私有调用改为公开领域接口。
 
 不要一次性替换角色字典为 Resource；应先建立类型化适配器和当前格式编解码测试，再按领域逐步迁移。

@@ -62,6 +62,12 @@ func _run():
 				return
 
 	var player: Dictionary = game.players[0]
+	if not _check(game.map_state is MapState and game.map_state.cells == game.grid, "Game does not expose MapState as the canonical map model"):
+		return
+	if not _check(game.character_states.size() == game.players.size() and game.character_state_at(0).data == player, "CharacterState registry is not synchronized with the compatibility player view"):
+		return
+	if not _check(game.combat_manager.rules is CombatRules, "CombatManager does not delegate decisions to CombatRules"):
+		return
 	var player_shape := ((player["node"] as Area3D).get_child(0) as CollisionShape3D).shape as CapsuleShape3D
 	if not _check(player_shape != null and player_shape.radius * 2.0 <= Constants.TILE_SIZE, "Player footprint exceeds one refined cell"):
 		return

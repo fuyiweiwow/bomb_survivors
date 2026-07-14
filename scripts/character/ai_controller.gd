@@ -93,31 +93,31 @@ func _ai_should_place_bomb(player_index: int) -> bool:
 	var p: Dictionary = _game.players[player_index]
 	var difficulty := str(p.get("ai_difficulty", "normal"))
 	var blast_cells: Dictionary = _game.bomb_manager.blast_cell_set(p["grid_pos"], p["bomb_range"])
-	if difficulty == "hard" and Constants.is_player_hidden(_game.players, 0, _game.grid) and _is_target_in_ground_attack_layer(_game.players[0]) and blast_cells.has(_game.players[0]["grid_pos"]):
+	if difficulty == "hard" and _game.character_state_at(0).is_hidden_in(_game.map_state) and _is_target_in_ground_attack_layer(_game.players[0]) and blast_cells.has(_game.players[0]["grid_pos"]):
 		return true
 	for i: int in range(_game.players.size()):
 		if i == player_index:
 			continue
 		var target: Dictionary = _game.players[i]
-		if target["alive"] and _is_target_in_ground_attack_layer(target) and not Constants.is_player_hidden(_game.players, i, _game.grid) and blast_cells.has(target["grid_pos"]):
+		if target["alive"] and _is_target_in_ground_attack_layer(target) and not _game.character_state_at(i).is_hidden_in(_game.map_state) and blast_cells.has(target["grid_pos"]):
 			return true
 
 	var dirs := [Vector2i(0, -1), Vector2i(0, 1), Vector2i(-1, 0), Vector2i(1, 0)]
 	for d in dirs:
 		var check: Vector2i = p["grid_pos"] + d
-		if check.x >= 0 and check.x < Constants.GRID_W and check.y >= 0 and check.y < Constants.GRID_H and _game.grid[check.y][check.x] == Constants.Cell.CRATE:
+		if _game.map_state.is_crate(check):
 			return true
 	var can_breach_toward_player: bool = (
 		not _game.players.is_empty()
 		and _game.players[0]["alive"]
-		and (difficulty == "hard" or not Constants.is_player_hidden(_game.players, 0, _game.grid))
+		and (difficulty == "hard" or not _game.character_state_at(0).is_hidden_in(_game.map_state))
 	)
 	if difficulty in ["normal", "hard"] and can_breach_toward_player:
 		var player_cell: Vector2i = _game.players[0]["grid_pos"]
 		var current_distance := Constants.grid_distance(p["grid_pos"], player_cell)
 		for cell in blast_cells.keys():
 			var c := cell as Vector2i
-			if _game.grid[c.y][c.x] == Constants.Cell.CRATE and Constants.grid_distance(c, player_cell) < current_distance:
+			if _game.map_state.is_crate(c) and Constants.grid_distance(c, player_cell) < current_distance:
 				return true
 	return false
 
@@ -133,7 +133,7 @@ func _choose_ai_direction(p: Dictionary) -> Vector2i:
 	var can_target_player: bool = (
 		not _game.players.is_empty()
 		and _game.players[0]["alive"]
-		and (difficulty == "hard" or not Constants.is_player_hidden(_game.players, 0, _game.grid))
+		and (difficulty == "hard" or not _game.character_state_at(0).is_hidden_in(_game.map_state))
 		and (not _game.weather_manager or _game.weather_manager.can_see(p["grid_pos"], _game.players[0]["grid_pos"]))
 	)
 	var player_cell := Vector2i(-1, -1)
@@ -158,7 +158,7 @@ func _choose_ai_direction(p: Dictionary) -> Vector2i:
 
 	for d in dirs:
 		var target: Vector2i = p["grid_pos"] + d
-		if _game.is_cell_walkable(target.x, target.y) and not danger_cells.has(target) and not Constants.is_lava_cell(_game.grid, target):
+		if _game.is_cell_walkable(target.x, target.y) and not danger_cells.has(target) and not _game.map_state.is_lava(target):
 			return d
 	for d in dirs:
 		var target: Vector2i = p["grid_pos"] + d
@@ -176,11 +176,11 @@ func _ai_navigation_cells(p: Dictionary, danger_cells: Dictionary) -> Dictionary
 	for y: int in range(Constants.GRID_H):
 		for x: int in range(Constants.GRID_W):
 			var cell := Vector2i(x, y)
-			if not Constants.is_walkable_cell(_game.grid[y][x]):
+			if not _game.map_state.is_walkable(cell):
 				continue
 			if _game.bomb_map.has(cell) or _game.oil_barrels.has(cell) or occupied.has(cell):
 				continue
-			if danger_cells.has(cell) or Constants.is_lava_cell(_game.grid, cell):
+			if danger_cells.has(cell) or _game.map_state.is_lava(cell):
 				continue
 			result[cell] = true
 	result[start] = true
@@ -270,9 +270,7 @@ func _ai_escape_dir_from_active_bombs(player_index: int) -> Vector2i:
 	return Vector2i.ZERO
 
 func _is_ai_escape_walkable(cell: Vector2i, bomb_cell: Vector2i, player_index: int, simulated_bomb := false) -> bool:
-	if cell.x < 0 or cell.x >= Constants.GRID_W or cell.y < 0 or cell.y >= Constants.GRID_H:
-		return false
-	if not Constants.is_walkable_cell(_game.grid[cell.y][cell.x]):
+	if not _game.map_state.is_walkable(cell):
 		return false
 	if simulated_bomb and cell == bomb_cell:
 		return false

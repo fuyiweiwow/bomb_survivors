@@ -110,7 +110,7 @@ func kick_bomb_in_direction(player: Dictionary):
 		if target.x < 0 or target.x >= Constants.GRID_W or target.y < 0 or target.y >= Constants.GRID_H:
 			hit_obstacle = true
 			break
-		if game.grid[target.y][target.x] in [CELL_WALL, CELL_CRATE] or game.oil_barrels.has(target) or game.bomb_map.has(target):
+		if game.map_state.cell_at(target) in [CELL_WALL, CELL_CRATE] or game.oil_barrels.has(target) or game.bomb_map.has(target):
 			hit_obstacle = true
 			break
 		destination = target
@@ -167,10 +167,10 @@ func get_explosion_cells(origin: Vector2i, blast_range: int, apply_weather := fa
 			var cell: Vector2i = origin + (direction as Vector2i) * distance
 			if cell.x < 0 or cell.x >= Constants.GRID_W or cell.y < 0 or cell.y >= Constants.GRID_H:
 				break
-			if game.grid[cell.y][cell.x] == CELL_WALL:
+			if game.map_state.is_wall(cell):
 				break
 			cells.append(cell)
-			if game.grid[cell.y][cell.x] == CELL_CRATE or game.oil_barrels.has(cell):
+			if game.map_state.is_crate(cell) or game.oil_barrels.has(cell):
 				break
 	return {"cells": cells}
 

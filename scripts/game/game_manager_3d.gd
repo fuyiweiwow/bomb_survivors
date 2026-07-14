@@ -31,6 +31,7 @@ var progression_coordinator: Node
 var art: RefCounted = ART_CATALOG_SCRIPT.new()
 
 var players: Array = []
+var character_states: Array[CharacterState] = []
 var bomb_map: Dictionary = {}
 var powerups: Dictionary = {}
 var oil_barrels: Dictionary = {}
@@ -40,6 +41,9 @@ var game_over := false
 var next_player_id := 2
 var bomb_pressed := false
 var ai_difficulty := "normal"
+
+var map_state: RefCounted:
+	get: return grid_manager.map_state
 
 var grid: Array:
 	get: return grid_manager.grid
@@ -76,8 +80,22 @@ func _setup_progression():
 func _spawn_players():
 	var config: Dictionary = player_manager.load_player_config()
 	inventory_manager = INVENTORY_MANAGER_SCRIPT.new()
-	var player: Dictionary = player_manager.spawn_player(config, inventory_manager)
-	players.append(player)
+	register_character_state(player_manager.spawn_player(config, inventory_manager))
+
+func register_character_state(state: CharacterState) -> void:
+	character_states.append(state)
+	players.append(state.data)
+
+func character_state_at(index: int) -> CharacterState:
+	if index < 0 or index >= character_states.size():
+		return null
+	return character_states[index]
+
+func character_state_by_id(character_id: int) -> CharacterState:
+	for state in character_states:
+		if state.id() == character_id:
+			return state
+	return null
 
 func _process(delta):
 	if game_over:

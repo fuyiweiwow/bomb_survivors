@@ -88,7 +88,7 @@ func _physics_process(delta: float):
 func _support_height(cell: Vector2i) -> float:
 	if not Constants.is_grid_cell_valid(cell):
 		return -1.0
-	match _game.grid[cell.y][cell.x]:
+	match _game.map_state.cell_at(cell):
 		Constants.Cell.CRATE:
 			return Constants.CRATE_SUPPORT_HEIGHT
 		Constants.Cell.WALL:
@@ -149,7 +149,7 @@ func _find_safe_landing_cell(origin: Vector2i, player_index: int) -> Vector2i:
 func _is_safe_landing_cell(cell: Vector2i, player_index: int) -> bool:
 	return (
 		Constants.is_grid_cell_valid(cell)
-		and not Constants.is_lava_cell(_game.grid, cell)
+		and not _game.map_state.is_lava(cell)
 		and _game.is_cell_walkable(cell.x, cell.y, player_index)
 	)
 

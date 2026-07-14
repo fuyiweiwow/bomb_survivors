@@ -23,9 +23,9 @@ func process(delta: float):
 		if bool(player.get("impact_support", false)):
 			_process_impact_support(player_index, player, cell, delta)
 			continue
-		if game.grid[cell.y][cell.x] == CELL_CRATE:
+		if game.map_state.is_crate(cell):
 			continue
-		if game.grid[cell.y][cell.x] != CELL_WALL:
+		if not game.map_state.is_wall(cell):
 			_drop_player_from_block(player)
 			continue
 		player["wall_stay_timer"] = float(player["wall_stay_timer"]) + delta
@@ -44,7 +44,7 @@ func process(delta: float):
 			continue
 		if game.bomb_map.has(cell) or is_cell_occupied(cell):
 			continue
-		game.grid[cell.y][cell.x] = CELL_WALL
+		game.map_state.set_cell(cell, CELL_WALL)
 		var wall = game.grid_manager.wall_nodes.get(cell)
 		if is_instance_valid(wall):
 			wall.visible = true
@@ -75,7 +75,7 @@ func leave_elevated_cell(player: Dictionary):
 	player["impact_support_timer"] = 0.0
 
 func _process_impact_support(player_index: int, player: Dictionary, cell: Vector2i, delta: float):
-	if not _is_in_bounds(cell) or game.grid[cell.y][cell.x] not in [CELL_WALL, CELL_CRATE]:
+	if not game.map_state.is_in_bounds(cell) or game.map_state.cell_at(cell) not in [CELL_WALL, CELL_CRATE]:
 		leave_elevated_cell(player)
 		game.airborne_controller.begin_fall(player_index)
 		return
@@ -87,7 +87,7 @@ func _process_impact_support(player_index: int, player: Dictionary, cell: Vector
 		_break_impact_support(player_index, player, cell)
 
 func _break_impact_support(player_index: int, player: Dictionary, cell: Vector2i):
-	var cell_type: int = game.grid[cell.y][cell.x]
+	var cell_type: int = game.map_state.cell_at(cell)
 	_reset_impact_support_visual(cell)
 	_clear_crack_visual(player)
 	player["elevated_cell"] = Vector2i(-1, -1)
@@ -105,7 +105,7 @@ func _break_impact_support(player_index: int, player: Dictionary, cell: Vector2i
 func _update_impact_support_visual(player: Dictionary, cell: Vector2i, progress: float):
 	var support = _support_node(cell)
 	if is_instance_valid(support):
-		var base_position := Constants.grid_to_world(cell) + Vector3(0, 0.62 if game.grid[cell.y][cell.x] == CELL_WALL else 0.46, 0)
+		var base_position := Constants.grid_to_world(cell) + Vector3(0, 0.62 if game.map_state.is_wall(cell) else 0.46, 0)
 		var shake := sin(float(player["impact_support_timer"]) * 52.0) * 0.045 * progress
 		(support as Node3D).position = base_position + Vector3(shake, -0.08 * progress, -shake * 0.6)
 		(support as Node3D).scale = Vector3(1.0 + 0.05 * progress, 1.0 - 0.24 * progress, 1.0 + 0.05 * progress)
@@ -133,7 +133,7 @@ func _support_node(cell: Vector2i):
 func _create_crack_visual(cell: Vector2i) -> Node3D:
 	var root := Node3D.new()
 	root.name = "SupportCracks_%d_%d" % [cell.x, cell.y]
-	var support_height := Constants.WALL_SUPPORT_HEIGHT if game.grid[cell.y][cell.x] == CELL_WALL else Constants.CRATE_SUPPORT_HEIGHT
+	var support_height := Constants.WALL_SUPPORT_HEIGHT if game.map_state.is_wall(cell) else Constants.CRATE_SUPPORT_HEIGHT
 	root.position = Constants.grid_to_world(cell) + Vector3(0, support_height + 0.025, 0)
 	root.scale = Vector3.ONE * 0.25
 	var crack_mat := MeshHelpers.make_mat(Color(1.0, 0.10, 0.025), true)
@@ -193,9 +193,9 @@ func try_bomb_boost(player_index: int) -> bool:
 	var target := Vector2i(-1, -1)
 	for direction in directions:
 		var candidate: Vector2i = player["grid_pos"] + direction
-		if candidate.x < 0 or candidate.x >= Constants.GRID_W or candidate.y < 0 or candidate.y >= Constants.GRID_H:
+		if not game.map_state.is_in_bounds(candidate):
 			continue
-		if game.grid[candidate.y][candidate.x] not in [CELL_WALL, CELL_CRATE] or is_cell_occupied(candidate, player):
+		if game.map_state.cell_at(candidate) not in [CELL_WALL, CELL_CRATE] or is_cell_occupied(candidate, player):
 			continue
 		target = candidate
 		break
@@ -210,7 +210,7 @@ func try_bomb_boost(player_index: int) -> bool:
 	player["status"] = "Bomb Boost"
 	var node = player.get("node")
 	if is_instance_valid(node):
-		var height := Constants.WALL_SUPPORT_HEIGHT if game.grid[target.y][target.x] == CELL_WALL else Constants.CRATE_SUPPORT_HEIGHT
+		var height := Constants.WALL_SUPPORT_HEIGHT if game.map_state.is_wall(target) else Constants.CRATE_SUPPORT_HEIGHT
 		game.create_tween().bind_node(node).tween_property(node, "position", Constants.grid_to_world(target) + Vector3(0, height, 0), 0.24).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
 	return true
 
@@ -232,13 +232,13 @@ func try_wall_hop(player_index: int, direction: Vector2i) -> bool:
 		return false
 	var origin := player["grid_pos"] as Vector2i
 	var wall_cell := origin + direction
-	if not _is_in_bounds(wall_cell) or game.grid[wall_cell.y][wall_cell.x] != CELL_WALL:
+	if not game.map_state.is_wall(wall_cell):
 		return false
 	var perpendicular := Vector2i(-direction.y, direction.x)
 	var required_empty := [origin - perpendicular, origin, origin + perpendicular, wall_cell - perpendicular, wall_cell + perpendicular]
 	for raw_cell in required_empty:
 		var cell := raw_cell as Vector2i
-		if not _is_in_bounds(cell) or game.grid[cell.y][cell.x] != CELL_EMPTY:
+		if not game.map_state.is_type(cell, CELL_EMPTY):
 			return false
 	for exit_cell in [wall_cell - perpendicular, wall_cell + perpendicular]:
 		if game.bomb_map.has(exit_cell) or game.oil_barrels.has(exit_cell):
@@ -280,7 +280,7 @@ func is_cell_occupied(cell: Vector2i, ignored_player: Dictionary = {}) -> bool:
 	return false
 
 func _destroy_wall(cell: Vector2i):
-	game.grid[cell.y][cell.x] = CELL_EMPTY
+	game.map_state.set_cell(cell, CELL_EMPTY)
 	game.grid_manager.destroyed_walls[cell] = 0.0
 	game.audio_manager.play("wall_break")
 	var wall = game.grid_manager.wall_nodes.get(cell)
@@ -302,4 +302,4 @@ func _set_wall_warning(cell: Vector2i, enabled: bool):
 		wall.transparency = 0.45 if enabled else 0.0
 
 func _is_in_bounds(cell: Vector2i) -> bool:
-	return cell.x >= 0 and cell.x < Constants.GRID_W and cell.y >= 0 and cell.y < Constants.GRID_H
+	return game.map_state.is_in_bounds(cell)

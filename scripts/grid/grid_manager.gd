@@ -1,6 +1,7 @@
 extends Node
 
 const MAP_DATA_CODEC := preload("res://scripts/grid/map_data_codec.gd")
+const MAP_STATE_SCRIPT := preload("res://scripts/grid/map_state.gd")
 const BOSS_CRATE_REFRESH_COUNT := 10
 const SPAWN_SAFE_DEPTH := Constants.GRID_REFINEMENT * 2
 const FIXED_WALL_SPACING := Constants.GRID_REFINEMENT * 2
@@ -8,7 +9,9 @@ const MAP_LOAD_MISSING := 0
 const MAP_LOAD_OK := 1
 const MAP_LOAD_INVALID := -1
 
-var grid: Array = []
+var map_state: RefCounted = MAP_STATE_SCRIPT.new()
+var grid: Array:
+	get: return map_state.cells
 var crate_nodes: Dictionary = {}
 var wall_nodes: Dictionary = {}
 var destroyed_walls: Dictionary = {}
@@ -42,19 +45,7 @@ func init_grid():
 	_generate_default_layout()
 
 func _initialize_blank_grid():
-	grid.clear()
-	for y in Constants.GRID_H:
-		var row: Array = []
-		row.resize(Constants.GRID_W)
-		row.fill(Constants.Cell.EMPTY)
-		grid.append(row)
-
-	for x in Constants.GRID_W:
-		grid[0][x] = Constants.Cell.WALL
-		grid[Constants.GRID_H - 1][x] = Constants.Cell.WALL
-	for y in Constants.GRID_H:
-		grid[y][0] = Constants.Cell.WALL
-		grid[y][Constants.GRID_W - 1] = Constants.Cell.WALL
+	map_state.reset_blank()
 
 func _generate_default_layout():
 	for y in range(FIXED_WALL_SPACING, Constants.GRID_H - FIXED_WALL_SPACING, FIXED_WALL_SPACING):
@@ -157,46 +148,28 @@ func _create_crate(cell: Vector2i):
 	_game.add_child(crate)
 
 func get_cell(x: int, y: int) -> int:
-	if x < 0 or x >= Constants.GRID_W or y < 0 or y >= Constants.GRID_H:
-		return Constants.Cell.WALL
-	return grid[y][x]
+	return map_state.cell_at(Vector2i(x, y))
 
 func set_cell(x: int, y: int, value: int):
-	if x >= 0 and x < Constants.GRID_W and y >= 0 and y < Constants.GRID_H:
-		grid[y][x] = value
+	map_state.set_cell(Vector2i(x, y), value)
 
 func is_passable(x: int, y: int) -> bool:
-	if x < 0 or x >= Constants.GRID_W or y < 0 or y >= Constants.GRID_H:
-		return false
-	return Constants.is_walkable_cell(grid[y][x])
+	return map_state.is_walkable(Vector2i(x, y))
 
 func is_crate_at(cell: Vector2i) -> bool:
-	if cell.x < 0 or cell.x >= Constants.GRID_W or cell.y < 0 or cell.y >= Constants.GRID_H:
-		return false
-	return grid[cell.y][cell.x] == Constants.Cell.CRATE
+	return map_state.is_type(cell, Constants.Cell.CRATE)
 
 func is_wall_at(cell: Vector2i) -> bool:
-	if cell.x < 0 or cell.x >= Constants.GRID_W or cell.y < 0 or cell.y >= Constants.GRID_H:
-		return false
-	return grid[cell.y][cell.x] == Constants.Cell.WALL
+	return map_state.is_type(cell, Constants.Cell.WALL)
 
 func is_forest_at(cell: Vector2i) -> bool:
-	if cell.x < 0 or cell.x >= Constants.GRID_W or cell.y < 0 or cell.y >= Constants.GRID_H:
-		return false
-	return grid[cell.y][cell.x] == Constants.Cell.FOREST
+	return map_state.is_type(cell, Constants.Cell.FOREST)
 
 func is_lava_at(cell: Vector2i) -> bool:
-	if cell.x < 0 or cell.x >= Constants.GRID_W or cell.y < 0 or cell.y >= Constants.GRID_H:
-		return false
-	return grid[cell.y][cell.x] == Constants.Cell.LAVA
+	return map_state.is_type(cell, Constants.Cell.LAVA)
 
 func walkable_cells() -> Array:
-	var cells: Array = []
-	for y in range(1, Constants.GRID_H - 1):
-		for x in range(1, Constants.GRID_W - 1):
-			if Constants.is_walkable_cell(grid[y][x]):
-				cells.append(Vector2i(x, y))
-	return cells
+	return map_state.walkable_cells()
 
 func _seed_special_terrain():
 	var open_cells: Array = []
@@ -237,13 +210,9 @@ func _load_saved_map() -> int:
 		return MAP_LOAD_INVALID
 	file.close()
 
-	if not MAP_DATA_CODEC.decode_into_grid(
+	if not MAP_DATA_CODEC.decode_into_state(
 		json.get_data(),
-		grid,
-		Constants.GRID_W,
-		Constants.GRID_H,
-		Constants.Cell.EMPTY,
-		Constants.Cell.WALL
+		map_state
 	):
 		_delete_saved_map()
 		return MAP_LOAD_INVALID

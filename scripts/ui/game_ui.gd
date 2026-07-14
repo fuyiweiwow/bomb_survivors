@@ -124,7 +124,7 @@ func update_weather_visibility():
 		if is_instance_valid(node):
 			(node as Node3D).visible = (
 				p["alive"]
-				and not Constants.is_player_hidden(_game.players, i, _game.grid)
+				and not _game.character_state_at(i).is_hidden_in(_game.map_state)
 				and _game.weather_manager.can_see(_game.players[0]["grid_pos"], p["grid_pos"])
 			)
 

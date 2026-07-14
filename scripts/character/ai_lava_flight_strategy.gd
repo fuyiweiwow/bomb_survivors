@@ -40,7 +40,7 @@ func choose_action(player_index: int, danger_cells: Dictionary, roll_override: V
 			return inactive
 		player["lava_flight_target"] = target
 
-	if not Constants.is_grid_cell_valid(target) or not Constants.is_lava_cell(_game.grid, target):
+	if not _game.map_state.is_lava(target):
 		cancel(player, false)
 		return inactive
 	if player["grid_pos"] == target:
@@ -89,7 +89,7 @@ func _find_reachable_lava_target(player: Dictionary, danger_cells: Dictionary) -
 	for y in range(1, Constants.GRID_H - 1):
 		for x in range(1, Constants.GRID_W - 1):
 			var candidate := Vector2i(x, y)
-			if not Constants.is_lava_cell(_game.grid, candidate) or danger_cells.has(candidate):
+			if not _game.map_state.is_lava(candidate) or danger_cells.has(candidate):
 				continue
 			if _is_occupied_by_other(candidate, player):
 				continue
@@ -112,9 +112,9 @@ func _path_to_lava(player: Dictionary, target: Vector2i, danger_cells: Dictionar
 	for y in range(Constants.GRID_H):
 		for x in range(Constants.GRID_W):
 			var cell := Vector2i(x, y)
-			if cell != target and not Constants.is_walkable_cell(_game.grid[y][x]):
+			if cell != target and not _game.map_state.is_walkable(cell):
 				continue
-			if cell != target and Constants.is_lava_cell(_game.grid, cell):
+			if cell != target and _game.map_state.is_lava(cell):
 				continue
 			if _game.bomb_map.has(cell) or _game.oil_barrels.has(cell) or danger_cells.has(cell):
 				continue

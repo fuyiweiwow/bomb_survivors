@@ -1,11 +1,13 @@
 extends Node
 
+const CHARACTER_STATE_SCRIPT := preload("res://scripts/character/character_state.gd")
+
 var _game: Node
 
 func setup(game_manager: Node):
 	_game = game_manager
 
-func create_player(id: int, cell: Vector2i, ai: bool, mat: Material, style := "male") -> Dictionary:
+func create_player(id: int, cell: Vector2i, ai: bool, mat: Material, style := "male") -> CharacterState:
 	var style_data := _player_style_data(style)
 	var root := Area3D.new()
 	root.name = "Player%d_3D" % id
@@ -35,7 +37,7 @@ func create_player(id: int, cell: Vector2i, ai: bool, mat: Material, style := "m
 	visual_root.add_child(visor)
 
 	_game.add_child(root)
-	return {
+	return CHARACTER_STATE_SCRIPT.new({
 		"id": id,
 		"node": root,
 		"visual_node": visual_root,
@@ -99,7 +101,7 @@ func create_player(id: int, cell: Vector2i, ai: bool, mat: Material, style := "m
 		"frozen_timer": 0.0,
 		"duel_pending": false,
 		"duel_return_grace": 0.0
-	}
+	})
 
 func load_player_config() -> Dictionary:
 	var config := {
@@ -171,7 +173,7 @@ func find_spawn_cell() -> Vector2i:
 	for y in range(1, Constants.GRID_H - 1):
 		for x in range(1, Constants.GRID_W - 1):
 			var cell := Vector2i(x, y)
-			if _game.grid[cell.y][cell.x] != Constants.Cell.EMPTY or _game.bomb_map.has(cell):
+			if _game.map_state.cell_at(cell) != Constants.Cell.EMPTY or _game.bomb_map.has(cell):
 				continue
 			if _game.powerups.has(cell) or _game.oil_barrels.has(cell) or _game.glue_areas.has(cell):
 				continue
@@ -198,14 +200,15 @@ func boss_data(boss_id: String) -> Dictionary:
 			return {"name": "Blast King", "hp": 8, "speed": 5, "range": 5, "bomb_max": 3, "move_interval": 0.28, "bomb_interval": 0.75, "skill_interval": 3.5, "material": _game.art.mat_boss_blast}
 
 func spawn_player(config: Dictionary, inventory_manager):
-	var player := create_player(1, Constants.PLAYER_START_CELL, false, player_material_from_config(config), str(config["gender"]))
+	var state := create_player(1, Constants.PLAYER_START_CELL, false, player_material_from_config(config), str(config["gender"]))
+	var player := state.data
 	player["speed"] = config["start_speed"]
 	player["bomb_max"] = config["start_bombs"]
 	player["bomb_range"] = config["start_range"]
 	player["shield"] = config["start_shields"]
 	player["shield_timer"] = Constants.SHIELD_DURATION if int(player["shield"]) > 0 else 0.0
 	inventory_manager.add_item(player, "shield_potion")
-	return player
+	return state
 
 func spawn_ai_wave(count: int, difficulty: String, start_id: int) -> int:
 	var current_id := start_id
@@ -214,11 +217,12 @@ func spawn_ai_wave(count: int, difficulty: String, start_id: int) -> int:
 		var spawn_cell := find_spawn_cell()
 		if spawn_cell == Vector2i(-1, -1):
 			break
-		var ai_player := create_player(current_id, spawn_cell, true, _game.art.mat_ai, "ai")
+		var ai_state := create_player(current_id, spawn_cell, true, _game.art.mat_ai, "ai")
+		var ai_player := ai_state.data
 		current_id += 1
 		spawned += 1
 		apply_ai_difficulty(ai_player, difficulty)
-		_game.players.append(ai_player)
+		_game.register_character_state(ai_state)
 		_play_spawn_effect(spawn_cell, false)
 	return spawned
 
@@ -227,7 +231,8 @@ func spawn_boss(boss_id: String, boss_id_val: int) -> bool:
 	if spawn_cell == Vector2i(-1, -1):
 		return false
 	var boss_data_dict := boss_data(boss_id)
-	var boss := create_player(boss_id_val, spawn_cell, true, boss_data_dict["material"], "boss")
+	var boss_state := create_player(boss_id_val, spawn_cell, true, boss_data_dict["material"], "boss")
+	var boss := boss_state.data
 	boss["boss_id"] = boss_id
 	boss["boss_name"] = boss_data_dict["name"]
 	boss["hp"] = boss_data_dict["hp"]
@@ -239,7 +244,7 @@ func spawn_boss(boss_id: String, boss_id_val: int) -> bool:
 	boss["bomb_interval"] = boss_data_dict["bomb_interval"]
 	boss["skill_timer"] = boss_data_dict["skill_interval"]
 	boss["node"].scale = Vector3(1.45, 1.45, 1.45)
-	_game.players.append(boss)
+	_game.register_character_state(boss_state)
 	_play_spawn_effect(spawn_cell, true)
 	_game.audio_manager.play("boss_spawn")
 	_game.game_ui.flash_boss_spawn()
@@ -255,7 +260,8 @@ func spawn_clone_minions(origin: Vector2i, start_id: int) -> int:
 		var cell: Vector2i = origin + direction
 		if not _is_clone_spawn_walkable(cell):
 			continue
-		var minion := create_player(current_id, cell, true, _game.art.mat_boss_clone, "ai")
+		var minion_state := create_player(current_id, cell, true, _game.art.mat_boss_clone, "ai")
+		var minion := minion_state.data
 		current_id += 1
 		minion["is_minion"] = true
 		minion["hp"] = 1
@@ -266,7 +272,7 @@ func spawn_clone_minions(origin: Vector2i, start_id: int) -> int:
 		minion["ai_difficulty"] = "hard"
 		minion["status"] = "Decoy"
 		minion["node"].scale = Vector3(0.72, 0.72, 0.72)
-		_game.players.append(minion)
+		_game.register_character_state(minion_state)
 		spawned += 1
 		if spawned >= 2:
 			break
@@ -275,7 +281,7 @@ func spawn_clone_minions(origin: Vector2i, start_id: int) -> int:
 func _is_clone_spawn_walkable(cell: Vector2i) -> bool:
 	if cell.x < 0 or cell.x >= Constants.GRID_W or cell.y < 0 or cell.y >= Constants.GRID_H:
 		return false
-	if not Constants.is_walkable_cell(_game.grid[cell.y][cell.x]):
+	if not _game.map_state.is_walkable(cell):
 		return false
 	if _game.bomb_map.has(cell):
 		return false

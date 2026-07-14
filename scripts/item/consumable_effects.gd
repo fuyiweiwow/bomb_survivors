@@ -71,13 +71,13 @@ func end_wings(player: Dictionary):
 	if bool(player.get("airborne", false)):
 		return
 	var cell := player["grid_pos"] as Vector2i
-	if Constants.is_walkable_cell(game.grid[cell.y][cell.x]) and not game.bomb_map.has(cell) and not game.oil_barrels.has(cell):
+	if game.map_state.is_walkable(cell) and not game.bomb_map.has(cell) and not game.oil_barrels.has(cell):
 		return
 	for direction in [Vector2i.UP, Vector2i.DOWN, Vector2i.LEFT, Vector2i.RIGHT]:
 		var target: Vector2i = cell + direction
 		if target.x < 0 or target.x >= Constants.GRID_W or target.y < 0 or target.y >= Constants.GRID_H:
 			continue
-		if Constants.is_walkable_cell(game.grid[target.y][target.x]) and not game.bomb_map.has(target) and not game.oil_barrels.has(target) and not game.wall_mechanics.is_cell_occupied(target):
+		if game.map_state.is_walkable(target) and not game.bomb_map.has(target) and not game.oil_barrels.has(target) and not game.wall_mechanics.is_cell_occupied(target):
 			player["grid_pos"] = target
 			var node = player.get("node")
 			if is_instance_valid(node):
@@ -108,7 +108,7 @@ func _use_detonator(player: Dictionary) -> bool:
 	var direction := player["last_move_dir"] as Vector2i
 	for distance in range(1, 7):
 		var cell: Vector2i = player["grid_pos"] + direction * distance
-		if cell.x < 0 or cell.x >= Constants.GRID_W or cell.y < 0 or cell.y >= Constants.GRID_H or game.grid[cell.y][cell.x] == CELL_WALL:
+		if not game.map_state.is_in_bounds(cell) or game.map_state.is_wall(cell):
 			break
 		if game.bomb_map.has(cell):
 			game.bomb_manager.explode_bomb(cell)
@@ -134,7 +134,7 @@ func _place_oil_barrel(player_index: int) -> bool:
 	var cell: Vector2i = player["grid_pos"] + (player["last_move_dir"] as Vector2i)
 	if cell.x < 0 or cell.x >= Constants.GRID_W or cell.y < 0 or cell.y >= Constants.GRID_H:
 		return false
-	if not Constants.is_walkable_cell(game.grid[cell.y][cell.x]) or game.bomb_map.has(cell) or game.oil_barrels.has(cell) or game.wall_mechanics.is_cell_occupied(cell):
+	if not game.map_state.is_walkable(cell) or game.bomb_map.has(cell) or game.oil_barrels.has(cell) or game.wall_mechanics.is_cell_occupied(cell):
 		player["status"] = "No room for barrel"
 		return false
 	var root := Node3D.new()
@@ -157,7 +157,7 @@ func _cast_tianlao(player_index: int):
 	for direction in [Vector2i.UP, Vector2i.DOWN, Vector2i.LEFT, Vector2i.RIGHT]:
 		for distance in range(1, 6):
 			var cell: Vector2i = origin + direction * distance
-			if cell.x < 0 or cell.x >= Constants.GRID_W or cell.y < 0 or cell.y >= Constants.GRID_H or game.grid[cell.y][cell.x] == CELL_WALL:
+			if not game.map_state.is_in_bounds(cell) or game.map_state.is_wall(cell):
 				break
 			cells.append(cell)
 	for raw_cell in cells:

@@ -6,11 +6,14 @@ const TILE_SIZE := Constants.TILE_SIZE
 const FLOOR_Y := Constants.FLOOR_Y
 const TERRAIN_ART := preload("res://scripts/terrain/terrain_art_factory.gd")
 const MAP_DATA_CODEC := preload("res://scripts/grid/map_data_codec.gd")
+const MAP_STATE_SCRIPT := preload("res://scripts/grid/map_state.gd")
 const ART_CATALOG := preload("res://scripts/core/game_art_catalog.gd")
 
 enum Cell { EMPTY, WALL, CRATE, FOREST, LAVA }
 
-var grid: Array = []
+var map_state: RefCounted = MAP_STATE_SCRIPT.new(GRID_W, GRID_H, Cell.EMPTY, Cell.WALL)
+var grid: Array:
+	get: return map_state.cells
 var selected_cell := Cell.WALL
 var selected_label: Label = null
 var map_root: Node3D = null
@@ -27,19 +30,7 @@ func _ready():
 	_refresh_view()
 
 func _init_grid():
-	grid.clear()
-	for y in GRID_H:
-		var row: Array = []
-		row.resize(GRID_W)
-		row.fill(Cell.EMPTY)
-		grid.append(row)
-
-	for x in GRID_W:
-		grid[0][x] = Cell.WALL
-		grid[GRID_H - 1][x] = Cell.WALL
-	for y in GRID_H:
-		grid[y][0] = Cell.WALL
-		grid[y][GRID_W - 1] = Cell.WALL
+	map_state.reset_blank()
 
 func _setup_scene():
 	var world := WorldEnvironment.new()
@@ -338,9 +329,9 @@ func _input(event):
 		var cell := _screen_to_grid(event.position)
 		if cell.x >= 1 and cell.x < GRID_W - 1 and cell.y >= 1 and cell.y < GRID_H - 1:
 			if event.button_index == MOUSE_BUTTON_LEFT:
-				grid[cell.y][cell.x] = selected_cell
+				map_state.set_cell(cell, selected_cell)
 			elif event.button_index == MOUSE_BUTTON_RIGHT:
-				grid[cell.y][cell.x] = Cell.EMPTY
+				map_state.set_cell(cell, Cell.EMPTY)
 			_refresh_view()
 
 func _is_pointer_over_editor_ui(screen_pos: Vector2) -> bool:
@@ -350,7 +341,7 @@ func _is_pointer_over_editor_ui(screen_pos: Vector2) -> bool:
 func _save_map():
 	var file := FileAccess.open("user://map_data.json", FileAccess.WRITE)
 	if file:
-		var data := MAP_DATA_CODEC.encode(grid, GRID_W, GRID_H, Cell.EMPTY)
+		var data := MAP_DATA_CODEC.encode_state(map_state)
 		file.store_string(JSON.stringify(data))
 		file.close()
 		print("Map saved!")
@@ -367,7 +358,7 @@ func _load_map(show_messages := true):
 	var text := file.get_as_text()
 	file.close()
 	var json := JSON.new()
-	if json.parse(text) != OK or not MAP_DATA_CODEC.decode_into_grid(json.get_data(), grid, GRID_W, GRID_H, Cell.EMPTY, Cell.WALL):
+	if json.parse(text) != OK or not MAP_DATA_CODEC.decode_into_state(json.get_data(), map_state):
 		_delete_incompatible_map(show_messages)
 		return
 	_refresh_view()
