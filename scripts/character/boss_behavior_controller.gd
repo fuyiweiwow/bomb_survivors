@@ -42,8 +42,11 @@ func _frost_giant_skill(player_index: int) -> void:
 	var player: Dictionary = _game.players[0]
 	var delta_vec: Vector2i = player["grid_pos"] - boss["grid_pos"]
 	if absi(delta_vec.x) <= 1 and absi(delta_vec.y) <= 1 and _is_target_in_ground_attack_layer(player):
-		player["frozen_timer"] = 3.0
-		player["status"] = "Frozen 3.0s"
+		var player_state := _game.character_state_at(0) as CharacterState
+		if player_state == null:
+			return
+		player_state.effects.freeze(3.0)
+		player_state.set_status("Frozen 3.0s")
 		var freeze := MeshHelpers.box(Vector3(Constants.TILE_SIZE * 0.9, 0.12, Constants.TILE_SIZE * 0.9), MeshHelpers.make_mat(Color(0.45, 0.88, 1.0), true))
 		freeze.position = Constants.grid_to_world(player["grid_pos"]) + Vector3(0, 0.14, 0)
 		_game.add_child(freeze)

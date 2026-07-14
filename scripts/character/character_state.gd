@@ -1,10 +1,20 @@
 class_name CharacterState
 extends RefCounted
 
+const EFFECT_STATE_SCRIPT := preload("res://scripts/character/character_effect_state.gd")
+const ELEVATION_STATE_SCRIPT := preload("res://scripts/character/character_elevation_state.gd")
+const BOMB_STATE_SCRIPT := preload("res://scripts/character/character_bomb_state.gd")
+
 var data: Dictionary
+var effects: CharacterEffectState
+var elevation: CharacterElevationState
+var bombs: CharacterBombState
 
 func _init(initial_data := {}):
 	data = initial_data
+	effects = EFFECT_STATE_SCRIPT.new(data)
+	elevation = ELEVATION_STATE_SCRIPT.new(data)
+	bombs = BOMB_STATE_SCRIPT.new(data)
 
 func id() -> int:
 	return int(data.get("id", -1))
@@ -24,7 +34,7 @@ func can_start_grid_move() -> bool:
 		is_alive()
 		and not is_downed()
 		and not is_moving()
-		and float(data.get("frozen_timer", 0.0)) <= 0.0
+		and not effects.is_frozen()
 		and node() != null
 	)
 
@@ -89,16 +99,16 @@ func cancel_grid_move(resting_position: Vector3) -> void:
 	data["move_tween"] = null
 
 func movement_duration_multiplier() -> float:
-	return 3.33 if float(data.get("slow_timer", 0.0)) > 0.0 else 1.0
+	return 3.33 if effects.is_slowed() else 1.0
 
 func movement_height() -> float:
 	var character_node := node()
 	if is_airborne() and character_node != null:
 		return character_node.position.y
-	return 0.92 if float(data.get("wings_timer", 0.0)) > 0.0 else 0.0
+	return 0.92 if effects.has_wings() else 0.0
 
 func can_process_ai() -> bool:
-	return is_ai() and is_alive() and not is_downed() and float(data.get("frozen_timer", 0.0)) <= 0.0
+	return is_ai() and is_alive() and not is_downed() and not effects.is_frozen()
 
 func advance_ai_clocks(delta: float) -> void:
 	data["move_timer"] = float(data.get("move_timer", 0.0)) + delta
@@ -113,7 +123,7 @@ func reset_ai_move_timer(fraction := 0.0) -> void:
 func is_ai_bomb_ready() -> bool:
 	return (
 		float(data.get("bomb_timer", 0.0)) >= float(data.get("bomb_interval", 0.0))
-		and int(data.get("bomb_placed_count", 0)) < int(data.get("bomb_max", 0))
+		and bombs.can_place()
 	)
 
 func reset_ai_bomb_timer() -> void:
@@ -129,10 +139,10 @@ func boss_id() -> String:
 	return str(data.get("boss_id", ""))
 
 func bomb_range() -> int:
-	return int(data.get("bomb_range", 1))
+	return bombs.blast_range()
 
 func last_bomb_cell() -> Vector2i:
-	return data.get("last_bomb_pos", Vector2i(-1, -1)) as Vector2i
+	return bombs.last_placed_cell()
 
 func set_last_bomb_cell(value: Vector2i) -> void:
 	data["last_bomb_pos"] = value
@@ -142,6 +152,44 @@ func remember_target(cell_value: Vector2i) -> void:
 
 func set_status(value: String) -> void:
 	data["status"] = value
+
+func can_begin_airborne() -> bool:
+	return is_alive() and not is_downed() and not is_airborne() and node() != null
+
+func begin_airborne(initial_velocity: float, status_label: String) -> void:
+	elevation.begin_airborne(initial_velocity)
+	effects.reset_lava_exposure()
+	set_status("%s %.1fm" % [status_label, node().position.y if node() != null else 0.0])
+
+func finish_airborne(landing_cell: Vector2i, status_label := "Landed") -> void:
+	elevation.finish_airborne()
+	effects.reset_lava_exposure()
+	set_cell(landing_cell)
+	if is_alive() and not is_downed() and not status_label.is_empty():
+		set_status(status_label)
+
+func mark_not_airborne() -> void:
+	elevation.finish_airborne()
+	effects.reset_lava_pressure()
+
+func begin_special_move(target_cell: Vector2i, direction: Vector2i, status_label: String) -> void:
+	set_cell(target_cell)
+	set_last_move_direction(direction)
+	elevation.begin_support(target_cell, false)
+	bombs.consume_hop_window()
+	data["is_moving"] = true
+	set_status(status_label)
+
+func complete_special_move() -> void:
+	data["move_tween"] = null
+	data["is_moving"] = false
+
+func move_tween() -> Tween:
+	var value = data.get("move_tween")
+	return value as Tween if value is Tween and is_instance_valid(value) else null
+
+func set_move_tween(value: Tween) -> void:
+	data["move_tween"] = value
 
 func grant_lava_flight_opportunity() -> void:
 	if is_ai():
@@ -166,14 +214,38 @@ func cancel_lava_flight(consume_opportunity := false) -> void:
 		consume_lava_flight_opportunity()
 
 func protection_time_left() -> float:
-	var shield_time := float(data.get("shield_timer", 0.0)) if has_shield() else 0.0
-	return maxf(shield_time, float(data.get("wings_timer", 0.0)))
+	var shield_time := effects.shield_time_left() if has_shield() else 0.0
+	return maxf(shield_time, effects.wings_time_left())
 
 func lava_eruption_time() -> float:
-	return float(data.get("lava_eruption_time", 0.0))
+	return effects.lava_pressure_time()
 
 func speed_value() -> int:
 	return int(data.get("speed", 5))
+
+func configure_gameplay_stats(speed: int, bomb_capacity: int, blast_range: int) -> void:
+	data["speed"] = clampi(speed, 1, 10)
+	bombs.configure(bomb_capacity, blast_range)
+
+func configure_ai(difficulty: String, speed: int, blast_range: int, move_interval: float, bomb_interval: float) -> void:
+	data["ai_difficulty"] = difficulty
+	data["speed"] = clampi(speed, 1, 10)
+	data["bomb_range"] = clampi(blast_range, 1, 10)
+	data["move_interval"] = maxf(move_interval, 0.01)
+	data["bomb_interval"] = maxf(bomb_interval, 0.01)
+
+func increase_speed(amount := 1) -> void:
+	data["speed"] = clampi(speed_value() + amount, 1, 10)
+
+func status() -> String:
+	return str(data.get("status", ""))
+
+func arm_duel() -> void:
+	data["duel_pending"] = true
+	set_status("Duel ready: touch an enemy")
+
+func disarm_duel() -> void:
+	data["duel_pending"] = false
 
 func is_alive() -> bool:
 	return bool(data.get("alive", false))
@@ -185,7 +257,7 @@ func is_ai() -> bool:
 	return bool(data.get("ai", false))
 
 func is_airborne() -> bool:
-	return bool(data.get("airborne", false))
+	return elevation.is_airborne()
 
 func is_boss_like() -> bool:
 	return str(data.get("boss_id", "")) != "" or bool(data.get("is_minion", false))
@@ -194,10 +266,10 @@ func is_hidden_in(map_state: MapState) -> bool:
 	return is_alive() and not is_airborne() and map_state.is_forest(cell())
 
 func has_shield() -> bool:
-	return int(data.get("shield", 0)) > 0
+	return effects.has_shield()
 
 func is_invincible() -> bool:
-	return float(data.get("invincible_timer", 0.0)) > 0.0
+	return effects.is_invincible()
 
 func has_duel_immunity() -> bool:
 	return bool(data.get("duel_pending", false))
@@ -228,14 +300,15 @@ func defeat() -> bool:
 	return was_downed
 
 func consume_shield() -> void:
-	data["shield"] = maxi(int(data.get("shield", 0)) - 1, 0)
-	if int(data["shield"]) <= 0:
-		data["shield_timer"] = 0.0
+	effects.consume_shield()
 
 func damage_health(amount: int) -> bool:
 	data["hp"] = maxi(int(data.get("hp", 0)) - amount, 0)
 	data["status"] = "HP %d" % int(data["hp"])
 	return int(data["hp"]) <= 0
+
+func ensure_minimum_health(amount: int) -> void:
+	data["hp"] = maxi(int(data.get("hp", 0)), amount)
 
 func world_position() -> Vector3:
 	var character_node := node()

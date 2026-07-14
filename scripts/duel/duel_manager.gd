@@ -28,46 +28,46 @@ func _process(_delta: float) -> void:
 
 func arm(player_index: int) -> bool:
 	if active or pending_player_index >= 0:
-		if player_index >= 0 and player_index < game.players.size():
-			game.players[player_index]["status"] = "Duel already armed"
+		var busy_state := game.character_state_at(player_index) as CharacterState
+		if busy_state != null:
+			busy_state.set_status("Duel already armed")
 		return false
-	if player_index < 0 or player_index >= game.players.size() or not _has_eligible_enemy(player_index):
+	var state := game.character_state_at(player_index) as CharacterState
+	if state == null or not _has_eligible_enemy(player_index):
 		return false
-	var player: Dictionary = game.players[player_index]
-	if not player["alive"] or bool(player.get("downed", false)):
+	if not state.is_alive() or state.is_downed():
 		return false
 	pending_player_index = player_index
-	player["duel_pending"] = true
-	player["status"] = "Duel ready: touch an enemy"
+	state.arm_duel()
 	return true
 
 func process_pending_contact() -> bool:
-	if active or pending_player_index < 0 or pending_player_index >= game.players.size():
+	if active or pending_player_index < 0:
 		return false
-	var challenger: Dictionary = game.players[pending_player_index]
-	if not challenger["alive"] or bool(challenger.get("downed", false)):
+	var challenger := game.character_state_at(pending_player_index) as CharacterState
+	if challenger == null or not challenger.is_alive() or challenger.is_downed():
 		cancel_pending()
 		return false
-	for enemy_index in range(game.players.size()):
+	for enemy_index in range(game.character_states.size()):
 		if enemy_index == pending_player_index or not _is_eligible_enemy(pending_player_index, enemy_index):
 			continue
-		if _nodes_overlap(challenger, game.players[enemy_index]):
+		if _nodes_overlap(challenger, game.character_state_at(enemy_index)):
 			return start_duel_with_enemy(pending_player_index, enemy_index)
 	return false
 
 func start_duel_with_enemy(player_index: int, enemy_index: int) -> bool:
 	if active or not _is_eligible_enemy(player_index, enemy_index):
 		return false
-	var player_node = game.players[player_index].get("node")
-	var enemy_node = game.players[enemy_index].get("node")
-	if not is_instance_valid(player_node) or not is_instance_valid(enemy_node):
+	var player_state := game.character_state_at(player_index) as CharacterState
+	var enemy_state := game.character_state_at(enemy_index) as CharacterState
+	if player_state == null or enemy_state == null or player_state.node() == null or enemy_state.node() == null:
 		return false
 
 	active = true
 	_finishing = false
 	pending_player_index = -1
 	current_enemy_index = enemy_index
-	game.players[player_index]["duel_pending"] = false
+	player_state.disarm_duel()
 	_original_states.clear()
 	_store_actor_state(player_index)
 	_store_actor_state(enemy_index)
@@ -97,8 +97,9 @@ func resolve_current_duel(player_won: bool) -> void:
 		_on_round_finished(player_won)
 
 func cancel_pending() -> void:
-	if pending_player_index >= 0 and pending_player_index < game.players.size():
-		game.players[pending_player_index]["duel_pending"] = false
+	var state := game.character_state_at(pending_player_index) as CharacterState
+	if state != null:
+		state.disarm_duel()
 	pending_player_index = -1
 
 func _on_round_finished(player_won: bool) -> void:
@@ -114,8 +115,10 @@ func _finish_duel(player_won: bool) -> void:
 	var enemy_index := current_enemy_index
 	_restore_world(true)
 	if player_won:
-		game.players[player_index]["status"] = "Duel won"
-		game.players[enemy_index]["duel_return_grace"] = 1.25
+		var player_state := game.character_state_at(player_index) as CharacterState
+		var enemy_state := game.character_state_at(enemy_index) as CharacterState
+		player_state.set_status("Duel won")
+		enemy_state.effects.grant_duel_return_grace(1.25)
 		game.combat_manager.force_down_player(enemy_index, "duel")
 	else:
 		game.combat_manager.kill_player(player_index)
@@ -130,13 +133,15 @@ func _restore_world(restore_actor_states: bool) -> void:
 	arena = null
 	if restore_actor_states:
 		for raw_index in _original_states.keys():
-			var index := int(raw_index)
-			var state: Dictionary = _original_states[index]
-			var node = game.players[index].get("node")
-			if is_instance_valid(node):
-				(node as Node3D).transform = state["transform"]
-				(node as Node3D).visible = bool(state["visible"])
-			game.players[index]["status"] = str(state["status"])
+				var index := int(raw_index)
+				var state: Dictionary = _original_states[index]
+				var character := game.character_state_at(index) as CharacterState
+				var player_node := character.node() if character != null else null
+				if player_node != null:
+					player_node.transform = state["transform"]
+					player_node.visible = bool(state["visible"])
+				if character != null:
+					character.set_status(str(state["status"]))
 	_original_states.clear()
 	if game.game_hud:
 		game.game_hud.visible = _hud_was_visible
@@ -149,41 +154,37 @@ func _restore_world(restore_actor_states: bool) -> void:
 	get_tree().paused = false
 
 func _store_actor_state(player_index: int) -> void:
-	var player: Dictionary = game.players[player_index]
-	var node := player["node"] as Node3D
+	var state := game.character_state_at(player_index) as CharacterState
+	var node := state.node()
 	_original_states[player_index] = {
 		"transform": node.transform,
 		"visible": node.visible,
-		"status": player["status"],
+		"status": state.status(),
 	}
 
 func _has_eligible_enemy(player_index: int) -> bool:
-	for enemy_index in range(game.players.size()):
+	for enemy_index in range(game.character_states.size()):
 		if _is_eligible_enemy(player_index, enemy_index):
 			return true
 	return false
 
 func _is_eligible_enemy(player_index: int, enemy_index: int) -> bool:
-	if player_index < 0 or enemy_index < 0 or player_index >= game.players.size() or enemy_index >= game.players.size() or player_index == enemy_index:
+	if player_index == enemy_index:
 		return false
-	var player: Dictionary = game.players[player_index]
-	var enemy: Dictionary = game.players[enemy_index]
+	var player := game.character_state_at(player_index) as CharacterState
+	var enemy := game.character_state_at(enemy_index) as CharacterState
+	if player == null or enemy == null:
+		return false
 	return (
-		player["alive"]
-		and enemy["alive"]
-		and not bool(player.get("downed", false))
-		and not bool(enemy.get("downed", false))
-		and bool(player.get("ai", false)) != bool(enemy.get("ai", false))
+		player.is_alive()
+		and enemy.is_alive()
+		and not player.is_downed()
+		and not enemy.is_downed()
+		and player.is_ai() != enemy.is_ai()
 	)
 
-func _nodes_overlap(first: Dictionary, second: Dictionary) -> bool:
-	var first_node = first.get("node")
-	var second_node = second.get("node")
-	if not is_instance_valid(first_node) or not is_instance_valid(second_node):
-		return false
-	var first_position := (first_node as Node3D).global_position
-	var second_position := (second_node as Node3D).global_position
-	return absf(first_position.y - second_position.y) <= 0.8 and Vector2(first_position.x, first_position.z).distance_to(Vector2(second_position.x, second_position.z)) <= 0.72
+func _nodes_overlap(first: CharacterState, second: CharacterState) -> bool:
+	return game.combat_manager.rules.characters_overlap(first, second)
 
 func _exit_tree() -> void:
 	if get_tree() and get_tree().paused:

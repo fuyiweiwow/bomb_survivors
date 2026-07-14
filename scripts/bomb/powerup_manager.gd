@@ -29,8 +29,10 @@ func spawn_powerup(cell: Vector2i):
 	_game.powerups[cell] = {"node": node, "type": ptype}
 
 func check_powerup_pickup(index: int):
-	var p: Dictionary = _game.players[index]
-	var cell: Vector2i = p["grid_pos"]
+	var state := _game.character_state_at(index) as CharacterState
+	if state == null:
+		return
+	var cell := state.cell()
 	if not _game.powerups.has(cell):
 		return
 
@@ -41,19 +43,19 @@ func check_powerup_pickup(index: int):
 
 	match data["type"]:
 		"speed":
-			p["speed"] = clampi(p["speed"] + 1, 1, 10)
+			state.increase_speed()
 		"bomb":
-			p["bomb_max"] = clampi(p["bomb_max"] + 1, 1, 8)
+			state.bombs.increase_capacity()
 		"range":
-			p["bomb_range"] = clampi(p["bomb_range"] + 2, 1, 10)
+			state.bombs.increase_range(2)
 		"shield":
-			if bool(p.get("ai", false)):
+			if state.is_ai():
 				_game.combat_manager.grant_shield(index)
 			else:
-				_add_consumable(p, "shield_potion")
+				_add_consumable(state, "shield_potion")
 		_:
 			if Constants.CONSUMABLE_IDS.has(str(data["type"])):
-				_add_consumable(p, str(data["type"]))
+				_add_consumable(state, str(data["type"]))
 	_game.audio_manager.play("pickup")
 	_game.powerups.erase(cell)
 
@@ -65,9 +67,9 @@ func spawn_boss_reward(cell: Vector2i):
 	_game.add_child(node)
 	_game.powerups[cell] = {"node": node, "type": "dummy"}
 
-func _add_consumable(p: Dictionary, item_id: String) -> bool:
-	_game.inventory_manager.add_item(p, item_id)
-	p["status"] = "Picked %s" % _item_display_name(item_id)
+func _add_consumable(state: CharacterState, item_id: String) -> bool:
+	_game.inventory_manager.add_item(state, item_id)
+	state.set_status("Picked %s" % _item_display_name(item_id))
 	return true
 
 func item_display_name(item_id: String) -> String:

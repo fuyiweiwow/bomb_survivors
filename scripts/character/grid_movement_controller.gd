@@ -12,12 +12,11 @@ func try_move(player_index: int, direction: Vector2i) -> bool:
 	var state := _game.character_state_at(player_index) as CharacterState
 	if state == null or not state.can_start_grid_move() or direction == Vector2i.ZERO:
 		return false
-	var player := state.data
 	var node := state.node()
 	var current_cell := Constants.world_to_grid(node.position)
 	state.set_cell(current_cell)
-	if bool(player.get("impact_support", false)):
-		_game.wall_mechanics.leave_elevated_cell(player)
+	if state.elevation.is_impact_support():
+		_game.wall_mechanics.leave_elevated_cell(state)
 		_game.airborne_controller.begin_fall(player_index)
 	var is_airborne := state.is_airborne()
 	var target_height := state.movement_height()
@@ -31,10 +30,10 @@ func try_move(player_index: int, direction: Vector2i) -> bool:
 		return false
 
 	state.set_last_move_direction(direction)
-	if (player["elevated_cell"] as Vector2i) != Vector2i(-1, -1):
-		_game.wall_mechanics.leave_elevated_cell(player)
+	if state.elevation.is_elevated():
+		_game.wall_mechanics.leave_elevated_cell(state)
 	node.look_at(target_world, Vector3.UP)
-	var move_duration: float = Constants.move_duration_for_speed(int(player["speed"])) / float(Constants.MOVE_SUBSTEPS_PER_TILE)
+	var move_duration: float = Constants.move_duration_for_speed(state.speed_value()) / float(Constants.MOVE_SUBSTEPS_PER_TILE)
 	if _game.weather_manager:
 		move_duration *= _game.weather_manager.movement_duration_multiplier(target_cell)
 	move_duration *= state.movement_duration_multiplier()
@@ -44,7 +43,8 @@ func try_move(player_index: int, direction: Vector2i) -> bool:
 func is_cell_walkable(cell: Vector2i, player_index := -1) -> bool:
 	if not Constants.is_grid_cell_valid(cell):
 		return false
-	var has_wings: bool = player_index >= 0 and player_index < _game.players.size() and float(_game.players[player_index].get("wings_timer", 0.0)) > 0.0
+	var state := _game.character_state_at(player_index) as CharacterState
+	var has_wings := state != null and state.effects.has_wings()
 	if _game.map_state.is_wall(cell) or (not has_wings and not _game.map_state.is_walkable(cell)):
 		return false
 	if _game.oil_barrels.has(cell) and not has_wings:
@@ -59,8 +59,8 @@ func _can_player_pass_bomb(player_index: int, cell: Vector2i) -> bool:
 	var entry: Dictionary = _game.bomb_map[cell]
 	if int(entry.get("player_index", -1)) != player_index:
 		return false
-	var player: Dictionary = _game.players[player_index]
-	return _game.bomb_manager.game_time() <= float(player.get("bomb_hop_until", -99.0)) and (player.get("bomb_hop_cells", {}) as Dictionary).has(cell)
+	var state := _game.character_state_at(player_index) as CharacterState
+	return state != null and state.bombs.can_pass_hop_bomb(cell, _game.bomb_manager.game_time())
 
 func start_move(player_index: int, from_cell: Vector2i, target_cell: Vector2i, target: Vector3, duration: float):
 	var state := _game.character_state_at(player_index) as CharacterState

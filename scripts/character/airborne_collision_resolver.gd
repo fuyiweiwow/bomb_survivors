@@ -7,33 +7,31 @@ func setup(game_manager: Node):
 
 func try_stomp(attacker_index: int, previous_height: float, current_height: float) -> Dictionary:
 	var miss := {"hit": false, "target_index": -1, "contact_height": current_height}
-	if attacker_index < 0 or attacker_index >= _game.players.size() or current_height >= previous_height:
+	if current_height >= previous_height:
 		return miss
-	var attacker: Dictionary = _game.players[attacker_index]
-	var attacker_node = attacker.get("node")
-	if not attacker["alive"] or not is_instance_valid(attacker_node):
+	var attacker := _game.character_state_at(attacker_index) as CharacterState
+	if attacker == null or not attacker.is_alive() or attacker.node() == null:
 		return miss
 
-	var stomped: Dictionary = attacker.get("airborne_stomped", {})
 	var best_target_index := -1
 	var best_contact_height := -INF
-	for target_index in range(_game.players.size()):
-		if target_index == attacker_index or stomped.has(target_index):
+	for target_index in range(_game.character_states.size()):
+		if target_index == attacker_index or attacker.elevation.has_stomped(target_index):
 			continue
-		var target: Dictionary = _game.players[target_index]
-		if not target["alive"] or bool(target.get("downed", false)):
+		var target := _game.character_state_at(target_index) as CharacterState
+		if target == null or not target.is_alive() or target.is_downed():
 			continue
-		if bool(target.get("ai", false)) == bool(attacker.get("ai", false)):
+		if target.is_ai() == attacker.is_ai():
 			continue
-		var target_node = target.get("node")
-		if not is_instance_valid(target_node):
+		var target_node := target.node()
+		if target_node == null:
 			continue
-		var attacker_position := (attacker_node as Node3D).position
-		var target_position := (target_node as Node3D).position
+		var attacker_position := attacker.node().position
+		var target_position := target_node.position
 		var horizontal_distance := Vector2(attacker_position.x, attacker_position.z).distance_to(Vector2(target_position.x, target_position.z))
 		if horizontal_distance > Constants.STOMP_HORIZONTAL_RADIUS:
 			continue
-		var target_scale := maxf(absf((target_node as Node3D).scale.y), 1.0)
+		var target_scale := maxf(absf(target_node.scale.y), 1.0)
 		var contact_height := target_position.y + Constants.STOMP_CONTACT_HEIGHT * target_scale
 		if previous_height < contact_height or current_height > contact_height:
 			continue
@@ -43,9 +41,8 @@ func try_stomp(attacker_index: int, previous_height: float, current_height: floa
 
 	if best_target_index < 0:
 		return miss
-	stomped[best_target_index] = true
-	attacker["airborne_stomped"] = stomped
-	attacker["status"] = "Stomp"
+	attacker.elevation.mark_stomped(best_target_index)
+	attacker.set_status("Stomp")
 	_game.combat_manager.damage_player(best_target_index, 1, "stomp")
 	_play_stomp_impact(best_target_index, best_contact_height)
 	return {"hit": true, "target_index": best_target_index, "contact_height": best_contact_height}

@@ -29,23 +29,15 @@ func _process(_delta: float):
 func try_place_bomb(player_index: int) -> bool:
 	if game.duel_manager and game.duel_manager.active:
 		return false
-	if player_index < 0 or player_index >= game.players.size():
+	var state := game.character_state_at(player_index) as CharacterState
+	if state == null or state.is_airborne() or not state.bombs.can_place():
 		return false
-	var player: Dictionary = game.players[player_index]
-	if bool(player.get("airborne", false)):
-		return false
-	var cell: Vector2i = player["grid_pos"]
+	var cell := state.cell()
 	if game.bomb_map.has(cell):
 		return false
 
 	var placed_at := game_time()
-	var previous_cell := player["last_bomb_pos"] as Vector2i
-	if previous_cell != Vector2i(-1, -1) and Constants.grid_distance(previous_cell, cell) == 1 and placed_at - float(player["last_bomb_place_time"]) <= BOMB_HOP_WINDOW:
-		player["bomb_hop_until"] = placed_at + BOMB_HOP_WINDOW
-		player["bomb_hop_cells"] = {previous_cell: true, cell: true}
-	player["last_bomb_pos"] = cell
-	player["last_bomb_place_time"] = placed_at
-	player["bomb_placed_count"] += 1
+	state.bombs.record_placed(cell, placed_at, BOMB_HOP_WINDOW)
 
 	var bomb := Node3D.new()
 	bomb.name = "Bomb_%d_%d" % [cell.x, cell.y]
@@ -69,7 +61,7 @@ func try_place_bomb(player_index: int) -> bool:
 	var pulse := game.create_tween().set_loops()
 	pulse.tween_property(bomb, "scale", Vector3(1.12, 1.12, 1.12), 0.35)
 	pulse.tween_property(bomb, "scale", Vector3.ONE, 0.35)
-	game.bomb_map[cell] = {"node": bomb, "player_index": player_index, "range": player["bomb_range"], "pulse": pulse, "timer": timer, "placed_at": placed_at, "shell": shell, "warning": warning, "warning_started": false}
+	game.bomb_map[cell] = {"node": bomb, "player_index": player_index, "range": state.bombs.blast_range(), "pulse": pulse, "timer": timer, "placed_at": placed_at, "shell": shell, "warning": warning, "warning_started": false}
 	game.audio_manager.play("bomb_place")
 	return true
 
@@ -97,11 +89,11 @@ func _update_bomb_warning(entry: Dictionary, time_left: float):
 func game_time() -> float:
 	return Time.get_ticks_msec() / 1000.0
 
-func kick_bomb_in_direction(player: Dictionary):
-	var direction := player["last_move_dir"] as Vector2i
-	var origin: Vector2i = player["grid_pos"] + direction
+func kick_bomb_in_direction(state: CharacterState):
+	var direction := state.data["last_move_dir"] as Vector2i
+	var origin: Vector2i = state.cell() + direction
 	if not game.bomb_map.has(origin):
-		player["status"] = "No bomb to kick"
+		state.set_status("No bomb to kick")
 		return
 	var destination := origin
 	var hit_obstacle := false
@@ -126,7 +118,7 @@ func kick_bomb_in_direction(player: Dictionary):
 		tween.tween_property(node, "position", Constants.grid_to_world(destination) + Vector3(0, BOMB_HEIGHT, 0), 0.18)
 		if hit_obstacle:
 			tween.tween_callback(func(): explode_bomb(destination))
-	player["status"] = "Bomb kicked"
+	state.set_status("Bomb kicked")
 
 func explode_bomb(cell: Vector2i):
 	if not game.bomb_map.has(cell):
@@ -137,8 +129,9 @@ func explode_bomb(cell: Vector2i):
 	entry["exploded"] = true
 	game.audio_manager.play("explosion")
 	var player_index: int = entry["player_index"]
-	if player_index >= 0 and player_index < game.players.size():
-		game.players[player_index]["bomb_placed_count"] = max(game.players[player_index]["bomb_placed_count"] - 1, 0)
+	var owner_state := game.character_state_at(player_index) as CharacterState
+	if owner_state != null:
+		owner_state.bombs.record_removed()
 	var bomb: Node3D = entry["node"]
 	var pulse: Tween = entry["pulse"]
 	if is_instance_valid(pulse):

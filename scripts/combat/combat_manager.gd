@@ -19,8 +19,8 @@ func kill_player(player_index: int) -> void:
 func revive_player(player_index: int) -> void:
 	_revive_player(player_index)
 
-func consume_dummy_if_available(player: Dictionary) -> bool:
-	return _consume_dummy_if_available(player)
+func consume_dummy_if_available(character: Variant) -> bool:
+	return _consume_dummy_if_available(character)
 
 func cancel_player_movement(player: Dictionary) -> void:
 	_cancel_player_movement(player)
@@ -35,9 +35,8 @@ func process_downed(delta: float):
 		var state := _game.character_state_at(i) as CharacterState
 		if state == null or not state.is_alive() or not state.is_downed():
 			continue
-		var p := state.data
 		var expired := state.tick_downed(delta)
-		if _consume_dummy_if_available(p):
+		if _consume_dummy_if_available(state):
 			_revive_player(i)
 		elif expired:
 			_kill_player(i)
@@ -47,8 +46,7 @@ func process_character_overlaps():
 		var downed_state := _game.character_state_at(downed_index) as CharacterState
 		if downed_state == null or not downed_state.is_alive() or not downed_state.is_downed():
 			continue
-		var downed_player := downed_state.data
-		if float(downed_player.get("duel_return_grace", 0.0)) > 0.0:
+		if downed_state.effects.duel_return_grace_time() > 0.0:
 			continue
 		for other_index in range(_game.players.size()):
 			if other_index == downed_index:
@@ -106,9 +104,9 @@ func damage_player(index: int, amount: int, source: String):
 	var p := state.data
 	match rules.damage_route(state, source):
 		CombatRules.DamageRoute.DUEL_IMMUNE:
-			p["status"] = "Duel immunity"
+			state.set_status("Duel immunity")
 		CombatRules.DamageRoute.INVINCIBLE:
-			p["status"] = "Invincible"
+			state.set_status("Invincible")
 		CombatRules.DamageRoute.EXECUTE_DOWNED:
 			_kill_player(index)
 		CombatRules.DamageRoute.ABSORB_SHIELD:
@@ -122,7 +120,7 @@ func damage_player(index: int, amount: int, source: String):
 			if defeated:
 				_kill_player(index)
 		CombatRules.DamageRoute.ENTER_DOWNED:
-			p["hp"] = maxi(int(p["hp"]), 1)
+			state.ensure_minimum_health(1)
 			_enter_downed(index, source)
 
 func _enter_downed(index: int, source: String):
@@ -251,17 +249,16 @@ func _damage_player(index: int, amount: int, source: String):
 	damage_player(index, amount, source)
 
 func grant_shield(index: int, amount := 1):
-	if index < 0 or index >= _game.players.size():
+	var state := _game.character_state_at(index) as CharacterState
+	if state == null:
 		return
-	var player: Dictionary = _game.players[index]
-	player["shield"] = clampi(int(player.get("shield", 0)) + amount, 0, 5)
-	player["shield_timer"] = Constants.SHIELD_DURATION
-	player["status"] = "Shield %.1fs" % Constants.SHIELD_DURATION
+	state.effects.grant_shield(amount, Constants.SHIELD_DURATION)
+	state.set_status("Shield %.1fs" % Constants.SHIELD_DURATION)
 	_game.audio_manager.play("shield")
-	if bool(player.get("ai", false)) and _game.ai_controller:
+	if state.is_ai() and _game.ai_controller:
 		_game.ai_controller.on_shield_granted(index)
 	if _game.consumable_effects and _game.consumable_effects.status_visuals:
-		_game.consumable_effects.status_visuals.refresh_player(player)
+		_game.consumable_effects.status_visuals.refresh_player(state.data)
 
-func _consume_dummy_if_available(p: Dictionary) -> bool:
-	return _game.inventory_manager.consume_item(p, "dummy")
+func _consume_dummy_if_available(character: Variant) -> bool:
+	return _game.inventory_manager.consume_item(character, "dummy")

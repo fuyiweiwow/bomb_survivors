@@ -7,82 +7,66 @@ func setup(game_manager: Node):
 	_game = game_manager
 
 func launch_from_lava(player_index: int) -> bool:
-	if player_index < 0 or player_index >= _game.players.size():
+	var state := _game.character_state_at(player_index) as CharacterState
+	if state == null or not state.can_begin_airborne():
 		return false
-	var player: Dictionary = _game.players[player_index]
-	var node = player.get("node")
-	if not player["alive"] or bool(player.get("downed", false)) or bool(player.get("airborne", false)) or not is_instance_valid(node):
-		return false
-
-	player["airborne"] = true
-	player["vertical_velocity"] = Constants.AIR_LAUNCH_VELOCITY
-	player["airborne_stomped"] = {}
-	player["lava_eruption_time"] = 0.0
-	player["lava_time"] = 0.0
-	(node as Node3D).position.y = maxf((node as Node3D).position.y, Constants.AIR_LAUNCH_HEIGHT)
-	player["status"] = "Airborne %.1fm" % (node as Node3D).position.y
-	_create_shadow(player_index, node as Node3D)
-	_play_lava_burst(player["grid_pos"])
+	var player_node := state.node()
+	player_node.position.y = maxf(player_node.position.y, Constants.AIR_LAUNCH_HEIGHT)
+	state.begin_airborne(Constants.AIR_LAUNCH_VELOCITY, "Airborne")
+	_create_shadow(player_index, player_node)
+	_play_lava_burst(state.cell())
 	return true
 
 func begin_fall(player_index: int, initial_vertical_velocity := -0.35) -> bool:
-	if player_index < 0 or player_index >= _game.players.size():
+	var state := _game.character_state_at(player_index) as CharacterState
+	if state == null or not state.is_alive() or state.is_downed() or state.node() == null:
 		return false
-	var player: Dictionary = _game.players[player_index]
-	var node = player.get("node")
-	if not player["alive"] or bool(player.get("downed", false)) or not is_instance_valid(node):
-		return false
-	player["airborne"] = true
-	player["vertical_velocity"] = initial_vertical_velocity
-	player["airborne_stomped"] = {}
-	player["lava_eruption_time"] = 0.0
-	player["lava_time"] = 0.0
-	player["status"] = "Falling %.1fm" % (node as Node3D).position.y
-	_create_shadow(player_index, node as Node3D)
+	state.begin_airborne(initial_vertical_velocity, "Falling")
+	_create_shadow(player_index, state.node())
 	return true
 
 func force_land(player_index: int):
-	if player_index < 0 or player_index >= _game.players.size():
+	var state := _game.character_state_at(player_index) as CharacterState
+	if state == null:
 		return
-	var player: Dictionary = _game.players[player_index]
-	if (player.get("elevated_cell", Vector2i(-1, -1)) as Vector2i) != Vector2i(-1, -1):
-		_game.wall_mechanics.leave_elevated_cell(player)
-		player["airborne"] = true
-	if not bool(player.get("airborne", false)):
+	if state.elevation.is_elevated():
+		_game.wall_mechanics.leave_elevated_cell(state)
+		state.elevation.begin_airborne(0.0)
+	if not state.is_airborne():
 		return
 	_land_player(player_index)
 
 func _physics_process(delta: float):
 	if _game == null or _game.game_over:
 		return
-	for player_index in range(_game.players.size()):
-		var player: Dictionary = _game.players[player_index]
-		if not bool(player.get("airborne", false)):
+	for player_index in range(_game.character_states.size()):
+		var state := _game.character_state_at(player_index) as CharacterState
+		if state == null or not state.is_airborne():
 			continue
-		var node = player.get("node")
-		if not player["alive"] or not is_instance_valid(node):
+		var player_node := state.node()
+		if not state.is_alive() or player_node == null:
 			_clear_shadow(player_index)
-			player["airborne"] = false
+			state.mark_not_airborne()
 			continue
 
-		var previous_height := (node as Node3D).position.y
-		var gravity := Constants.WINGS_AIR_GRAVITY if float(player.get("wings_timer", 0.0)) > 0.0 else Constants.AIR_GRAVITY
-		player["vertical_velocity"] = float(player.get("vertical_velocity", 0.0)) - gravity * delta
-		(node as Node3D).position.y += float(player["vertical_velocity"]) * delta
-		_update_shadow(player_index, node as Node3D)
-		if float(player["vertical_velocity"]) <= 0.0:
-			var stomp_result: Dictionary = _game.airborne_collision_resolver.try_stomp(player_index, previous_height, (node as Node3D).position.y)
+		var previous_height := player_node.position.y
+		var gravity := Constants.WINGS_AIR_GRAVITY if state.effects.has_wings() else Constants.AIR_GRAVITY
+		var vertical_velocity := state.elevation.integrate_velocity(gravity, delta)
+		player_node.position.y += vertical_velocity * delta
+		_update_shadow(player_index, player_node)
+		if vertical_velocity <= 0.0:
+			var stomp_result: Dictionary = _game.airborne_collision_resolver.try_stomp(player_index, previous_height, player_node.position.y)
 			if bool(stomp_result["hit"]):
-				(node as Node3D).position.y = float(stomp_result["contact_height"]) + 0.04
-				player["vertical_velocity"] = Constants.STOMP_BOUNCE_VELOCITY
-				_update_shadow(player_index, node as Node3D)
+				player_node.position.y = float(stomp_result["contact_height"]) + 0.04
+				state.elevation.set_vertical_velocity(Constants.STOMP_BOUNCE_VELOCITY)
+				_update_shadow(player_index, player_node)
 				continue
-			var support_cell := Constants.world_to_grid((node as Node3D).position)
+			var support_cell := Constants.world_to_grid(player_node.position)
 			var support_height := _support_height(support_cell)
-			if support_height >= 0.0 and (node as Node3D).position.y <= support_height:
+			if support_height >= 0.0 and player_node.position.y <= support_height:
 				_land_on_support(player_index, support_cell, support_height)
 				continue
-		if (node as Node3D).position.y <= Constants.FLOOR_Y and float(player["vertical_velocity"]) <= 0.0:
+		if player_node.position.y <= Constants.FLOOR_Y and vertical_velocity <= 0.0:
 			_land_player(player_index)
 
 func _support_height(cell: Vector2i) -> float:
@@ -96,40 +80,36 @@ func _support_height(cell: Vector2i) -> float:
 	return -1.0
 
 func _land_on_support(player_index: int, cell: Vector2i, height: float):
-	var player: Dictionary = _game.players[player_index]
-	if _game.wall_mechanics.is_cell_occupied(cell, player):
+	var state := _game.character_state_at(player_index) as CharacterState
+	if state == null or _game.wall_mechanics.is_cell_occupied(cell, state):
 		return
-	var node = player.get("node")
-	if not is_instance_valid(node):
+	var player_node := state.node()
+	if player_node == null:
 		return
-	player["grid_pos"] = cell
-	(node as Node3D).position = Constants.grid_to_world(cell) + Vector3(0, height, 0)
+	state.set_cell(cell)
+	player_node.position = Constants.grid_to_world(cell) + Vector3(0, height, 0)
 	if _game.movement_controller:
-		_game.movement_controller.cancel_move(player)
-	player["airborne"] = false
-	player["vertical_velocity"] = 0.0
-	player["airborne_stomped"] = {}
+		_game.movement_controller.cancel_move(state.data)
+	state.finish_airborne(cell, "")
 	_clear_shadow(player_index)
 	_game.wall_mechanics.start_fall_support(player_index, cell)
 
 func _land_player(player_index: int):
-	var player: Dictionary = _game.players[player_index]
-	var node = player.get("node")
-	player["airborne"] = false
-	player["vertical_velocity"] = 0.0
-	player["airborne_stomped"] = {}
-	player["lava_eruption_time"] = 0.0
+	var state := _game.character_state_at(player_index) as CharacterState
+	if state == null:
+		return
+	var player_node := state.node()
+	state.mark_not_airborne()
 	_clear_shadow(player_index)
-	if not is_instance_valid(node):
+	if player_node == null:
 		return
 
-	var landing_cell := _find_safe_landing_cell(Constants.world_to_grid((node as Node3D).position), player_index)
-	player["grid_pos"] = landing_cell
-	(node as Node3D).position = Constants.grid_to_world(landing_cell)
+	var landing_cell := _find_safe_landing_cell(Constants.world_to_grid(player_node.position), player_index)
+	state.finish_airborne(landing_cell)
+	player_node.position = Constants.grid_to_world(landing_cell)
 	if _game.movement_controller:
-		_game.movement_controller.cancel_move(player)
-	if player["alive"] and not bool(player.get("downed", false)):
-		player["status"] = "Landed"
+		_game.movement_controller.cancel_move(state.data)
+	if state.is_alive() and not state.is_downed():
 		_game.powerup_manager.check_powerup_pickup(player_index)
 
 func _find_safe_landing_cell(origin: Vector2i, player_index: int) -> Vector2i:

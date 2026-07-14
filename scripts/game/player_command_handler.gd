@@ -32,8 +32,8 @@ func handle_action(action: String) -> void:
 func process_player_input() -> void:
 	if _game.players.is_empty():
 		return
-	var player: Dictionary = _game.players[0]
-	if not player["alive"] or bool(player.get("downed", false)):
+	var state := _game.character_state_at(0) as CharacterState
+	if state == null or not state.is_alive() or state.is_downed():
 		_game.bomb_pressed = false
 		return
 	if _game.bomb_pressed or Input.is_action_just_pressed("p1_bomb"):
@@ -41,7 +41,7 @@ func process_player_input() -> void:
 		handle_bomb_action()
 	else:
 		_game.bomb_pressed = false
-	if not player["is_moving"]:
+	if not state.is_moving():
 		try_move_from_input(0)
 
 func try_move_from_input(player_index: int) -> bool:
@@ -54,57 +54,61 @@ func read_move_direction() -> Vector2i:
 	return input.read_move_direction() if input else Vector2i.ZERO
 
 func handle_bomb_action() -> void:
-	var player: Dictionary = _game.players[0]
-	if bool(player.get("airborne", false)):
-		player["status"] = "Cannot place a ground bomb in the air"
+	var state := _game.character_state_at(0) as CharacterState
+	if state == null:
 		return
-	if float(player.get("football_timer", 0.0)) > 0.0:
-		_game.bomb_manager.kick_bomb_in_direction(player)
-	elif int(player["bomb_placed_count"]) < int(player["bomb_max"]):
+	if state.is_airborne():
+		state.set_status("Cannot place a ground bomb in the air")
+		return
+	if state.effects.has_football():
+		_game.bomb_manager.kick_bomb_in_direction(state)
+	elif state.bombs.can_place():
 		_game.bomb_manager.try_place_bomb(0)
 
 func use_consumable() -> void:
 	if _game.players.is_empty():
 		return
-	var player: Dictionary = _game.players[0]
-	if bool(player.get("downed", false)):
-		if _game.combat_manager.consume_dummy_if_available(player):
+	var state := _game.character_state_at(0) as CharacterState
+	if state == null:
+		return
+	if state.is_downed():
+		if _game.combat_manager.consume_dummy_if_available(state):
 			_game.combat_manager.revive_player(0)
 		return
-	if not player["alive"]:
+	if not state.is_alive():
 		return
-	var items: Array = player["consumables"]
+	var items: Array = state.data["consumables"]
 	if items.is_empty():
-		player["status"] = "Bag empty"
+		state.set_status("Bag empty")
 		return
-	var item_id := str(_game.inventory_manager.selected_item(player))
+	var item_id := str(_game.inventory_manager.selected_item(state))
 	if item_id == "dummy":
-		player["status"] = "Dummy is passive"
+		state.set_status("Dummy is passive")
 		return
 	if _game.consumable_effects.use(0, item_id):
 		if item_id != "shield_potion":
 			_game.audio_manager.play("confirm")
-		_game.inventory_manager.consume_selected(player)
+		_game.inventory_manager.consume_selected(state)
 
 func cycle_consumable() -> void:
-	if _game.players.is_empty() or not _game.players[0]["alive"]:
+	var state := _game.character_state_at(0) as CharacterState
+	if state == null or not state.is_alive():
 		return
-	var player: Dictionary = _game.players[0]
-	var items: Array = player["consumables"]
+	var items: Array = state.data["consumables"]
 	if items.is_empty():
-		player["status"] = "Bag empty"
+		state.set_status("Bag empty")
 		return
-	var item_id := str(_game.inventory_manager.cycle(player))
-	player["status"] = "Selected %s" % _game.powerup_manager.item_display_name(item_id)
+	var item_id := str(_game.inventory_manager.cycle(state))
+	state.set_status("Selected %s" % _game.powerup_manager.item_display_name(item_id))
 	_game.audio_manager.play("ui_select")
 
 func select_consumable(slot_index: int) -> void:
-	if _game.players.is_empty() or not _game.players[0]["alive"]:
+	var state := _game.character_state_at(0) as CharacterState
+	if state == null or not state.is_alive():
 		return
-	var player: Dictionary = _game.players[0]
-	var item_id: String = _game.inventory_manager.select_slot(player, slot_index)
+	var item_id: String = _game.inventory_manager.select_slot(state, slot_index)
 	if item_id.is_empty():
-		player["status"] = "Bag slot %d empty" % (slot_index + 1)
+		state.set_status("Bag slot %d empty" % (slot_index + 1))
 		return
-	player["status"] = "Selected %s" % _game.powerup_manager.item_display_name(item_id)
+	state.set_status("Selected %s" % _game.powerup_manager.item_display_name(item_id))
 	_game.audio_manager.play("ui_select")

@@ -143,24 +143,14 @@ func load_ai_difficulty() -> String:
 		result = "normal"
 	return result
 
-func apply_ai_difficulty(p: Dictionary, difficulty: String):
-	p["ai_difficulty"] = difficulty
+func apply_ai_difficulty(state: CharacterState, difficulty: String):
 	match difficulty:
 		"easy":
-			p["speed"] = 3
-			p["bomb_range"] = 1
-			p["move_interval"] = randf_range(0.55, 0.85)
-			p["bomb_interval"] = randf_range(3.2, 5.0)
+			state.configure_ai(difficulty, 3, 1, randf_range(0.55, 0.85), randf_range(3.2, 5.0))
 		"hard":
-			p["speed"] = 6
-			p["bomb_range"] = 3
-			p["move_interval"] = randf_range(0.14, 0.26)
-			p["bomb_interval"] = randf_range(0.9, 1.7)
+			state.configure_ai(difficulty, 6, 3, randf_range(0.14, 0.26), randf_range(0.9, 1.7))
 		_:
-			p["speed"] = 5
-			p["bomb_range"] = 2
-			p["move_interval"] = randf_range(0.22, 0.42)
-			p["bomb_interval"] = randf_range(1.6, 3.2)
+			state.configure_ai(difficulty, 5, 2, randf_range(0.22, 0.42), randf_range(1.6, 3.2))
 
 func player_material_from_config(config: Dictionary) -> Material:
 	var color := Color(0.18, 0.48, 0.95)
@@ -201,13 +191,9 @@ func boss_data(boss_id: String) -> Dictionary:
 
 func spawn_player(config: Dictionary, inventory_manager):
 	var state := create_player(1, Constants.PLAYER_START_CELL, false, player_material_from_config(config), str(config["gender"]))
-	var player := state.data
-	player["speed"] = config["start_speed"]
-	player["bomb_max"] = config["start_bombs"]
-	player["bomb_range"] = config["start_range"]
-	player["shield"] = config["start_shields"]
-	player["shield_timer"] = Constants.SHIELD_DURATION if int(player["shield"]) > 0 else 0.0
-	inventory_manager.add_item(player, "shield_potion")
+	state.configure_gameplay_stats(int(config["start_speed"]), int(config["start_bombs"]), int(config["start_range"]))
+	state.effects.grant_shield(int(config["start_shields"]), Constants.SHIELD_DURATION)
+	inventory_manager.add_item(state, "shield_potion")
 	return state
 
 func spawn_ai_wave(count: int, difficulty: String, start_id: int) -> int:
@@ -218,10 +204,9 @@ func spawn_ai_wave(count: int, difficulty: String, start_id: int) -> int:
 		if spawn_cell == Vector2i(-1, -1):
 			break
 		var ai_state := create_player(current_id, spawn_cell, true, _game.art.mat_ai, "ai")
-		var ai_player := ai_state.data
 		current_id += 1
 		spawned += 1
-		apply_ai_difficulty(ai_player, difficulty)
+		apply_ai_difficulty(ai_state, difficulty)
 		_game.register_character_state(ai_state)
 		_play_spawn_effect(spawn_cell, false)
 	return spawned

@@ -22,7 +22,10 @@ GameManager3D                         共享运行时上下文与帧顺序
 │   └── WeatherManager
 ├── MapState / GridManager           地图领域对象与地形实例
 ├── GridMovementController           通行、移动开始和连续推进
-├── CharacterState / PlayerManager   角色状态领域对象、配置与生成
+├── CharacterState / PlayerManager   角色聚合根、配置与生成
+│   ├── CharacterEffectState         护盾、状态计时与熔岩暴露
+│   ├── CharacterElevationState      浮空、落地、踩踏与承重状态
+│   └── CharacterBombState           炸弹容量、范围、计数与卡位窗口
 ├── AIController                     通用 AI 决策和逃生
 │   ├── AILavaFlightStrategy
 │   └── BossBehaviorController       Boss 技能与分身行为
@@ -93,12 +96,15 @@ GameManager3D                         共享运行时上下文与帧顺序
 ### 4.3 领域状态对象
 
 - `MapState` 是地图格子的唯一所有者，负责边界、读写、类型和通行查询；只有 `GridManager`、`MapEditor` 与 `MapDataCodec` 可以访问底层 `cells`。
-- `CharacterState` 是单个角色生命周期和数值状态的所有者，负责 down、复活、死亡、护盾、生命值、移动事务和 AI 计时器转换。
+- `CharacterState` 是单个角色的聚合根，负责生命周期、生命值、移动事务和 AI 计时器，并协调三个内聚子状态。
+- `CharacterEffectState` 负责护盾、翅膀、无敌、冰冻、减速和熔岩暴露计时。
+- `CharacterElevationState` 负责浮空、垂直速度、单次飞行踩踏集合和墙/箱承重状态。
+- `CharacterBombState` 负责炸弹容量、爆炸范围、在场计数和连续放置卡位窗口。
 - `CombatRules` 是无场景状态的纯判定对象，负责伤害路由、攻击高度/格内命中和角色重叠规则。
 - `GridManager`、`PlayerManager`、`CombatManager` 负责场景节点、音效、动画和跨领域编排，不重复领域规则。
 - `TerrainEffectProcessor` 负责状态倒计时和森林/岩浆 tick；`CombatManager` 只保留兼容代理并接收最终伤害命令。
 
-`grid` 与 `players` 目前只作为迁移期兼容视图。新代码不得直接修改这两个视图；地图写入使用 `MapState.set_cell()`，角色生命周期写入使用 `CharacterState` 方法。
+`grid` 与 `players` 目前只作为迁移期兼容视图。新代码不得直接修改这两个视图；地图写入使用 `MapState.set_cell()`，角色写入使用 `CharacterState` 或其子状态方法。例外只有明确的数据所有者：`PlayerManager` 初始化角色场景绑定、`InventoryManager` 修改背包槽位，以及表现系统保存短生命周期 Tween。
 
 ### 4.4 共享运行时上下文
 
@@ -133,7 +139,7 @@ PlayerCommandHandler 或 AIController
 ```
 
 通行判断、移动启动和物理推进必须保留在同一控制器中，避免不同调用方出现两套速度或格子规则。
-`GridMovementController` 只计算目标与位移，`CharacterState` 通过 begin/sync/complete/cancel 四个原子操作维护移动状态。
+`GridMovementController` 只计算目标与位移，`CharacterState` 通过 begin/sync/complete/cancel 四个原子操作维护移动状态。浮空与墙顶承重通过 `CharacterElevationState` 提交，不能直接组合修改 `airborne`、`grid_pos` 与 `elevated_cell`。
 
 ### 波次
 
@@ -185,7 +191,7 @@ Duel Token → DuelManager.arm() → 触碰敌人
 
 - `Constants`：网格尺寸、世界坐标换算、速度曲线、攻击高度。
 - `MapState`：地图边界、Cell 数据和通行查询。
-- `CharacterState`：角色生命周期与状态转换。
+- `CharacterState`：角色聚合根；子状态分别维护持续效果、垂直空间和炸弹装备状态。
 - `CombatRules`：可独立测试的命中和伤害路由规则。
 - `MapDataCodec`：游戏和地图编辑器共用的当前格式编解码与严格版本校验；不迁移旧地图。
 - `GameArtCatalog`：游戏和地图编辑器共用的纹理与材质实例定义。
@@ -220,7 +226,7 @@ Duel Token → DuelManager.arm() → 触碰敌人
 
 ## 八、测试与约束
 
-- `tests/domain_model_smoke.gd` 独立覆盖地图、角色和战斗领域对象。
+- `tests/domain_model_smoke.gd` 独立覆盖地图、角色聚合、移动事务、状态计时、浮空落地、炸弹卡位和战斗判定。
 - `tests/modular_gameplay_smoke.gd` 覆盖系统组合、输入、移动、AI、Boss、背包、天气、爆炸和高度规则。
 - 架构重构必须先保持 smoke 行为不变，再增加边界初始化和唯一 ID 测试。
 - 新增脚本必须能被 Godot editor 全量扫描，并提交对应 `.gd.uid`。
@@ -230,10 +236,10 @@ Duel Token → DuelManager.arm() → 触碰敌人
 
 按收益优先级继续处理：
 
-1. 将背包、浮空、墙体机制中的 `players` 兼容字段访问迁移到 `CharacterState` 查询与命令。
-2. 将 `TerrainEffectProcessor` 中剩余的状态计时字段收口到 `CharacterState`。
-3. 将 `PlayerManager` 的角色 Mesh 工厂与生成/配置职责拆开。
-4. 将 `MapEditor` 的 UI 构建、射线选格和地图数据操作拆成三个组件。
-5. 把仍在使用的跨 manager 私有调用改为公开领域接口。
+1. 将 `PlayerManager` 的角色 Mesh 工厂、初始数据构建和生成职责拆开。
+2. 将 `CombatManager` 的角色表现 Tween 移入独立 `CharacterPresentation`，领域状态不持有动画句柄。
+3. 将 `MapEditor` 的 UI 构建、射线选格和地图数据操作拆成三个组件。
+4. 将只读 UI 与 AI 查询逐步从 `players` 兼容视图迁移到 `CharacterState`。
+5. 为爆炸高度、浮空落点和道具覆盖增加更细粒度的边界测试。
 
 不要一次性替换角色字典为 Resource；应先建立类型化适配器和当前格式编解码测试，再按领域逐步迁移。

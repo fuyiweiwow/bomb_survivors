@@ -38,6 +38,29 @@ func _init() -> void:
 	state.complete_grid_move()
 	if not _check(not state.is_moving() and state.cell() == Vector2i(4, 3), "Grid movement did not complete atomically"):
 		return
+	state.effects.grant_wings(1.0)
+	state.effects.apply_slow(0.5)
+	var expired_effects := state.effects.tick_active(0.6)
+	if not _check(state.effects.has_wings() and not state.effects.is_slowed() and not bool(expired_effects["wings_expired"]), "Timed effects did not advance through CharacterEffectState"):
+		return
+	state.effects.tick_active(0.5)
+	if not _check(not state.effects.has_wings(), "Wings did not expire through CharacterEffectState"):
+		return
+	state.begin_airborne(3.0, "Airborne")
+	state.elevation.mark_stomped(9)
+	if not _check(state.is_airborne() and state.elevation.has_stomped(9), "Airborne state did not own the stomp registry"):
+		return
+	state.finish_airborne(Vector2i(4, 3))
+	if not _check(not state.is_airborne() and not state.elevation.has_stomped(9), "Landing did not reset airborne state atomically"):
+		return
+	state.bombs.configure(2, 3)
+	state.bombs.record_placed(Vector2i(4, 3), 10.0, 0.3)
+	state.bombs.record_placed(Vector2i(4, 4), 10.2, 0.3)
+	if not _check(state.bombs.placed_count() == 2 and state.bombs.blast_range() == 3 and state.bombs.can_pass_hop_bomb(Vector2i(4, 3), 10.25), "Bomb placement state did not preserve the hop window"):
+		return
+	state.bombs.record_removed()
+	if not _check(state.bombs.placed_count() == 1 and state.bombs.can_place(), "Bomb removal did not restore capacity"):
+		return
 	data["ai"] = true
 	data["move_timer"] = 0.0
 	data["move_interval"] = 0.25

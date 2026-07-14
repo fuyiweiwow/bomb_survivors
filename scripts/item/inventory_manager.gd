@@ -3,14 +3,16 @@ extends RefCounted
 
 const MAX_ITEMS := 3
 
-func selected_item(player: Dictionary) -> String:
+func selected_item(owner: Variant) -> String:
+	var player := _data_for(owner)
 	var items: Array = player.get("consumables", [])
 	if items.is_empty():
 		return ""
 	_normalize_selection(player)
 	return str(items[int(player["selected_consumable_index"])])
 
-func cycle(player: Dictionary) -> String:
+func cycle(owner: Variant) -> String:
+	var player := _data_for(owner)
 	var items: Array = player.get("consumables", [])
 	if items.is_empty():
 		player["selected_consumable_index"] = 0
@@ -18,14 +20,16 @@ func cycle(player: Dictionary) -> String:
 	player["selected_consumable_index"] = (int(player.get("selected_consumable_index", 0)) + 1) % items.size()
 	return str(items[int(player["selected_consumable_index"])])
 
-func select_slot(player: Dictionary, slot_index: int) -> String:
+func select_slot(owner: Variant, slot_index: int) -> String:
+	var player := _data_for(owner)
 	var items: Array = player.get("consumables", [])
 	if slot_index < 0 or slot_index >= items.size():
 		return ""
 	player["selected_consumable_index"] = slot_index
 	return str(items[slot_index])
 
-func add_item(player: Dictionary, item_id: String) -> bool:
+func add_item(owner: Variant, item_id: String) -> bool:
+	var player := _data_for(owner)
 	var items: Array = player.get("consumables", [])
 	var selected := int(player.get("selected_consumable_index", 0))
 	while items.size() >= MAX_ITEMS:
@@ -36,7 +40,8 @@ func add_item(player: Dictionary, item_id: String) -> bool:
 	_normalize_selection(player)
 	return true
 
-func consume_selected(player: Dictionary) -> String:
+func consume_selected(owner: Variant) -> String:
+	var player := _data_for(owner)
 	var items: Array = player.get("consumables", [])
 	if items.is_empty():
 		return ""
@@ -47,7 +52,8 @@ func consume_selected(player: Dictionary) -> String:
 	_normalize_selection(player)
 	return item_id
 
-func consume_item(player: Dictionary, item_id: String) -> bool:
+func consume_item(owner: Variant, item_id: String) -> bool:
+	var player := _data_for(owner)
 	var items: Array = player.get("consumables", [])
 	var index := items.find(item_id)
 	if index < 0:
@@ -63,3 +69,8 @@ func _normalize_selection(player: Dictionary):
 		0,
 		maxi(items.size() - 1, 0)
 	)
+
+func _data_for(owner: Variant) -> Dictionary:
+	if owner is CharacterState:
+		return (owner as CharacterState).data
+	return owner as Dictionary if owner is Dictionary else {}
