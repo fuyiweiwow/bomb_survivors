@@ -31,7 +31,7 @@ func force_down_player(player_index: int, source: String) -> void:
 		_enter_downed(player_index, source)
 
 func process_downed(delta: float):
-	for i in range(_game.players.size()):
+	for i in range(_game.character_registry.count()):
 		var state := _game.character_state_at(i) as CharacterState
 		if state == null or not state.is_alive() or not state.is_downed():
 			continue
@@ -42,13 +42,13 @@ func process_downed(delta: float):
 			_kill_player(i)
 
 func process_character_overlaps():
-	for downed_index in range(_game.players.size()):
+	for downed_index in range(_game.character_registry.count()):
 		var downed_state := _game.character_state_at(downed_index) as CharacterState
 		if downed_state == null or not downed_state.is_alive() or not downed_state.is_downed():
 			continue
 		if downed_state.effects.duel_return_grace_time() > 0.0:
 			continue
-		for other_index in range(_game.players.size()):
+		for other_index in range(_game.character_registry.count()):
 			if other_index == downed_index:
 				continue
 			var other_state := _game.character_state_at(other_index) as CharacterState
@@ -82,7 +82,7 @@ func apply_explosion_damage(
 			if _game.oil_barrels.has(cell):
 				_game.consumable_effects.damage_oil_barrel(cell)
 
-	for i in range(_game.players.size()):
+	for i in range(_game.character_registry.count()):
 		var state := _game.character_state_at(i) as CharacterState
 		if hit_registry.has(i) or state == null or not state.is_alive() or not rules.is_in_attack_cells(state, cells, min_height, max_height):
 			continue
@@ -160,15 +160,17 @@ func _kill_player(index: int):
 	_game.character_presentation.show_defeated(state, Callable(self, "check_game_over"))
 
 func check_game_over():
-	if _game.players.is_empty():
+	if _game.character_registry.is_empty():
 		return
-	if not _game.players[0]["alive"]:
+	var player_state := _game.character_registry.state_at(0) as CharacterState
+	if player_state == null or not player_state.is_alive():
 		_game.game_over = true
 		_game.game_ui.show_result(2)
 		return
 	var hostile_count := 0
-	for i in range(1, _game.players.size()):
-		if _game.players[i]["alive"]:
+	for i in range(1, _game.character_registry.count()):
+		var state := _game.character_registry.state_at(i) as CharacterState
+		if state != null and state.is_alive():
 			hostile_count += 1
 	if _game.wave_manager and _game.wave_manager.is_final_wave() and hostile_count == 0:
 		_game.game_over = true

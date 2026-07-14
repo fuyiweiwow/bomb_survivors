@@ -9,7 +9,7 @@ func setup(game_manager: Node, combat_manager: Node) -> void:
 	_combat = combat_manager
 
 func process(delta: float) -> void:
-	for i in range(_game.players.size()):
+	for i in range(_game.character_registry.count()):
 		var state := _game.character_state_at(i) as CharacterState
 		if state == null or not state.is_alive():
 			continue

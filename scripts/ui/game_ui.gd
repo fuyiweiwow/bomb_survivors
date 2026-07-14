@@ -26,8 +26,9 @@ func setup_hud():
 	update_hud()
 
 func update_hud():
-	if _game.game_hud == null or _game.players.is_empty():
+	if _game.game_hud == null or _game.character_registry.is_empty():
 		return
+	var players: Array = _game.character_registry.data_view()
 	var wave_number := 0
 	var wave_time := 0.0
 	var weather_text := "Clear"
@@ -37,7 +38,7 @@ func update_hud():
 	if _game.weather_manager:
 		weather_text = str(_game.weather_manager.display_name())
 	_game.game_hud.update_display(
-		_game.players,
+		players,
 		wave_number,
 		wave_time,
 		weather_text,
@@ -116,16 +117,18 @@ func flash_boss_spawn():
 	tween.tween_callback(layer.queue_free)
 
 func update_weather_visibility():
-	if _game.players.is_empty() or not _game.weather_manager:
+	if _game.character_registry.is_empty() or not _game.weather_manager:
 		return
-	for i in range(1, _game.players.size()):
-		var p: Dictionary = _game.players[i]
-		var node = p.get("node")
-		if is_instance_valid(node):
-			(node as Node3D).visible = (
-				p["alive"]
-				and not _game.character_state_at(i).is_hidden_in(_game.map_state)
-				and _game.weather_manager.can_see(_game.players[0]["grid_pos"], p["grid_pos"])
+	var player_state := _game.character_registry.state_at(0) as CharacterState
+	for i in range(1, _game.character_registry.count()):
+		var state := _game.character_registry.state_at(i) as CharacterState
+		var character_node := state.node() if state != null else null
+		if character_node != null:
+			character_node.visible = (
+				state.is_alive()
+				and not state.is_hidden_in(_game.map_state)
+				and player_state != null
+				and _game.weather_manager.can_see(player_state.cell(), state.cell())
 			)
 
 func on_weather_changed(weather_type: String):
@@ -167,12 +170,13 @@ func _strike_thunder(cell: Vector2i, warning: Node3D):
 	var tw := create_tween().bind_node(bolt)
 	tw.tween_property(bolt, "transparency", 1.0, 0.22)
 	tw.tween_callback(bolt.queue_free)
-	for i in range(_game.players.size()):
-		var player: Dictionary = _game.players[i]
+	for i in range(_game.character_registry.count()):
+		var state := _game.character_registry.state_at(i) as CharacterState
 		if (
-			player["alive"]
+			state != null
+			and state.is_alive()
 			and _game.combat_manager.is_player_in_attack_cells(
-				player,
+				state.data,
 				[cell],
 				Constants.GROUND_ATTACK_MIN_HEIGHT,
 				Constants.AERIAL_ATTACK_MAX_HEIGHT

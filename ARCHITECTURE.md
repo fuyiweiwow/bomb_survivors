@@ -26,6 +26,7 @@ GameManager3D                         共享运行时上下文与帧顺序
 │   ├── CharacterEffectState         护盾、状态计时与熔岩暴露
 │   ├── CharacterElevationState      浮空、落地、踩踏与承重状态
 │   └── CharacterBombState           炸弹容量、范围、计数与卡位窗口
+├── CharacterRegistry                角色集合、唯一 ID 与索引查询
 ├── PlayerManager                    角色配置与生成编排
 │   ├── CharacterStateFactory        合法角色默认数据构建
 │   └── PlayerVisualFactory          碰撞根与角色 Mesh 构建
@@ -73,7 +74,7 @@ GameManager3D                         共享运行时上下文与帧顺序
 
 允许持有：
 
-- 领域状态：`MapState`、`character_states`、炸弹/掉落物/动态地形集合。
+- 领域状态：`MapState`、`CharacterRegistry`、炸弹/掉落物/动态地形集合。
 - 系统引用：`combat_manager`、`movement_controller` 等。
 - 全局局内状态：`game_over`、`next_player_id`、难度。
 - `_process()` 中明确可读的系统执行顺序。
@@ -104,6 +105,7 @@ GameManager3D                         共享运行时上下文与帧顺序
 - `CharacterEffectState` 负责护盾、翅膀、无敌、冰冻、减速和熔岩暴露计时。
 - `CharacterElevationState` 负责浮空、垂直速度、单次飞行踩踏集合和墙/箱承重状态。
 - `CharacterBombState` 负责炸弹容量、爆炸范围、在场计数和连续放置卡位窗口。
+- `CharacterRegistry` 是局内角色集合的唯一所有者，原子维护顺序索引和唯一 ID 查询，并拒绝重复 ID。
 - `CharacterStateFactory` 是默认角色数据结构的唯一构建入口；`PlayerManager` 不拼装领域字典。
 - `CombatRules` 是无场景状态的纯判定对象，负责伤害路由、攻击高度/格内命中和角色重叠规则。
 - `PlayerVisualFactory` 只构造碰撞根和 Mesh，不进入场景树；`PlayerManager` 只负责配置、选点和生成编排。
@@ -111,7 +113,7 @@ GameManager3D                         共享运行时上下文与帧顺序
 - `GridManager`、`PlayerManager`、`CombatManager` 负责各自跨领域编排，不重复领域规则或角色表现实现。
 - `TerrainEffectProcessor` 负责状态倒计时和森林/岩浆 tick；`CombatManager` 只保留兼容代理并接收最终伤害命令。
 
-`grid` 与 `players` 目前只作为迁移期兼容视图。新代码不得直接修改这两个视图；地图写入使用 `MapState.set_cell()`，角色写入使用 `CharacterState` 或其子状态方法。例外只有明确的数据所有者：`CharacterStateFactory` 创建初始数据，`InventoryManager` 修改背包槽位。表现 Tween 只能存放在 `CharacterPresentation` 内部，不能写入角色数据。
+`grid` 与 `players` 目前只作为迁移期兼容视图。`players` 每次返回从 `CharacterRegistry` 派生的数组快照，修改数组不会改变注册表成员。新代码使用 `character_registry` 查询集合，不得直接修改兼容视图；地图写入使用 `MapState.set_cell()`，角色写入使用 `CharacterState` 或其子状态方法。例外只有明确的数据所有者：`CharacterStateFactory` 创建初始数据，`InventoryManager` 修改背包槽位。表现 Tween 只能存放在 `CharacterPresentation` 内部，不能写入角色数据。
 
 ### 4.4 共享运行时上下文
 
@@ -233,7 +235,7 @@ Duel Token → DuelManager.arm() → 触碰敌人
 
 ## 八、测试与约束
 
-- `tests/domain_model_smoke.gd` 独立覆盖地图、角色聚合、移动事务、状态计时、浮空落地、炸弹卡位和战斗判定。
+- `tests/domain_model_smoke.gd` 独立覆盖地图、角色聚合、注册表唯一 ID、兼容视图隔离、移动事务、状态计时、浮空落地、炸弹卡位和战斗判定。
 - `tests/modular_gameplay_smoke.gd` 覆盖系统组合、输入、移动、AI、Boss、背包、天气、爆炸和高度规则。
 - 架构重构必须先保持 smoke 行为不变，再增加边界初始化和唯一 ID 测试。
 - 新增脚本必须能被 Godot editor 全量扫描，并提交对应 `.gd.uid`。
@@ -244,9 +246,9 @@ Duel Token → DuelManager.arm() → 触碰敌人
 按收益优先级继续处理：
 
 1. 将 `MapEditor` 的 UI 构建、射线选格和地图数据操作拆成三个组件。
-2. 增加 `CharacterRegistry`，替代 `players` 与 `character_states` 两个必须同步的平行数组。
-3. 将玩家配置文件读取和 Boss 静态档案从 `PlayerManager` 移入配置仓库与目录对象。
-4. 将只读 UI 与 AI 查询逐步从 `players` 兼容视图迁移到 `CharacterState`。
+2. 将玩家配置文件读取和 Boss 静态档案从 `PlayerManager` 移入配置仓库与目录对象。
+3. 将 HUD、静态 AI 策略和决斗回合中剩余的角色字典读取迁移到类型化查询对象。
+4. 将三个 Boss 的技能实现从 `BossBehaviorController` 拆为可注册策略。
 5. 为爆炸高度、浮空落点和道具覆盖增加更细粒度的边界测试。
 
 不要一次性替换角色字典为 Resource；应先建立类型化适配器和当前格式编解码测试，再按领域逐步迁移。

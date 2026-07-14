@@ -30,7 +30,7 @@ func handle_action(action: String) -> void:
 		"menu": _game.get_tree().change_scene_to_file("res://scenes/menu/main_menu.tscn")
 
 func process_player_input() -> void:
-	if _game.players.is_empty():
+	if _game.character_registry.is_empty():
 		return
 	var state := _game.character_state_at(0) as CharacterState
 	if state == null or not state.is_alive() or state.is_downed():
@@ -66,7 +66,7 @@ func handle_bomb_action() -> void:
 		_game.bomb_manager.try_place_bomb(0)
 
 func use_consumable() -> void:
-	if _game.players.is_empty():
+	if _game.character_registry.is_empty():
 		return
 	var state := _game.character_state_at(0) as CharacterState
 	if state == null:

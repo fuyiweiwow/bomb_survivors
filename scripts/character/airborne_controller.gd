@@ -39,7 +39,7 @@ func force_land(player_index: int):
 func _physics_process(delta: float):
 	if _game == null or _game.game_over:
 		return
-	for player_index in range(_game.character_states.size()):
+	for player_index in range(_game.character_registry.count()):
 		var state := _game.character_state_at(player_index) as CharacterState
 		if state == null or not state.is_airborne():
 			continue

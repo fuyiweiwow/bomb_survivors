@@ -15,7 +15,7 @@ func try_stomp(attacker_index: int, previous_height: float, current_height: floa
 
 	var best_target_index := -1
 	var best_contact_height := -INF
-	for target_index in range(_game.character_states.size()):
+	for target_index in range(_game.character_registry.count()):
 		if target_index == attacker_index or attacker.elevation.has_stomped(target_index):
 			continue
 		var target := _game.character_state_at(target_index) as CharacterState
@@ -49,14 +49,14 @@ func try_stomp(attacker_index: int, previous_height: float, current_height: floa
 
 func _play_stomp_impact(target_index: int, contact_height: float):
 	_game.audio_manager.play("stomp")
-	var target: Dictionary = _game.players[target_index]
-	var target_node = target.get("node")
-	if not is_instance_valid(target_node):
+	var target := _game.character_registry.state_at(target_index) as CharacterState
+	var target_node := target.node() if target != null else null
+	if target_node == null:
 		return
 	var impact_mat := MeshHelpers.make_mat(Color(1.0, 0.72, 0.08), true)
 	var impact := MeshHelpers.cylinder(0.48, 0.045, impact_mat)
 	impact.name = "StompImpact_%d" % target_index
-	impact.position = Vector3((target_node as Node3D).position.x, contact_height, (target_node as Node3D).position.z)
+	impact.position = Vector3(target_node.position.x, contact_height, target_node.position.z)
 	_game.add_child(impact)
 	var tween := create_tween().bind_node(impact).set_parallel()
 	tween.tween_property(impact, "scale", Vector3(1.75, 1.0, 1.75), 0.22).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)

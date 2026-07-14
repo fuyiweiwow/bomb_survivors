@@ -54,7 +54,7 @@ func is_cell_walkable(cell: Vector2i, player_index := -1) -> bool:
 	return true
 
 func _can_player_pass_bomb(player_index: int, cell: Vector2i) -> bool:
-	if player_index < 0 or player_index >= _game.players.size() or not _game.bomb_map.has(cell):
+	if player_index < 0 or player_index >= _game.character_registry.count() or not _game.bomb_map.has(cell):
 		return false
 	var entry: Dictionary = _game.bomb_map[cell]
 	if int(entry.get("player_index", -1)) != player_index:
@@ -89,7 +89,7 @@ func cancel_move(player: Dictionary):
 func _physics_process(delta: float):
 	if _game == null or _game.game_over:
 		return
-	for index in range(_game.players.size()):
+	for index in range(_game.character_registry.count()):
 		_advance_player(index, delta)
 
 func _advance_player(index: int, delta: float):

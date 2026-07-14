@@ -17,18 +17,19 @@ func setup(game_manager: Node):
 	boss_behavior.setup(_game)
 
 func on_shield_granted(player_index: int):
-	lava_flight_strategy.notify_state(_game.character_state_at(player_index))
+	lava_flight_strategy.notify_state(_game.character_registry.state_at(player_index))
 
 func on_wings_granted(player_index: int):
-	lava_flight_strategy.notify_state(_game.character_state_at(player_index))
+	lava_flight_strategy.notify_state(_game.character_registry.state_at(player_index))
 
 func process_ai(delta: float):
-	for i in range(_game.players.size()):
-		var state := _game.character_state_at(i) as CharacterState
+	for i in range(_game.character_registry.count()):
+		var state := _game.character_registry.state_at(i) as CharacterState
 		if state == null or not state.can_process_ai():
 			continue
-		if state.is_minion() and not _game.players.is_empty():
-			if Constants.grid_distance(state.cell(), _game.character_state_at(0).cell()) <= 1:
+		var human_state := _game.character_registry.state_at(0) as CharacterState
+		if state.is_minion() and human_state != null:
+			if Constants.grid_distance(state.cell(), human_state.cell()) <= 1:
 				boss_behavior.explode_clone_minion(i)
 				continue
 		if state.boss_id() != "":
@@ -75,26 +76,27 @@ func process_ai(delta: float):
 			state.reset_ai_move_timer(0.75)
 
 func _update_ai_target_memory(state: CharacterState):
-	if state.ai_difficulty() != "hard" or _game.players.is_empty():
+	if state.ai_difficulty() != "hard" or _game.character_registry.is_empty():
 		return
-	var target := _game.character_state_at(0) as CharacterState
+	var target := _game.character_registry.state_at(0) as CharacterState
 	if target == null or not target.is_alive() or (_game.weather_manager and not _game.weather_manager.can_see(state.cell(), target.cell())):
 		return
 	state.remember_target(target.cell())
 
 func _ai_should_place_bomb(player_index: int) -> bool:
-	var state := _game.character_state_at(player_index) as CharacterState
+	var state := _game.character_registry.state_at(player_index) as CharacterState
 	if state == null:
 		return false
 	var difficulty := state.ai_difficulty()
 	var blast_cells: Dictionary = _game.bomb_manager.blast_cell_set(state.cell(), state.bomb_range())
-	if difficulty == "hard" and _game.character_state_at(0).is_hidden_in(_game.map_state) and _is_target_in_ground_attack_layer(_game.players[0]) and blast_cells.has(_game.players[0]["grid_pos"]):
+	var human_state := _game.character_registry.state_at(0) as CharacterState
+	if difficulty == "hard" and human_state != null and human_state.is_hidden_in(_game.map_state) and _is_target_in_ground_attack_layer(human_state.data) and blast_cells.has(human_state.cell()):
 		return true
-	for i: int in range(_game.players.size()):
+	for i: int in range(_game.character_registry.count()):
 		if i == player_index:
 			continue
-		var target: Dictionary = _game.players[i]
-		if target["alive"] and _is_target_in_ground_attack_layer(target) and not _game.character_state_at(i).is_hidden_in(_game.map_state) and blast_cells.has(target["grid_pos"]):
+		var target_state := _game.character_registry.state_at(i) as CharacterState
+		if target_state != null and target_state.is_alive() and _is_target_in_ground_attack_layer(target_state.data) and not target_state.is_hidden_in(_game.map_state) and blast_cells.has(target_state.cell()):
 			return true
 
 	var dirs := [Vector2i(0, -1), Vector2i(0, 1), Vector2i(-1, 0), Vector2i(1, 0)]
@@ -103,12 +105,12 @@ func _ai_should_place_bomb(player_index: int) -> bool:
 		if _game.map_state.is_crate(check):
 			return true
 	var can_breach_toward_player: bool = (
-		not _game.players.is_empty()
-		and _game.players[0]["alive"]
-		and (difficulty == "hard" or not _game.character_state_at(0).is_hidden_in(_game.map_state))
+		human_state != null
+		and human_state.is_alive()
+		and (difficulty == "hard" or not human_state.is_hidden_in(_game.map_state))
 	)
 	if difficulty in ["normal", "hard"] and can_breach_toward_player:
-		var player_cell: Vector2i = _game.players[0]["grid_pos"]
+		var player_cell := human_state.cell()
 		var current_distance := Constants.grid_distance(state.cell(), player_cell)
 		for cell in blast_cells.keys():
 			var c := cell as Vector2i
@@ -126,15 +128,16 @@ func _choose_ai_direction(state: CharacterState) -> Vector2i:
 	var danger_cells: Dictionary = _game.bomb_manager.active_blast_cell_set()
 	var walkable_cells: Dictionary = _ai_navigation_cells(state, danger_cells)
 	var difficulty := state.ai_difficulty()
+	var human_state := _game.character_registry.state_at(0) as CharacterState
 	var can_target_player: bool = (
-		not _game.players.is_empty()
-		and _game.players[0]["alive"]
-		and (difficulty == "hard" or not _game.character_state_at(0).is_hidden_in(_game.map_state))
-		and (not _game.weather_manager or _game.weather_manager.can_see(state.cell(), _game.character_state_at(0).cell()))
+		human_state != null
+		and human_state.is_alive()
+		and (difficulty == "hard" or not human_state.is_hidden_in(_game.map_state))
+		and (not _game.weather_manager or _game.weather_manager.can_see(state.cell(), human_state.cell()))
 	)
 	var player_cell := Vector2i(-1, -1)
 	if can_target_player:
-		player_cell = _game.players[0]["grid_pos"]
+		player_cell = human_state.cell()
 		if Constants.grid_distance(state.cell(), player_cell) <= 1:
 			return Vector2i.ZERO
 	var strategic_direction: Vector2i = AIDecisionPolicy.choose_direction(
@@ -166,7 +169,7 @@ func _ai_navigation_cells(state: CharacterState, danger_cells: Dictionary) -> Di
 	var result: Dictionary = {}
 	var start := state.cell()
 	var occupied: Dictionary = {}
-	for other_state in _game.character_states:
+	for other_state in _game.character_registry.states():
 		if other_state.is_alive() and other_state.cell() != start:
 			occupied[other_state.cell()] = true
 	for y: int in range(Constants.GRID_H):

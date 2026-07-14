@@ -79,8 +79,8 @@ func find_spawn_cell() -> Vector2i:
 			if _game.powerups.has(cell) or _game.oil_barrels.has(cell) or _game.glue_areas.has(cell):
 				continue
 			var occupied := false
-			for p: Dictionary in _game.players:
-				if p["alive"] and p["grid_pos"] == cell:
+			for state: CharacterState in _game.character_registry.states():
+				if state.is_alive() and state.cell() == cell:
 					occupied = true
 					break
 			if not occupied:
@@ -173,7 +173,7 @@ func _is_clone_spawn_walkable(cell: Vector2i) -> bool:
 		return false
 	if _game.bomb_map.has(cell):
 		return false
-	for p in _game.players:
-		if p["alive"] and p["grid_pos"] == cell:
+	for state: CharacterState in _game.character_registry.states():
+		if state.is_alive() and state.cell() == cell:
 			return false
 	return true

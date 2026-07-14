@@ -65,7 +65,7 @@ func process(delta: float):
 				node.queue_free()
 			game.glue_areas.erase(cell)
 			continue
-		for index in range(game.players.size()):
+		for index in range(game.character_registry.count()):
 			var state := game.character_state_at(index) as CharacterState
 			if index != int(data["owner"]) and state != null and state.is_alive() and state.cell() == cell:
 				state.effects.apply_slow(3.0)

@@ -17,9 +17,9 @@ func _process(delta: float):
 	if _game == null:
 		return
 	_elapsed += delta
-	for player: Dictionary in _game.players:
-		refresh_player(player)
-		_animate_player_effects(player)
+	for state: CharacterState in _game.character_registry.states():
+		refresh_player(state.data)
+		_animate_player_effects(state.data)
 
 
 func refresh_player(player: Dictionary):

@@ -13,7 +13,7 @@ func setup(game_manager: Node):
 	game = game_manager
 
 func process(delta: float):
-	for player_index in range(game.character_states.size()):
+	for player_index in range(game.character_registry.count()):
 		var state := game.character_state_at(player_index) as CharacterState
 		if state == null or not state.is_alive():
 			continue
@@ -256,7 +256,7 @@ func clear_wall_warning(character: Variant):
 
 func is_cell_occupied(cell: Vector2i, ignored_character: Variant = null) -> bool:
 	var ignored_state := _state_for(ignored_character)
-	for state: CharacterState in game.character_states:
+	for state: CharacterState in game.character_registry.states():
 		if state != ignored_state and state.is_alive() and state.cell() == cell:
 			return true
 	return false

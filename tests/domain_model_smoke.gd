@@ -91,8 +91,17 @@ func _init() -> void:
 	state.defeat()
 	if not _check(not state.is_alive(), "Character defeat transition changed"):
 		return
+	var registry := CharacterRegistry.new()
+	if not _check(registry.register(state) and not registry.register(state), "CharacterRegistry accepted a duplicate id"):
+		return
+	var compatibility_view := registry.data_view()
+	compatibility_view.clear()
+	if not _check(registry.count() == 1 and registry.state_at(0) == state and registry.by_id(7) == state, "CharacterRegistry exposed mutable collection ownership"):
+		return
+	if not _check(registry.unregister_last() == state and registry.is_empty(), "CharacterRegistry did not remove all indexes atomically"):
+		return
 
-	print("DOMAIN_MODEL_SMOKE_OK map_state character_state combat_rules")
+	print("DOMAIN_MODEL_SMOKE_OK map_state character_state character_registry combat_rules")
 	quit(0)
 
 func _check(condition: bool, message: String) -> bool:

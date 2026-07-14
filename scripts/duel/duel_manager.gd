@@ -48,7 +48,7 @@ func process_pending_contact() -> bool:
 	if challenger == null or not challenger.is_alive() or challenger.is_downed():
 		cancel_pending()
 		return false
-	for enemy_index in range(game.character_states.size()):
+	for enemy_index in range(game.character_registry.count()):
 		if enemy_index == pending_player_index or not _is_eligible_enemy(pending_player_index, enemy_index):
 			continue
 		if _nodes_overlap(challenger, game.character_state_at(enemy_index)):
@@ -163,7 +163,7 @@ func _store_actor_state(player_index: int) -> void:
 	}
 
 func _has_eligible_enemy(player_index: int) -> bool:
-	for enemy_index in range(game.character_states.size()):
+	for enemy_index in range(game.character_registry.count()):
 		if _is_eligible_enemy(player_index, enemy_index):
 			return true
 	return false

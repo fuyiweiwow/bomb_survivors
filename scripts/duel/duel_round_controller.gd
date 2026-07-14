@@ -98,7 +98,7 @@ func cleanup() -> void:
 		camera.queue_free()
 
 func _create_actor(player_index: int, human: bool, spawn_position: Vector3) -> Dictionary:
-	var player: Dictionary = game.players[player_index]
+	var player: Dictionary = game.character_registry.state_at(player_index).data
 	var node := player["node"] as Node3D
 	node.position = spawn_position
 	node.rotation_degrees = Vector3.ZERO

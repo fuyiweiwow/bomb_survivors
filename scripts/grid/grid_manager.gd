@@ -125,8 +125,8 @@ func refresh_crates_for_boss(count := BOSS_CRATE_REFRESH_COUNT) -> Array[Vector2
 			if _game.bomb_map.has(cell) or _game.powerups.has(cell) or _game.oil_barrels.has(cell) or _game.glue_areas.has(cell):
 				continue
 			var occupied := false
-			for player: Dictionary in _game.players:
-				if player["alive"] and player["grid_pos"] == cell:
+			for state: CharacterState in _game.character_registry.states():
+				if state.is_alive() and state.cell() == cell:
 					occupied = true
 					break
 			if not occupied:

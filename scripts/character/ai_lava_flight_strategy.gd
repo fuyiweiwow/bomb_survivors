@@ -150,7 +150,7 @@ func _protection_lasts_for_path(state: CharacterState, path: Array[Vector2i]) ->
 	return travel_time + Constants.LAVA_ERUPTION_TIME + SAFETY_MARGIN <= state.protection_time_left()
 
 func _is_occupied_by_other(cell: Vector2i, state: CharacterState) -> bool:
-	for other_state in _game.character_states:
+	for other_state in _game.character_registry.states():
 		if other_state != state and other_state.is_alive() and other_state.cell() == cell:
 			return true
 	return false

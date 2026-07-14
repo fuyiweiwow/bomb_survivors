@@ -5,6 +5,7 @@ const ART_CATALOG_SCRIPT := preload("res://scripts/core/game_art_catalog.gd")
 const SYSTEM_INSTALLER := preload("res://scripts/game/game_system_installer.gd")
 const PLAYER_COMMAND_HANDLER := preload("res://scripts/game/player_command_handler.gd")
 const PROGRESSION_COORDINATOR := preload("res://scripts/game/progression_coordinator.gd")
+const CHARACTER_REGISTRY_SCRIPT := preload("res://scripts/character/character_registry.gd")
 
 var grid_manager: Node
 var player_manager: Node
@@ -31,8 +32,9 @@ var player_commands: Node
 var progression_coordinator: Node
 var art: RefCounted = ART_CATALOG_SCRIPT.new()
 
-var players: Array = []
-var character_states: Array[CharacterState] = []
+var character_registry: CharacterRegistry = CHARACTER_REGISTRY_SCRIPT.new()
+var players: Array:
+	get: return character_registry.data_view()
 var bomb_map: Dictionary = {}
 var powerups: Dictionary = {}
 var oil_barrels: Dictionary = {}
@@ -83,20 +85,21 @@ func _spawn_players():
 	inventory_manager = INVENTORY_MANAGER_SCRIPT.new()
 	register_character_state(player_manager.spawn_player(config, inventory_manager))
 
-func register_character_state(state: CharacterState) -> void:
-	character_states.append(state)
-	players.append(state.data)
+func register_character_state(state: CharacterState) -> bool:
+	var registered := character_registry.register(state)
+	if not registered:
+		var rejected_id := state.id() if state != null else -1
+		push_error("Rejected duplicate or invalid character id %d" % rejected_id)
+	return registered
+
+func unregister_last_character_state() -> CharacterState:
+	return character_registry.unregister_last()
 
 func character_state_at(index: int) -> CharacterState:
-	if index < 0 or index >= character_states.size():
-		return null
-	return character_states[index]
+	return character_registry.state_at(index)
 
 func character_state_by_id(character_id: int) -> CharacterState:
-	for state in character_states:
-		if state.id() == character_id:
-			return state
-	return null
+	return character_registry.by_id(character_id)
 
 func _process(delta):
 	if game_over:

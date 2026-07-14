@@ -196,6 +196,13 @@ func complete_special_move() -> void:
 	data["move_tween"] = null
 	data["is_moving"] = false
 
+func begin_scripted_move(target_cell: Vector2i) -> void:
+	set_cell(target_cell)
+	data["is_moving"] = true
+
+func complete_scripted_move() -> void:
+	data["is_moving"] = false
+
 func move_tween() -> Tween:
 	var value = data.get("move_tween")
 	return value as Tween if value is Tween and is_instance_valid(value) else null

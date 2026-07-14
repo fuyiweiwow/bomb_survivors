@@ -64,7 +64,11 @@ func _run():
 	var player: Dictionary = game.players[0]
 	if not _check(game.map_state is MapState and game.map_state.cells == game.grid, "Game does not expose MapState as the canonical map model"):
 		return
-	if not _check(game.character_states.size() == game.players.size() and game.character_state_at(0).data == player, "CharacterState registry is not synchronized with the compatibility player view"):
+	if not _check(game.character_registry is CharacterRegistry and game.character_registry.count() == game.players.size() and game.character_state_at(0).data == player, "CharacterRegistry is not synchronized with the compatibility player view"):
+		return
+	var detached_view: Array = game.players
+	detached_view.clear()
+	if not _check(game.character_registry.count() > 0 and not game.players.is_empty(), "Compatibility player view can mutate CharacterRegistry membership"):
 		return
 	if not _check(game.character_presentation is CharacterPresentation, "Character presentation was not installed by the composition root"):
 		return
@@ -105,9 +109,9 @@ func _run():
 			return
 		spawned_ids[active_player["id"]] = true
 	while game.players.size() > players_before_progression:
-		var temporary_player: Dictionary = game.players.pop_back()
-		if is_instance_valid(temporary_player.get("node")):
-			temporary_player["node"].queue_free()
+		var temporary_state := game.unregister_last_character_state() as CharacterState
+		if temporary_state != null and temporary_state.node() != null:
+			temporary_state.node().queue_free()
 	game.next_player_id = next_id_before_progression
 	game.weather_manager.current_weather = "clear"
 	game.weather_manager.snow_cells.clear()
@@ -756,7 +760,7 @@ func _run():
 		if not _check(int(game.audio_manager.played_events.get(event_id, 0)) > 0, "Gameplay did not emit the %s audio event" % event_id):
 			return
 
-	print("GAME_DESIGN_SMOKE_OK modular_composition character_presentation visual_factory state_factory shared_art_catalog audio_events duel_token_immunity duel_arena_catalog duel_world_pause duel_locked_loadout duel_lava_launch duel_dive_damage duel_random_lava duel_win_restore progression_unique_ids boss_behavior_boundary refined_logical_grid visible_initial_spawn clear_first_wave shield_pickup_inventory duplicate_inventory_fifo boss_crate_refresh strict_map_config attack_frontier crate_breach ai_lava_strategy difficulty_lava_probability ai_lava_wait winged_ai_lava_strategy airborne_ai_bomb_rule airborne_stomp shielded_stomp stomp_bounce stomp_overlap_safety stomp_single_hit one_cell_ground full_cell_blast cell_center_turning held_grid_motion shared_ai_movement active_world_blast timed_status_effects bomb_warning weather_bounds speed_curve forest_materials backpack_slots wall_hop chain_reaction overlap spawn_fx lava_launch wing_lava_launch wing_airborne_immunity wing_extended_flight airborne_movement vertical_attack_ranges safe_landing impact_support same_height_attack active_support_exit support_cracks support_fragments")
+	print("GAME_DESIGN_SMOKE_OK modular_composition character_registry character_presentation visual_factory state_factory shared_art_catalog audio_events duel_token_immunity duel_arena_catalog duel_world_pause duel_locked_loadout duel_lava_launch duel_dive_damage duel_random_lava duel_win_restore progression_unique_ids boss_behavior_boundary refined_logical_grid visible_initial_spawn clear_first_wave shield_pickup_inventory duplicate_inventory_fifo boss_crate_refresh strict_map_config attack_frontier crate_breach ai_lava_strategy difficulty_lava_probability ai_lava_wait winged_ai_lava_strategy airborne_ai_bomb_rule airborne_stomp shielded_stomp stomp_bounce stomp_overlap_safety stomp_single_hit one_cell_ground full_cell_blast cell_center_turning held_grid_motion shared_ai_movement active_world_blast timed_status_effects bomb_warning weather_bounds speed_curve forest_materials backpack_slots wall_hop chain_reaction overlap spawn_fx lava_launch wing_lava_launch wing_airborne_immunity wing_extended_flight airborne_movement vertical_attack_ranges safe_landing impact_support same_height_attack active_support_exit support_cracks support_fragments")
 	quit(0)
 
 
