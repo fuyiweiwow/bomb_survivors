@@ -5,7 +5,7 @@ const MAX_ITEMS := 3
 
 func selected_item(owner: Variant) -> String:
 	var player := _data_for(owner)
-	var items: Array = player.get("consumables", [])
+	var items := _items_for(player)
 	if items.is_empty():
 		return ""
 	_normalize_selection(player)
@@ -13,7 +13,7 @@ func selected_item(owner: Variant) -> String:
 
 func cycle(owner: Variant) -> String:
 	var player := _data_for(owner)
-	var items: Array = player.get("consumables", [])
+	var items := _items_for(player)
 	if items.is_empty():
 		player["selected_consumable_index"] = 0
 		return ""
@@ -22,15 +22,17 @@ func cycle(owner: Variant) -> String:
 
 func select_slot(owner: Variant, slot_index: int) -> String:
 	var player := _data_for(owner)
-	var items: Array = player.get("consumables", [])
+	var items := _items_for(player)
 	if slot_index < 0 or slot_index >= items.size():
 		return ""
 	player["selected_consumable_index"] = slot_index
 	return str(items[slot_index])
 
 func add_item(owner: Variant, item_id: String) -> bool:
+	if not owner is CharacterState and not owner is Dictionary:
+		return false
 	var player := _data_for(owner)
-	var items: Array = player.get("consumables", [])
+	var items := _items_for(player)
 	var selected := int(player.get("selected_consumable_index", 0))
 	while items.size() >= MAX_ITEMS:
 		items.pop_front()
@@ -42,7 +44,7 @@ func add_item(owner: Variant, item_id: String) -> bool:
 
 func consume_selected(owner: Variant) -> String:
 	var player := _data_for(owner)
-	var items: Array = player.get("consumables", [])
+	var items := _items_for(player)
 	if items.is_empty():
 		return ""
 	_normalize_selection(player)
@@ -54,7 +56,7 @@ func consume_selected(owner: Variant) -> String:
 
 func consume_item(owner: Variant, item_id: String) -> bool:
 	var player := _data_for(owner)
-	var items: Array = player.get("consumables", [])
+	var items := _items_for(player)
 	var index := items.find(item_id)
 	if index < 0:
 		return false
@@ -63,7 +65,7 @@ func consume_item(owner: Variant, item_id: String) -> bool:
 	return true
 
 func _normalize_selection(player: Dictionary):
-	var items: Array = player.get("consumables", [])
+	var items := _items_for(player)
 	player["selected_consumable_index"] = clampi(
 		int(player.get("selected_consumable_index", 0)),
 		0,
@@ -74,3 +76,11 @@ func _data_for(owner: Variant) -> Dictionary:
 	if owner is CharacterState:
 		return (owner as CharacterState).data
 	return owner as Dictionary if owner is Dictionary else {}
+
+func _items_for(player: Dictionary) -> Array:
+	var stored_items = player.get("consumables")
+	if stored_items is Array:
+		return stored_items as Array
+	var items: Array = []
+	player["consumables"] = items
+	return items

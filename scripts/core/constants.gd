@@ -35,6 +35,7 @@ const GROUND_ATTACK_MIN_HEIGHT := -0.25
 const GROUND_ATTACK_MAX_HEIGHT := 0.95
 const AERIAL_ATTACK_MIN_HEIGHT := GROUND_ATTACK_MAX_HEIGHT
 const AERIAL_ATTACK_MAX_HEIGHT := 8.0
+const ATTACK_HEIGHT_EPSILON := 0.0001
 
 const CONSUMABLE_IDS := ["detonator", "glue", "shield_potion", "invincible_star", "dummy", "oil_barrel", "wings", "football_shoes", "tianlao", "duel"]
 
@@ -55,7 +56,7 @@ static func is_world_position_in_blast_cell(world_position: Vector3, cell: Vecto
 	return absf(world_position.x - center.x) < hit_radius and absf(world_position.z - center.z) < hit_radius
 
 static func is_height_in_attack_range(height: float, min_height: float, max_height: float) -> bool:
-	return height >= min_height and height <= max_height
+	return height >= min_height - ATTACK_HEIGHT_EPSILON and height <= max_height + ATTACK_HEIGHT_EPSILON
 
 static func player_world_height(player: Dictionary) -> float:
 	var player_node = player.get("node")

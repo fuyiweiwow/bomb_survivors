@@ -265,6 +265,7 @@ Duel Token → DuelManager.arm() → 触碰敌人
 - `tests/domain_model_smoke.gd` 独立覆盖配置校验和持久化、Boss 档案隔离与技能计时、决斗临时状态、地图、编辑器文档边界、角色查询实时性与集合隔离、角色聚合、注册表唯一 ID、兼容视图隔离、移动事务、状态计时、浮空落地、炸弹卡位和战斗判定。
 - `tests/modular_gameplay_smoke.gd` 覆盖系统组合、Boss 策略注册、输入、移动、AI、背包、天气、爆炸和高度规则。
 - `tests/boss_strategy_smoke.gd` 实际触发爆破王炸弹、冰霜冻结、分身生成和分身自爆。
+- `tests/boundary_rules_smoke.gd` 独立覆盖三格背包 FIFO/重复道具/选中槽修正、爆炸高度与格子边缘、浮空落点 BFS 和踩踏接触边界。
 - `tests/scene_load_smoke.gd` 验证地图编辑器组件组合以及地图元素与游戏逻辑格尺寸一致。
 - 架构重构必须先保持 smoke 行为不变，再增加边界初始化和唯一 ID 测试。
 - 新增脚本必须能被 Godot editor 全量扫描，并提交对应 `.gd.uid`。
@@ -274,6 +275,6 @@ Duel Token → DuelManager.arm() → 触碰敌人
 
 按收益优先级继续处理：
 
-1. 为爆炸高度、浮空落点和道具覆盖增加更细粒度的边界测试。
+1. 将仍直接读写角色兼容字典的运行时调用迁移到 `CharacterState` 命令或 `CharacterQuery`，再逐步缩小 `players` 兼容视图。
 
 不要一次性替换角色字典为 Resource；应先建立类型化适配器和当前格式编解码测试，再按领域逐步迁移。
