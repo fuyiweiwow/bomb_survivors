@@ -38,10 +38,10 @@ func sanitize_player_config(raw_config: Variant) -> Dictionary:
 	var source := raw_config as Dictionary
 	var gender := str(source.get("gender", config["gender"]))
 	config["gender"] = gender if VALID_GENDERS.has(gender) else config["gender"]
-	config["start_speed"] = clampi(int(source.get("start_speed", config["start_speed"])), 1, 10)
-	config["start_bombs"] = clampi(int(source.get("start_bombs", config["start_bombs"])), 1, 8)
-	config["start_range"] = clampi(int(source.get("start_range", config["start_range"])), 1, 10)
-	config["start_shields"] = clampi(int(source.get("start_shields", config["start_shields"])), 0, 3)
+	config["start_speed"] = clampi(int(source.get("start_speed", config["start_speed"])), 1, Constants.MAX_SPEED)
+	config["start_bombs"] = clampi(int(source.get("start_bombs", config["start_bombs"])), 1, Constants.MAX_BOMB_CAPACITY)
+	config["start_range"] = clampi(int(source.get("start_range", config["start_range"])), 1, Constants.MAX_BOMB_RANGE)
+	config["start_shields"] = clampi(int(source.get("start_shields", config["start_shields"])), 0, Constants.MAX_START_SHIELDS)
 	return config
 
 func load_ai_difficulty() -> String:

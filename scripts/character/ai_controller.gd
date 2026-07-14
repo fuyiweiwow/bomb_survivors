@@ -56,11 +56,14 @@ func process_ai(delta: float):
 				_game.movement_controller.try_move(i, state.move_direction())
 			continue
 
-		if (not state.is_airborne() or state.effects.has_wings()) and state.is_ai_bomb_ready() and _ai_should_place_bomb(i):
+		if state.is_airborne() and state.effects.has_wings() and state.is_ai_bomb_ready():
+			if human_state != null and human_state.is_alive() and human_state.cell() == state.cell():
+				state.reset_ai_bomb_timer()
+				if _game.wing_airdrop_controller.try_drop_rock(i):
+					continue
+
+		if not state.is_airborne() and state.is_ai_bomb_ready() and _ai_should_place_bomb(i):
 			state.reset_ai_bomb_timer()
-			if state.is_airborne():
-				_game.bomb_manager.try_place_bomb(i)
-				continue
 			var escape_dir := _ai_escape_dir_after_bomb(i)
 			if escape_dir != Vector2i.ZERO:
 				_game.bomb_manager.try_place_bomb(i)

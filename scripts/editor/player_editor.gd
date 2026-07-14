@@ -90,10 +90,10 @@ func _build_ui():
 	female_btn.pressed.connect(func(): current_gender = "female"; _refresh_preview())
 	controls.add_child(female_btn)
 
-	speed_spin = _add_stat_spin(controls, "Start Speed", start_speed, 1, 10)
-	bombs_spin = _add_stat_spin(controls, "Start Bombs", start_bombs, 1, 8)
-	range_spin = _add_stat_spin(controls, "Start Range", start_range, 1, 10)
-	shields_spin = _add_stat_spin(controls, "Start Shields", start_shields, 0, 3)
+	speed_spin = _add_stat_spin(controls, "Start Speed", start_speed, 1, Constants.MAX_SPEED)
+	bombs_spin = _add_stat_spin(controls, "Start Bombs", start_bombs, 1, Constants.MAX_BOMB_CAPACITY)
+	range_spin = _add_stat_spin(controls, "Start Range", start_range, 1, Constants.MAX_BOMB_RANGE)
+	shields_spin = _add_stat_spin(controls, "Start Shields", start_shields, 0, Constants.MAX_START_SHIELDS)
 
 	var preview_panel := PanelContainer.new()
 	preview_panel.custom_minimum_size = Vector2(300, 390)

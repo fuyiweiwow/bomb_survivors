@@ -46,7 +46,8 @@ func use(player_index: int, item_id: String) -> bool:
 			return _complete_use(state, item_id, area_effects.place_oil_barrel(player_index))
 		"wings":
 			state.effects.grant_wings(Constants.WINGS_DURATION)
-			state.set_status("Wings %.0fs" % Constants.WINGS_DURATION)
+			game.airborne_controller.launch_with_wings(player_index)
+			state.set_status("Wing flight %.0fs" % Constants.WINGS_DURATION)
 			if state.is_ai() and game.ai_controller:
 				game.ai_controller.on_wings_granted(player_index)
 			status_visuals.refresh_player(state.data)

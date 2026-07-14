@@ -1,26 +1,17 @@
 extends Node
 
 const MODEL_FACTORY := preload("res://scripts/item/powerup_model_factory.gd")
+const DROP_TABLE := preload("res://scripts/item/powerup_drop_table.gd")
 
 var _game: Node
+var drop_table := DROP_TABLE.new()
 
 func setup(game_manager: Node):
 	_game = game_manager
 
 func spawn_powerup(cell: Vector2i):
-	var r := randf()
-	var ptype := ""
-	if r < 0.23:
-		ptype = "speed"
-	elif r < 0.46:
-		ptype = "bomb"
-	elif r < 0.66:
-		ptype = "range"
-	elif r < 0.79:
-		ptype = "shield"
-	elif r < 0.95:
-		ptype = str(Constants.CONSUMABLE_IDS.pick_random())
-	else:
+	var ptype := drop_table.pick(randf())
+	if ptype.is_empty():
 		return
 
 	var node := _create_powerup_model(ptype)
@@ -43,11 +34,14 @@ func check_powerup_pickup(index: int):
 
 	match data["type"]:
 		"speed":
-			state.increase_speed()
+			if not state.increase_speed():
+				state.set_status("Speed at maximum")
 		"bomb":
-			state.bombs.increase_capacity()
+			if not state.bombs.increase_capacity():
+				state.set_status("Bomb capacity at maximum")
 		"range":
-			state.bombs.increase_range(2)
+			if not state.bombs.increase_range(2):
+				state.set_status("Bomb range at maximum")
 		"shield":
 			if state.is_ai():
 				_game.combat_manager.grant_shield(index)

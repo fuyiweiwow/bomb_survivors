@@ -11,10 +11,23 @@ func launch_from_lava(player_index: int) -> bool:
 	if state == null or not state.can_begin_airborne():
 		return false
 	var player_node := state.node()
-	player_node.position.y = maxf(player_node.position.y, Constants.AIR_LAUNCH_HEIGHT)
-	state.begin_airborne(Constants.AIR_LAUNCH_VELOCITY, "Airborne")
+	var has_wings := state.effects.has_wings()
+	var launch_height := Constants.WINGS_FLIGHT_HEIGHT if has_wings else Constants.AIR_LAUNCH_HEIGHT
+	var launch_velocity := Constants.WINGS_LAUNCH_VELOCITY if has_wings else Constants.AIR_LAUNCH_VELOCITY
+	player_node.position.y = maxf(player_node.position.y, launch_height)
+	state.begin_airborne(launch_velocity, "Airborne")
 	_create_shadow(player_index, player_node)
 	_play_lava_burst(state.cell())
+	return true
+
+func launch_with_wings(player_index: int) -> bool:
+	var state := _game.character_state_at(player_index) as CharacterState
+	if state == null or not state.effects.has_wings() or not state.can_begin_airborne():
+		return false
+	var player_node := state.node()
+	player_node.position.y = maxf(player_node.position.y, Constants.WINGS_FLIGHT_HEIGHT)
+	state.begin_airborne(Constants.WINGS_LAUNCH_VELOCITY, "Wing flight")
+	_create_shadow(player_index, player_node)
 	return true
 
 func begin_fall(player_index: int, initial_vertical_velocity := -0.35) -> bool:
@@ -54,6 +67,11 @@ func _physics_process(delta: float):
 		var vertical_velocity := state.elevation.integrate_velocity(gravity, delta)
 		player_node.position.y += vertical_velocity * delta
 		_update_shadow(player_index, player_node)
+		if state.effects.has_wings() and player_node.position.y <= Constants.WINGS_MIN_ALTITUDE and vertical_velocity <= 0.0:
+			player_node.position.y = Constants.WINGS_MIN_ALTITUDE
+			state.elevation.set_vertical_velocity(0.0)
+			_update_shadow(player_index, player_node)
+			continue
 		if vertical_velocity <= 0.0:
 			var stomp_result: Dictionary = _game.airborne_collision_resolver.try_stomp(player_index, previous_height, player_node.position.y)
 			if bool(stomp_result["hit"]):

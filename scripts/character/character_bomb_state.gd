@@ -21,14 +21,18 @@ func can_place() -> bool:
 	return placed_count() < capacity()
 
 func configure(maximum: int, range_value: int) -> void:
-	data["bomb_max"] = clampi(maximum, 0, 8)
-	data["bomb_range"] = clampi(range_value, 1, 10)
+	data["bomb_max"] = clampi(maximum, 0, Constants.MAX_BOMB_CAPACITY)
+	data["bomb_range"] = clampi(range_value, 1, Constants.MAX_BOMB_RANGE)
 
-func increase_capacity(amount := 1) -> void:
-	data["bomb_max"] = clampi(capacity() + amount, 1, 8)
+func increase_capacity(amount := 1) -> bool:
+	var previous := capacity()
+	data["bomb_max"] = clampi(previous + amount, 1, Constants.MAX_BOMB_CAPACITY)
+	return capacity() > previous
 
-func increase_range(amount := 1) -> void:
-	data["bomb_range"] = clampi(blast_range() + amount, 1, 10)
+func increase_range(amount := 1) -> bool:
+	var previous := blast_range()
+	data["bomb_range"] = clampi(previous + amount, 1, Constants.MAX_BOMB_RANGE)
+	return blast_range() > previous
 
 func record_placed(cell: Vector2i, placed_at: float, hop_window: float) -> void:
 	var previous_cell := last_placed_cell()

@@ -15,7 +15,7 @@ func shield_time_left() -> float:
 func has_shield() -> bool:
 	return shield_count() > 0
 
-func grant_shield(amount: int, duration: float, maximum := 5) -> void:
+func grant_shield(amount: int, duration: float, maximum := Constants.MAX_SHIELD_STACKS) -> void:
 	data["shield"] = clampi(shield_count() + amount, 0, maximum)
 	data["shield_timer"] = duration if has_shield() else 0.0
 

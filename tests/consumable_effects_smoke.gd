@@ -73,18 +73,48 @@ func _run() -> void:
 	if not _check(game.get_node_or_null("ItemActivation_detonator") != null, "Detonator did not create a visible activation pulse"):
 		return
 
-	var air_blast_count: int = game.bomb_manager.active_explosions.size()
-	game.consumable_effects.use(0, "wings")
+	player.data["invincible_timer"] = 0.0
+	player.data["shield"] = 0
+	_place_state(player, center)
+	if not _check(game.consumable_effects.use(0, "wings"), "Wings could not be used"):
+		return
 	if not _check(player.node().get_node_or_null("WingsEffect") != null and game.get_node_or_null("ItemActivation_wings") != null, "Wings did not create persistent and activation visuals"):
 		return
-	player.set_cell(center)
-	player.node().position = Constants.grid_to_world(center) + Vector3(0, 2.0, 0)
-	player.begin_airborne(0.0, "Airborne")
+	if not _check(player.is_airborne() and player.world_position().y >= Constants.WINGS_FLIGHT_HEIGHT, "Wings did not launch the player to the high flight layer"):
+		return
+	game.combat_manager.apply_explosion_damage([center], -1, center, {}, false)
+	if not _check(player.is_alive() and not player.is_downed(), "A ground bomb damaged a high-flying Wings user"):
+		return
+	_place_state(enemy_a, center)
+	var bomb_count_before_rock: int = game.bomb_map.size()
 	game.player_commands.handle_bomb_action()
-	if not _check(not game.bomb_map.has(center) and game.bomb_manager.active_explosions.size() == air_blast_count + 1, "Airborne bomb did not detonate immediately"):
+	var dropped_rock := game.get_node_or_null("WingDropRock") as Node3D
+	if not _check(dropped_rock != null and game.bomb_map.size() == bomb_count_before_rock, "Wing action did not create a rock-only airdrop"):
+		return
+	game.wing_airdrop_controller._impact_rock(dropped_rock, center, 0, player.world_position().y)
+	if not _check(not enemy_a.is_alive() and game.get_node_or_null("WingRockImpact") != null, "Wing rock did not defeat the enemy below or show its impact"):
 		return
 	game.airborne_controller.force_land(0)
 	player.effects.grant_wings(0.0)
+
+	_place_state(player, center)
+	_place_state(enemy_a, center + Vector2i(4, 0))
+	player.bombs.configure(3, 1)
+	player.data["bomb_placed_count"] = 0
+	_place_state(player, center + Vector2i.RIGHT)
+	if not _check(game.bomb_manager.try_place_bomb(0), "Could not place a bomb ahead of the player for Football Shoes"):
+		return
+	_place_state(player, center)
+	player.set_last_move_direction(Vector2i.RIGHT)
+	if not _check(game.consumable_effects.use(0, "football_shoes"), "Football Shoes could not be used"):
+		return
+	if not _check(game.movement_controller.try_move(0, Vector2i.RIGHT), "Football Shoes did not let the player move into a bomb"):
+		return
+	var kick_destination := center + Vector2i.RIGHT * (Constants.FOOTBALL_KICK_DISTANCE + 1)
+	if not _check(game.bomb_map.has(kick_destination) and not game.bomb_map.has(center + Vector2i.RIGHT), "Football Shoes did not kick away a bomb during movement"):
+		return
+	game.movement_controller.cancel_move(player.data)
+	game.bomb_manager.explode_bomb(kick_destination)
 
 	_place_state(player, center)
 	player.set_move_direction(Vector2i.RIGHT)
@@ -125,7 +155,7 @@ func _run() -> void:
 		"Duel AI aggression does not increase with difficulty"
 	):
 		return
-	print("CONSUMABLE_EFFECTS_SMOKE_OK glue_3x3 glue_ai_awareness prison_9x9 detonator_all wing_air_bomb oil_fire_9x9 oil_fire_chain oil_fire_defeat item_visual_feedback duel_aggression")
+	print("CONSUMABLE_EFFECTS_SMOKE_OK glue_3x3 glue_ai_awareness prison_9x9 detonator_all wing_high_flight wing_rock_drop football_kick oil_fire_9x9 oil_fire_chain oil_fire_defeat item_visual_feedback duel_aggression")
 	quit(0)
 
 func _clear_region(game: Node, center: Vector2i, radius: int) -> void:

@@ -147,6 +147,29 @@ func _init() -> void:
 	state.bombs.record_removed()
 	if not _check(state.bombs.placed_count() == 1 and state.bombs.can_place(), "Bomb removal did not restore capacity"):
 		return
+	state.configure_gameplay_stats(Constants.MAX_SPEED, Constants.MAX_BOMB_CAPACITY, Constants.MAX_BOMB_RANGE)
+	if not _check(
+		not state.increase_speed()
+		and not state.bombs.increase_capacity()
+		and not state.bombs.increase_range(2)
+		and state.speed_value() == Constants.MAX_SPEED
+		and state.bombs.capacity() == Constants.MAX_BOMB_CAPACITY
+		and state.bombs.blast_range() == Constants.MAX_BOMB_RANGE,
+		"Permanent stat pickups exceeded their domain limits"
+	):
+		return
+	state.effects.grant_shield(99, Constants.SHIELD_DURATION)
+	if not _check(state.effects.shield_count() == Constants.MAX_SHIELD_STACKS, "Shield stacks exceeded their domain limit"):
+		return
+	data["shield"] = 0
+	data["shield_timer"] = 0.0
+	var drop_table := PowerupDropTable.new()
+	var droppable_ids := drop_table.droppable_ids()
+	for expected_id in ["speed", "bomb", "range", "shield"] + Constants.CONSUMABLE_IDS:
+		if not _check(droppable_ids.has(expected_id), "Crate drop table omitted %s" % expected_id):
+			return
+	if not _check(drop_table.pick(0.0) == "speed" and drop_table.pick(0.999999).is_empty(), "Crate drop table boundaries changed"):
+		return
 	data["ai"] = true
 	data["move_timer"] = 0.0
 	data["move_interval"] = 0.25
@@ -189,7 +212,7 @@ func _init() -> void:
 	if not _check(registry.unregister_last() == state and registry.is_empty(), "CharacterRegistry did not remove all indexes atomically"):
 		return
 
-	print("DOMAIN_MODEL_SMOKE_OK config_repository boss_catalog boss_skill_timer duel_actor_state map_state map_editor_document character_query character_state character_registry combat_rules")
+	print("DOMAIN_MODEL_SMOKE_OK config_repository boss_catalog boss_skill_timer duel_actor_state map_state map_editor_document character_query character_state stat_caps powerup_drop_table character_registry combat_rules")
 	quit(0)
 
 func _check(condition: bool, message: String) -> bool:

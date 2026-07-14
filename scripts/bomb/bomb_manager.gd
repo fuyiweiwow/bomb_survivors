@@ -30,10 +30,7 @@ func try_place_bomb(player_index: int) -> bool:
 	if game.duel_manager and game.duel_manager.active:
 		return false
 	var state := game.character_state_at(player_index) as CharacterState
-	if state == null or not state.bombs.can_place():
-		return false
-	var airborne_drop := state.is_airborne()
-	if airborne_drop and not state.effects.has_wings():
+	if state == null or state.is_airborne() or not state.bombs.can_place():
 		return false
 	var cell := state.cell()
 	if game.bomb_map.has(cell):
@@ -66,9 +63,6 @@ func try_place_bomb(player_index: int) -> bool:
 	pulse.tween_property(bomb, "scale", Vector3.ONE, 0.35)
 	game.bomb_map[cell] = {"node": bomb, "player_index": player_index, "range": state.bombs.blast_range(), "pulse": pulse, "timer": timer, "placed_at": placed_at, "shell": shell, "warning": warning, "warning_started": false}
 	game.audio_manager.play("bomb_place")
-	if airborne_drop:
-		state.set_status("Air bomb detonated")
-		explode_bomb(cell)
 	return true
 
 func explode_all_bombs() -> int:
@@ -104,15 +98,24 @@ func _update_bomb_warning(entry: Dictionary, time_left: float):
 func game_time() -> float:
 	return Time.get_ticks_msec() / 1000.0
 
-func kick_bomb_in_direction(state: CharacterState):
-	var direction := state.data["last_move_dir"] as Vector2i
-	var origin: Vector2i = state.cell() + direction
+func kick_bomb_in_direction(state: CharacterState) -> bool:
+	var direction := state.last_move_direction()
+	if direction == Vector2i.ZERO:
+		direction = Vector2i.DOWN
+	var origin := state.cell()
+	if not game.bomb_map.has(origin):
+		origin += direction
 	if not game.bomb_map.has(origin):
 		state.set_status("No bomb to kick")
-		return
+		return false
+	return kick_bomb_at(state, origin, direction)
+
+func kick_bomb_at(state: CharacterState, origin: Vector2i, direction: Vector2i) -> bool:
+	if direction == Vector2i.ZERO or not game.bomb_map.has(origin):
+		return false
 	var destination := origin
 	var hit_obstacle := false
-	for step in range(4):
+	for step in range(Constants.FOOTBALL_KICK_DISTANCE):
 		var target: Vector2i = destination + direction
 		if target.x < 0 or target.x >= Constants.GRID_W or target.y < 0 or target.y >= Constants.GRID_H:
 			hit_obstacle = true
@@ -123,17 +126,25 @@ func kick_bomb_in_direction(state: CharacterState):
 		destination = target
 	if destination == origin:
 		explode_bomb(origin)
-		return
+		state.set_status("Bomb kick impact")
+		return true
 	var entry: Dictionary = game.bomb_map[origin]
 	game.bomb_map.erase(origin)
 	game.bomb_map[destination] = entry
 	var node = entry.get("node")
 	if is_instance_valid(node):
+		var distance := Constants.grid_distance(origin, destination)
 		var tween := game.create_tween().bind_node(node)
-		tween.tween_property(node, "position", Constants.grid_to_world(destination) + Vector3(0, BOMB_HEIGHT, 0), 0.18)
+		tween.set_parallel()
+		tween.tween_property(node, "position", Constants.grid_to_world(destination) + Vector3(0, BOMB_HEIGHT, 0), maxf(distance * 0.10, 0.12))
+		tween.tween_property(node, "rotation_degrees", Vector3(360, 180, 270), maxf(distance * 0.10, 0.12)).as_relative()
+		tween.set_parallel(false)
 		if hit_obstacle:
 			tween.tween_callback(func(): explode_bomb(destination))
-	state.set_status("Bomb kicked")
+	elif hit_obstacle:
+		explode_bomb(destination)
+	state.set_status("Bomb kicked %d cells" % Constants.grid_distance(origin, destination))
+	return true
 
 func explode_bomb(cell: Vector2i):
 	if not game.bomb_map.has(cell):

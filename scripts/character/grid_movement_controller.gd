@@ -26,6 +26,9 @@ func try_move(player_index: int, direction: Vector2i) -> bool:
 		return false
 	if not is_airborne and target_cell != current_cell and _game.map_state.is_wall(target_cell):
 		return _game.wall_mechanics.try_wall_hop(player_index, direction)
+	if not is_airborne and target_cell != current_cell and _game.bomb_map.has(target_cell) and state.effects.has_football():
+		if not _game.bomb_manager.kick_bomb_at(state, target_cell, direction):
+			return false
 	if not is_airborne and target_cell != current_cell and not is_cell_walkable(target_cell, player_index):
 		return false
 

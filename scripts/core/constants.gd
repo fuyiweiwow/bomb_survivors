@@ -16,6 +16,11 @@ const BLAST_HIT_RADIUS := TILE_SIZE * 0.5
 const PLAYER_START_CELL := Vector2i(GRID_REFINEMENT + 1, GRID_REFINEMENT + 1)
 const FLOOR_Y := 0.0
 const PLAYER_MAX_HP := 3
+const MAX_SPEED := 10
+const MAX_BOMB_CAPACITY := 8
+const MAX_BOMB_RANGE := 10
+const MAX_SHIELD_STACKS := 5
+const MAX_START_SHIELDS := 3
 const LAVA_DAMAGE_TIME := 1.35
 const DOWNED_DURATION := 5.0
 const SHIELD_DURATION := 5.0
@@ -33,6 +38,12 @@ const AIR_LAUNCH_HEIGHT := 1.15
 const AIR_LAUNCH_VELOCITY := 3.6
 const AIR_GRAVITY := 1.65
 const WINGS_AIR_GRAVITY := 0.65
+const WINGS_FLIGHT_HEIGHT := 2.40
+const WINGS_MIN_ALTITUDE := 2.20
+const WINGS_LAUNCH_VELOCITY := 1.80
+const WING_ROCK_DROP_COOLDOWN := 0.80
+const WING_ROCK_FALL_SPEED := 8.0
+const FOOTBALL_KICK_DISTANCE := 4
 const CRATE_SUPPORT_HEIGHT := 0.98
 const WALL_SUPPORT_HEIGHT := 1.30
 const IMPACT_SUPPORT_BREAK_TIME := 1.0
@@ -94,7 +105,7 @@ static func is_walkable_cell(cell_value: int) -> bool:
 	return cell_value == Cell.EMPTY or cell_value == Cell.FOREST or cell_value == Cell.LAVA
 
 static func move_duration_for_speed(speed_value: int) -> float:
-	var normalized_speed := float(clampi(speed_value, 1, 10) - 1) / 9.0
+	var normalized_speed := float(clampi(speed_value, 1, MAX_SPEED) - 1) / float(MAX_SPEED - 1)
 	var world_speed := 4.5 + 5.0 * pow(normalized_speed, 0.82)
 	return TILE_SIZE / world_speed
 

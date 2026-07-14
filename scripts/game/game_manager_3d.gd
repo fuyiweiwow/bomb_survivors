@@ -24,6 +24,7 @@ var duel_manager: Node
 var bomb_manager: Node
 var wall_mechanics: Node
 var consumable_effects: Node
+var wing_airdrop_controller: Node
 var inventory_manager: RefCounted = INVENTORY_MANAGER_SCRIPT.new()
 var weather_manager: Node
 var wave_manager: Node

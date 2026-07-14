@@ -118,9 +118,9 @@ func _build_item_page() -> void:
 	item_list.add_theme_constant_override("separation", 5)
 	scroll.add_child(item_list)
 	_add_item_section("Stat Pickups", [
-		{"id": "speed", "name": "Speed", "description": "Move faster."},
-		{"id": "bomb", "name": "Bomb", "description": "Place more bombs at the same time."},
-		{"id": "range", "name": "Range", "description": "Extend blast distance."},
+		{"id": "speed", "name": "Speed", "description": "Move faster, up to level 10."},
+		{"id": "bomb", "name": "Bomb", "description": "Place more bombs at the same time, up to 8."},
+		{"id": "range", "name": "Range", "description": "Extend blast distance, up to 10 cells."},
 		{"id": "shield", "name": "Shield", "description": "Store a Shield Potion in the backpack."},
 	])
 	_add_item_section("Consumable Items", [
@@ -130,8 +130,8 @@ func _build_item_page() -> void:
 		{"id": "invincible_star", "name": "Invincible Star", "description": "Ignore damage and control effects for 5 seconds."},
 		{"id": "dummy", "name": "Dummy", "description": "Passive item consumed automatically to revive you from Down."},
 		{"id": "oil_barrel", "name": "Oil Barrel", "description": "One blast ignites an animated 9 x 9 fire; it chains bombs and defeats characters who stay inside."},
-		{"id": "wings", "name": "Wings", "description": "Cross obstacles, extend lava flight, and drop bombs from the air for immediate detonation."},
-		{"id": "football_shoes", "name": "Football Shoes", "description": "Replace bomb placement with a bomb kick for 8 seconds."},
+		{"id": "wings", "name": "Wings", "description": "Launch into high flight, avoid ground bombs, cross obstacles, and drop lethal rocks on enemies below."},
+		{"id": "football_shoes", "name": "Football Shoes", "description": "For 8 seconds, move into bombs to kick them up to 4 cells; Space also kicks a bomb underfoot or ahead."},
 		{"id": "prison", "name": "Prison", "description": "Trap every enemy in the 9 x 9 area around you for 4 seconds."},
 		{"id": "duel", "name": "Duel Token", "description": "Gain immunity until contact, then duel over one random single-use lava source."},
 	])
@@ -188,8 +188,8 @@ func _add_item_row(item_id: String, display_name: String, description: String) -
 
 func _operation_guide_text() -> String:
 	return """[b][color=#ffd45a]Basic Controls[/color][/b]
-[b]W / A / S / D[/b]  Move; you can turn at any of the three substeps inside a tile
-[b]Space[/b]  Place a bomb; while Football Shoes are active, kick the bomb ahead
+[b]W / A / S / D[/b]  Move; Football Shoes automatically kick bombs you run into
+[b]Space[/b]  Place a bomb; kick with Football Shoes; drop a rock during Wing flight
 [b]1 / 2 / 3[/b]  Select a backpack slot    [b]Q[/b]  Cycle items    [b]E[/b]  Use item
 [b]Esc[/b]  Return to the main menu
 

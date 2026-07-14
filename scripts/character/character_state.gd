@@ -268,13 +268,13 @@ func speed_value() -> int:
 	return int(data.get("speed", 5))
 
 func configure_gameplay_stats(speed: int, bomb_capacity: int, blast_range: int) -> void:
-	data["speed"] = clampi(speed, 1, 10)
+	data["speed"] = clampi(speed, 1, Constants.MAX_SPEED)
 	bombs.configure(bomb_capacity, blast_range)
 
 func configure_ai(difficulty: String, speed: int, blast_range: int, move_interval: float, bomb_interval: float) -> void:
 	data["ai_difficulty"] = difficulty
-	data["speed"] = clampi(speed, 1, 10)
-	data["bomb_range"] = clampi(blast_range, 1, 10)
+	data["speed"] = clampi(speed, 1, Constants.MAX_SPEED)
+	data["bomb_range"] = clampi(blast_range, 1, Constants.MAX_BOMB_RANGE)
 	data["move_interval"] = maxf(move_interval, 0.01)
 	data["bomb_interval"] = maxf(bomb_interval, 0.01)
 
@@ -283,7 +283,7 @@ func configure_boss(profile_id: String, display_name: String, health: int, speed
 	data["boss_name"] = display_name
 	data["hp"] = maxi(health, 1)
 	data["max_hp"] = maxi(health, 1)
-	data["speed"] = clampi(speed, 1, 10)
+	data["speed"] = clampi(speed, 1, Constants.MAX_SPEED)
 	bombs.configure(bomb_capacity, blast_range)
 	data["move_interval"] = maxf(move_interval, 0.01)
 	data["bomb_interval"] = maxf(bomb_interval, 0.01)
@@ -294,14 +294,16 @@ func configure_minion(speed: int, move_interval: float, difficulty: String) -> v
 	data["is_minion"] = true
 	data["hp"] = 1
 	data["max_hp"] = 1
-	data["speed"] = clampi(speed, 1, 10)
+	data["speed"] = clampi(speed, 1, Constants.MAX_SPEED)
 	bombs.configure(0, bombs.blast_range())
 	data["move_interval"] = maxf(move_interval, 0.01)
 	data["ai_difficulty"] = difficulty
 	set_status("Decoy")
 
-func increase_speed(amount := 1) -> void:
-	data["speed"] = clampi(speed_value() + amount, 1, 10)
+func increase_speed(amount := 1) -> bool:
+	var previous := speed_value()
+	data["speed"] = clampi(previous + amount, 1, Constants.MAX_SPEED)
+	return speed_value() > previous
 
 func status() -> String:
 	return str(data.get("status", ""))
