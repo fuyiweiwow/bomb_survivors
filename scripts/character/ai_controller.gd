@@ -90,13 +90,13 @@ func _ai_should_place_bomb(player_index: int) -> bool:
 	var difficulty := state.ai_difficulty()
 	var blast_cells: Dictionary = _game.bomb_manager.blast_cell_set(state.cell(), state.bomb_range())
 	var human_state := _game.character_registry.state_at(0) as CharacterState
-	if difficulty == "hard" and human_state != null and human_state.is_hidden_in(_game.map_state) and _is_target_in_ground_attack_layer(human_state.data) and blast_cells.has(human_state.cell()):
+	if difficulty == "hard" and human_state != null and human_state.is_hidden_in(_game.map_state) and _is_target_in_ground_attack_layer(human_state) and blast_cells.has(human_state.cell()):
 		return true
 	for i: int in range(_game.character_registry.count()):
 		if i == player_index:
 			continue
 		var target_state := _game.character_registry.state_at(i) as CharacterState
-		if target_state != null and target_state.is_alive() and _is_target_in_ground_attack_layer(target_state.data) and not target_state.is_hidden_in(_game.map_state) and blast_cells.has(target_state.cell()):
+		if target_state != null and target_state.is_alive() and _is_target_in_ground_attack_layer(target_state) and not target_state.is_hidden_in(_game.map_state) and blast_cells.has(target_state.cell()):
 			return true
 
 	var dirs := [Vector2i(0, -1), Vector2i(0, 1), Vector2i(-1, 0), Vector2i(1, 0)]
@@ -118,8 +118,8 @@ func _ai_should_place_bomb(player_index: int) -> bool:
 				return true
 	return false
 
-func _is_target_in_ground_attack_layer(target: Dictionary) -> bool:
-	return Constants.is_player_in_attack_height(target, Constants.GROUND_ATTACK_MIN_HEIGHT, Constants.GROUND_ATTACK_MAX_HEIGHT)
+func _is_target_in_ground_attack_layer(target: CharacterState) -> bool:
+	return target.is_in_attack_height(Constants.GROUND_ATTACK_MIN_HEIGHT, Constants.GROUND_ATTACK_MAX_HEIGHT)
 
 func _choose_ai_direction(state: CharacterState) -> Vector2i:
 	var dirs := [Vector2i(0, -1), Vector2i(0, 1), Vector2i(-1, 0), Vector2i(1, 0)]

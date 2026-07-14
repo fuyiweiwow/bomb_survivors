@@ -38,6 +38,13 @@ func _init() -> void:
 	duel_actor.tick_hit_cooldown(0.2)
 	if not _check(duel_actor.health == 3 and not duel_actor.take_damage(1) and duel_actor.health == 2 and is_equal_approx(duel_actor.hit_cooldown, 0.3), "DuelActorState did not own duel health and cooldown state"):
 		return
+	var boss_timer_state := CharacterState.new({"skill_timer": 0.0, "skill_interval": 0.0})
+	boss_timer_state.configure_boss("blast_king", "Blast King", 8, 5, 3, 5, 0.28, 0.75, 3.5)
+	if not _check(not boss_timer_state.advance_boss_skill_timer(3.0) and boss_timer_state.advance_boss_skill_timer(0.5), "CharacterState did not own the Boss skill countdown"):
+		return
+	boss_timer_state.reset_boss_skill_timer()
+	if not _check(is_equal_approx(boss_timer_state.boss_skill_interval(), 3.5) and is_equal_approx(boss_timer_state.boss_skill_time_left(), 3.5), "CharacterState did not restore the catalog Boss cooldown"):
+		return
 
 	var map_state := MapState.new(5, 5, Constants.Cell.EMPTY, Constants.Cell.WALL)
 	if not _check(map_state.is_wall(Vector2i.ZERO), "MapState did not build its border"):
@@ -172,7 +179,7 @@ func _init() -> void:
 	if not _check(registry.unregister_last() == state and registry.is_empty(), "CharacterRegistry did not remove all indexes atomically"):
 		return
 
-	print("DOMAIN_MODEL_SMOKE_OK config_repository boss_catalog duel_actor_state map_state map_editor_document character_query character_state character_registry combat_rules")
+	print("DOMAIN_MODEL_SMOKE_OK config_repository boss_catalog boss_skill_timer duel_actor_state map_state map_editor_document character_query character_state character_registry combat_rules")
 	quit(0)
 
 func _check(condition: bool, message: String) -> bool:

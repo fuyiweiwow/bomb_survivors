@@ -147,6 +147,22 @@ func is_ai_bomb_ready() -> bool:
 func reset_ai_bomb_timer() -> void:
 	data["bomb_timer"] = 0.0
 
+func mark_ai_bomb_timer_ready() -> void:
+	data["bomb_timer"] = float(data.get("bomb_interval", 0.0))
+
+func advance_boss_skill_timer(delta: float) -> bool:
+	data["skill_timer"] = float(data.get("skill_timer", 0.0)) - delta
+	return float(data["skill_timer"]) <= 0.0
+
+func reset_boss_skill_timer() -> void:
+	data["skill_timer"] = boss_skill_interval()
+
+func boss_skill_interval() -> float:
+	return float(data.get("skill_interval", 0.0))
+
+func boss_skill_time_left() -> float:
+	return float(data.get("skill_timer", 0.0))
+
 func ai_difficulty() -> String:
 	return str(data.get("ai_difficulty", "normal"))
 
@@ -268,7 +284,8 @@ func configure_boss(profile_id: String, display_name: String, health: int, speed
 	bombs.configure(bomb_capacity, blast_range)
 	data["move_interval"] = maxf(move_interval, 0.01)
 	data["bomb_interval"] = maxf(bomb_interval, 0.01)
-	data["skill_timer"] = maxf(skill_interval, 0.0)
+	data["skill_interval"] = maxf(skill_interval, 0.0)
+	reset_boss_skill_timer()
 
 func configure_minion(speed: int, move_interval: float, difficulty: String) -> void:
 	data["is_minion"] = true
@@ -304,6 +321,10 @@ func is_ai() -> bool:
 
 func is_airborne() -> bool:
 	return elevation.is_airborne()
+
+func is_in_attack_height(min_height: float, max_height: float) -> bool:
+	var character_node := node()
+	return character_node != null and Constants.is_height_in_attack_range(character_node.position.y, min_height, max_height)
 
 func is_boss_like() -> bool:
 	return str(data.get("boss_id", "")) != "" or bool(data.get("is_minion", false))

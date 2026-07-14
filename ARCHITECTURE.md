@@ -36,7 +36,10 @@ GameManager3D                         共享运行时上下文与帧顺序
 ├── CharacterPresentation            出生、受伤、倒地、复活与死亡表现
 ├── AIController                     通用 AI 决策和逃生
 │   ├── AILavaFlightStrategy
-│   └── BossBehaviorController       Boss 技能与分身行为
+│   └── BossBehaviorController       Boss 策略注册、冷却触发与分派
+│       ├── BlastKingSkillStrategy   炸弹压制
+│       ├── FrostGiantSkillStrategy  冻结与冲锋
+│       └── CloneDemonSkillStrategy  分身生成与自爆
 ├── CombatRules / CombatManager      纯战斗判定与效果编排
 │   └── TerrainEffectProcessor       状态计时与森林/岩浆效果
 ├── BombManager                      炸弹生命周期和爆炸范围
@@ -105,7 +108,7 @@ GameManager3D                         共享运行时上下文与帧顺序
 
 - `PlayerCommandHandler` 创建并拥有 `PlayerInputController`。
 - `ProgressionCoordinator` 创建并拥有 `WaveManager`、`WeatherManager`。
-- `AIController` 创建并拥有 AI 策略和 `BossBehaviorController`。
+- `AIController` 创建并拥有通用 AI 策略和 `BossBehaviorController`；Boss 控制器再注册并拥有各 Boss 的 `BossSkillStrategy`。
 
 ### 4.3 领域状态对象
 
@@ -115,6 +118,7 @@ GameManager3D                         共享运行时上下文与帧顺序
 - `CharacterElevationState` 负责浮空、垂直速度、单次飞行踩踏集合和墙/箱承重状态。
 - `CharacterBombState` 负责炸弹容量、爆炸范围、在场计数和连续放置卡位窗口。
 - `CharacterQuery` 包装实时角色数据，只提供类型化读取并对背包集合返回副本；HUD、静态 AI 策略和决斗初始化不得直接读角色字典。
+- `CharacterState` 原子维护 Boss 技能间隔与倒计时；具体策略不得直接修改 `skill_timer`。
 - `CharacterRegistry` 是局内角色集合的唯一所有者，原子维护顺序索引和唯一 ID 查询，并拒绝重复 ID。
 - `CharacterStateFactory` 是默认角色数据结构的唯一构建入口；`PlayerManager` 不拼装领域字典。
 - `GameConfigRepository` 是玩家初始属性与 AI 难度的唯一持久化入口；游戏、主菜单和玩家编辑器不得各自解析 JSON。
@@ -245,8 +249,8 @@ Duel Token → DuelManager.arm() → 触碰敌人
 ### 新增 Boss
 
 1. 在 `BossCatalog` 注册静态档案与材质映射。
-2. 在 `BossBehaviorController.process_skill()` 注册技能入口。
-3. 将超过约 40 行的独立技能拆成策略脚本。
+2. 新建继承 `BossSkillStrategy` 的技能策略，并实现稳定的 `boss_id()` 与 `execute()`。
+3. 在 `BossBehaviorController.STRATEGY_SCRIPTS` 注册策略脚本。
 4. 在 `WaveManager.BOSS_WAVES` 配置波次。
 
 ### 新增地形
@@ -258,8 +262,9 @@ Duel Token → DuelManager.arm() → 触碰敌人
 
 ## 八、测试与约束
 
-- `tests/domain_model_smoke.gd` 独立覆盖配置校验和持久化、Boss 档案隔离、决斗临时状态、地图、编辑器文档边界、角色查询实时性与集合隔离、角色聚合、注册表唯一 ID、兼容视图隔离、移动事务、状态计时、浮空落地、炸弹卡位和战斗判定。
-- `tests/modular_gameplay_smoke.gd` 覆盖系统组合、输入、移动、AI、Boss、背包、天气、爆炸和高度规则。
+- `tests/domain_model_smoke.gd` 独立覆盖配置校验和持久化、Boss 档案隔离与技能计时、决斗临时状态、地图、编辑器文档边界、角色查询实时性与集合隔离、角色聚合、注册表唯一 ID、兼容视图隔离、移动事务、状态计时、浮空落地、炸弹卡位和战斗判定。
+- `tests/modular_gameplay_smoke.gd` 覆盖系统组合、Boss 策略注册、输入、移动、AI、背包、天气、爆炸和高度规则。
+- `tests/boss_strategy_smoke.gd` 实际触发爆破王炸弹、冰霜冻结、分身生成和分身自爆。
 - `tests/scene_load_smoke.gd` 验证地图编辑器组件组合以及地图元素与游戏逻辑格尺寸一致。
 - 架构重构必须先保持 smoke 行为不变，再增加边界初始化和唯一 ID 测试。
 - 新增脚本必须能被 Godot editor 全量扫描，并提交对应 `.gd.uid`。
@@ -269,7 +274,6 @@ Duel Token → DuelManager.arm() → 触碰敌人
 
 按收益优先级继续处理：
 
-1. 将三个 Boss 的技能实现从 `BossBehaviorController` 拆为可注册策略。
-2. 为爆炸高度、浮空落点和道具覆盖增加更细粒度的边界测试。
+1. 为爆炸高度、浮空落点和道具覆盖增加更细粒度的边界测试。
 
 不要一次性替换角色字典为 Resource；应先建立类型化适配器和当前格式编解码测试，再按领域逐步迁移。

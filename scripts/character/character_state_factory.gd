@@ -61,6 +61,7 @@ func create(id: int, root: Node3D, visual_root: Node3D, cell: Vector2i, ai: bool
 		"boss_id": "",
 		"boss_name": "",
 		"is_minion": false,
+		"skill_interval": 0.0,
 		"skill_timer": 0.0,
 		"frozen_timer": 0.0,
 		"duel_pending": false,

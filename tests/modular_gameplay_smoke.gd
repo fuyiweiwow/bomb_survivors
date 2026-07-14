@@ -38,6 +38,15 @@ func _run():
 		return
 	if not _check(game.ai_controller.boss_behavior != null, "Boss behavior controller was not initialized"):
 		return
+	var boss_strategy_ids: Array[String] = game.ai_controller.boss_behavior.strategy_ids()
+	if not _check(
+		boss_strategy_ids.size() == 3
+		and game.ai_controller.boss_behavior.strategy_for("blast_king") is BlastKingSkillStrategy
+		and game.ai_controller.boss_behavior.strategy_for("frost_giant") is FrostGiantSkillStrategy
+		and game.ai_controller.boss_behavior.strategy_for("clone_demon") is CloneDemonSkillStrategy,
+		"Boss behavior strategies were not registered by id"
+	):
+		return
 	if not _check(game.player_commands != null and game.input_controller.get_parent() == game.player_commands, "Player command boundary was not initialized"):
 		return
 	if not _check(game.progression_coordinator != null and game.wave_manager.get_parent() == game.progression_coordinator, "Progression coordinator was not initialized"):
@@ -767,7 +776,7 @@ func _run():
 		if not _check(int(game.audio_manager.played_events.get(event_id, 0)) > 0, "Gameplay did not emit the %s audio event" % event_id):
 			return
 
-	print("GAME_DESIGN_SMOKE_OK modular_composition config_repository boss_catalog character_query character_registry character_presentation visual_factory state_factory shared_art_catalog audio_events duel_actor_state duel_token_immunity duel_arena_catalog duel_world_pause duel_locked_loadout duel_lava_launch duel_dive_damage duel_random_lava duel_win_restore progression_unique_ids boss_behavior_boundary refined_logical_grid visible_initial_spawn clear_first_wave shield_pickup_inventory duplicate_inventory_fifo boss_crate_refresh strict_map_config attack_frontier crate_breach ai_lava_strategy difficulty_lava_probability ai_lava_wait winged_ai_bomb_rule airborne_stomp shielded_stomp stomp_bounce stomp_overlap_safety stomp_single_hit one_cell_ground full_cell_blast cell_center_turning held_grid_motion shared_ai_movement active_world_blast timed_status_effects bomb_warning weather_bounds speed_curve forest_materials backpack_slots wall_hop chain_reaction overlap spawn_fx lava_launch wing_lava_launch wing_airborne_immunity wing_extended_flight airborne_movement vertical_attack_ranges safe_landing impact_support same_height_attack active_support_exit support_cracks support_fragments")
+	print("GAME_DESIGN_SMOKE_OK modular_composition config_repository boss_catalog boss_skill_registry character_query character_registry character_presentation visual_factory state_factory shared_art_catalog audio_events duel_actor_state duel_token_immunity duel_arena_catalog duel_world_pause duel_locked_loadout duel_lava_launch duel_dive_damage duel_random_lava duel_win_restore progression_unique_ids boss_behavior_boundary refined_logical_grid visible_initial_spawn clear_first_wave shield_pickup_inventory duplicate_inventory_fifo boss_crate_refresh strict_map_config attack_frontier crate_breach ai_lava_strategy difficulty_lava_probability ai_lava_wait winged_ai_bomb_rule airborne_stomp shielded_stomp stomp_bounce stomp_overlap_safety stomp_single_hit one_cell_ground full_cell_blast cell_center_turning held_grid_motion shared_ai_movement active_world_blast timed_status_effects bomb_warning weather_bounds speed_curve forest_materials backpack_slots wall_hop chain_reaction overlap spawn_fx lava_launch wing_lava_launch wing_airborne_immunity wing_extended_flight airborne_movement vertical_attack_ranges safe_landing impact_support same_height_attack active_support_exit support_cracks support_fragments")
 	quit(0)
 
 
