@@ -10,6 +10,20 @@ func _init() -> void:
 		return
 	if not _check(not map_state.set_cell(Vector2i(-1, 2), Constants.Cell.CRATE), "MapState accepted an out-of-bounds write"):
 		return
+	var editor_document := MapEditorDocument.new(5, 5, "user://domain_model_editor_map.json")
+	if not _check(not editor_document.paint(Vector2i.ZERO, Constants.Cell.LAVA), "MapEditorDocument changed the protected border"):
+		return
+	if not _check(editor_document.paint(Vector2i(2, 2), Constants.Cell.FOREST) and editor_document.map_state.is_forest(Vector2i(2, 2)), "MapEditorDocument did not paint an interior cell"):
+		return
+	if not _check(editor_document.erase(Vector2i(2, 2)) and editor_document.map_state.cell_at(Vector2i(2, 2)) == Constants.Cell.EMPTY, "MapEditorDocument did not erase an interior cell"):
+		return
+	editor_document.paint(Vector2i(2, 2), Constants.Cell.FOREST)
+	if not _check(editor_document.save(), "MapEditorDocument did not save its map"):
+		return
+	var loaded_editor_document := MapEditorDocument.new(5, 5, "user://domain_model_editor_map.json")
+	if not _check(loaded_editor_document.load() == MapEditorDocument.LoadResult.LOADED and loaded_editor_document.map_state.is_forest(Vector2i(2, 2)), "MapEditorDocument did not restore its saved map"):
+		return
+	loaded_editor_document.reset_and_delete_saved_map()
 
 	var data := {
 		"id": 7,
@@ -101,7 +115,7 @@ func _init() -> void:
 	if not _check(registry.unregister_last() == state and registry.is_empty(), "CharacterRegistry did not remove all indexes atomically"):
 		return
 
-	print("DOMAIN_MODEL_SMOKE_OK map_state character_state character_registry combat_rules")
+	print("DOMAIN_MODEL_SMOKE_OK map_state map_editor_document character_state character_registry combat_rules")
 	quit(0)
 
 func _check(condition: bool, message: String) -> bool:

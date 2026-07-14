@@ -46,7 +46,11 @@ GameManager3D                         共享运行时上下文与帧顺序
 │   └── DuelRoundController / HUD    独立飞行物理、AI、俯冲伤害与显示
 ├── WallMechanics                    墙顶/箱顶承重与破坏
 ├── AirborneController               垂直运动和落点
-└── GameUI / GameHUD                 显示与天气可见性
+├── GameUI / GameHUD                 显示与天气可见性
+└── MapEditor                        编辑器场景编排与地图预览渲染
+    ├── MapEditorDocument            编辑、保存与严格版本加载
+    ├── MapEditorPicker              屏幕射线到逻辑格子的换算
+    └── MapEditorToolbar             工具选择、保存与退出信号
 ```
 
 ## 三、目录职责
@@ -100,7 +104,7 @@ GameManager3D                         共享运行时上下文与帧顺序
 
 ### 4.3 领域状态对象
 
-- `MapState` 是地图格子的唯一所有者，负责边界、读写、类型和通行查询；只有 `GridManager`、`MapEditor` 与 `MapDataCodec` 可以访问底层 `cells`。
+- `MapState` 是地图格子的唯一所有者，负责边界、读写、类型和通行查询；只有 `GridManager`、`MapEditorDocument` 与 `MapDataCodec` 可以访问底层 `cells`。
 - `CharacterState` 是单个角色的聚合根，负责生命周期、生命值、移动事务和 AI 计时器，并协调三个内聚子状态。
 - `CharacterEffectState` 负责护盾、翅膀、无敌、冰冻、减速和熔岩暴露计时。
 - `CharacterElevationState` 负责浮空、垂直速度、单次飞行踩踏集合和墙/箱承重状态。
@@ -125,6 +129,14 @@ GameManager3D                         共享运行时上下文与帧顺序
 2. 新代码不要调用其他 manager 的下划线私有方法；先增加一个语义明确的公开方法。
 3. manager 不得通过 `get_tree().get_first_node_in_group()` 查找业务依赖。
 4. 纯算法保持为 `RefCounted` 或静态函数，避免无意义地进入场景树。
+
+### 4.5 编辑器边界
+
+- `MapEditor` 是场景协调器，只创建环境、渲染地图，并把输入分发给独立组件。
+- `MapEditorDocument` 是编辑器地图数据入口，保护边界格，独占保存、加载和不兼容文件清理。
+- `MapEditorPicker` 是无场景状态的投影算法，不读取地图内容或 UI。
+- `MapEditorToolbar` 只构建工具界面并发出语义信号，不写地图文件或格子数据。
+- 编辑器渲染读取 `MapState` 的公开查询；新交互不得绕过 `MapEditorDocument.paint()` 和 `erase()`。
 
 ## 五、主要数据流
 
@@ -235,8 +247,9 @@ Duel Token → DuelManager.arm() → 触碰敌人
 
 ## 八、测试与约束
 
-- `tests/domain_model_smoke.gd` 独立覆盖地图、角色聚合、注册表唯一 ID、兼容视图隔离、移动事务、状态计时、浮空落地、炸弹卡位和战斗判定。
+- `tests/domain_model_smoke.gd` 独立覆盖地图、编辑器文档边界、角色聚合、注册表唯一 ID、兼容视图隔离、移动事务、状态计时、浮空落地、炸弹卡位和战斗判定。
 - `tests/modular_gameplay_smoke.gd` 覆盖系统组合、输入、移动、AI、Boss、背包、天气、爆炸和高度规则。
+- `tests/scene_load_smoke.gd` 验证地图编辑器组件组合以及地图元素与游戏逻辑格尺寸一致。
 - 架构重构必须先保持 smoke 行为不变，再增加边界初始化和唯一 ID 测试。
 - 新增脚本必须能被 Godot editor 全量扫描，并提交对应 `.gd.uid`。
 - `project.godot` 的用户本地窗口设置不应混入功能提交。
@@ -245,10 +258,9 @@ Duel Token → DuelManager.arm() → 触碰敌人
 
 按收益优先级继续处理：
 
-1. 将 `MapEditor` 的 UI 构建、射线选格和地图数据操作拆成三个组件。
-2. 将玩家配置文件读取和 Boss 静态档案从 `PlayerManager` 移入配置仓库与目录对象。
-3. 将 HUD、静态 AI 策略和决斗回合中剩余的角色字典读取迁移到类型化查询对象。
-4. 将三个 Boss 的技能实现从 `BossBehaviorController` 拆为可注册策略。
-5. 为爆炸高度、浮空落点和道具覆盖增加更细粒度的边界测试。
+1. 将玩家配置文件读取和 Boss 静态档案从 `PlayerManager` 移入配置仓库与目录对象。
+2. 将 HUD、静态 AI 策略和决斗回合中剩余的角色字典读取迁移到类型化查询对象。
+3. 将三个 Boss 的技能实现从 `BossBehaviorController` 拆为可注册策略。
+4. 为爆炸高度、浮空落点和道具覆盖增加更细粒度的边界测试。
 
 不要一次性替换角色字典为 Resource；应先建立类型化适配器和当前格式编解码测试，再按领域逐步迁移。

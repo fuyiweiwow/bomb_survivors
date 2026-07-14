@@ -30,6 +30,15 @@ func _run() -> void:
 				_fail("Game scene did not expose the modular runtime")
 				return
 		elif scene_path.ends_with("map_editor.tscn"):
+			var editor_document = scene.get("document")
+			var editor_picker = scene.get("picker")
+			var editor_toolbar = scene.get("toolbar")
+			if not editor_document is MapEditorDocument or not editor_picker is MapEditorPicker or not editor_toolbar is MapEditorToolbar:
+				_fail("Map editor did not expose its document, picker, and toolbar components")
+				return
+			if not editor_toolbar.handles_pointer(Vector2(10, 10), 600.0) or editor_toolbar.handles_pointer(Vector2(10, 300), 600.0):
+				_fail("Map editor toolbar pointer bounds changed")
+				return
 			if scene.get("art") == null or scene.get("art").mat_wall == null:
 				_fail("Map editor did not use the shared art catalog")
 				return

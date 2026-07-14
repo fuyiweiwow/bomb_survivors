@@ -5,23 +5,24 @@ const GRID_H := Constants.GRID_H
 const TILE_SIZE := Constants.TILE_SIZE
 const FLOOR_Y := Constants.FLOOR_Y
 const TERRAIN_ART := preload("res://scripts/terrain/terrain_art_factory.gd")
-const MAP_DATA_CODEC := preload("res://scripts/grid/map_data_codec.gd")
-const MAP_STATE_SCRIPT := preload("res://scripts/grid/map_state.gd")
+const MAP_EDITOR_DOCUMENT := preload("res://scripts/editor/map_editor_document.gd")
+const MAP_EDITOR_PICKER := preload("res://scripts/editor/map_editor_picker.gd")
+const MAP_EDITOR_TOOLBAR := preload("res://scripts/editor/map_editor_toolbar.gd")
 const ART_CATALOG := preload("res://scripts/core/game_art_catalog.gd")
 
-enum Cell { EMPTY, WALL, CRATE, FOREST, LAVA }
-
-var map_state: RefCounted = MAP_STATE_SCRIPT.new(GRID_W, GRID_H, Cell.EMPTY, Cell.WALL)
+var document: MapEditorDocument = MAP_EDITOR_DOCUMENT.new(GRID_W, GRID_H)
+var map_state: MapState = document.map_state
 var grid: Array:
-	get: return map_state.cells
-var selected_cell := Cell.WALL
-var selected_label: Label = null
-var map_root: Node3D = null
-var camera: Camera3D = null
-
+	get: return document.cells()
+var selected_cell := Constants.Cell.WALL
+var selected_label: Label
+var map_root: Node3D
+var camera: Camera3D
+var picker: MapEditorPicker
+var toolbar: MapEditorToolbar
 var art: RefCounted = ART_CATALOG.new()
 
-func _ready():
+func _ready() -> void:
 	set_process_input(true)
 	_init_grid()
 	_setup_scene()
@@ -29,18 +30,18 @@ func _ready():
 	_load_map(false)
 	_refresh_view()
 
-func _init_grid():
-	map_state.reset_blank()
+func _init_grid() -> void:
+	document.reset_blank()
 
-func _setup_scene():
+func _setup_scene() -> void:
 	var world := WorldEnvironment.new()
-	var env := Environment.new()
-	env.background_mode = Environment.BG_COLOR
-	env.background_color = Color(0.07, 0.09, 0.12)
-	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-	env.ambient_light_color = Color(0.55, 0.58, 0.64)
-	env.ambient_light_energy = 0.9
-	world.environment = env
+	var environment := Environment.new()
+	environment.background_mode = Environment.BG_COLOR
+	environment.background_color = Color(0.07, 0.09, 0.12)
+	environment.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
+	environment.ambient_light_color = Color(0.55, 0.58, 0.64)
+	environment.ambient_light_energy = 0.9
+	world.environment = environment
 	add_child(world)
 
 	var sun := DirectionalLight3D.new()
@@ -55,13 +56,23 @@ func _setup_scene():
 	camera.rotation_degrees = Vector3(-58, 0, 0)
 	camera.current = true
 	add_child(camera)
+	picker = MAP_EDITOR_PICKER.new(camera, GRID_W, GRID_H, TILE_SIZE, FLOOR_Y)
 
 	map_root = Node3D.new()
 	map_root.name = "EditableMap3D"
 	add_child(map_root)
 	add_child(TERRAIN_ART.create_outer_terrain(GRID_W, GRID_H, TILE_SIZE, art.mat_wall, art.mat_floor_a))
 
-func _refresh_view():
+func _setup_ui() -> void:
+	toolbar = MAP_EDITOR_TOOLBAR.new()
+	add_child(toolbar)
+	toolbar.setup(selected_cell)
+	toolbar.tool_selected.connect(_set_selected_cell)
+	toolbar.save_requested.connect(_save_map)
+	toolbar.exit_requested.connect(_exit_to_menu)
+	selected_label = toolbar.selected_label
+
+func _refresh_view() -> void:
 	if is_instance_valid(map_root):
 		map_root.queue_free()
 	map_root = Node3D.new()
@@ -71,33 +82,27 @@ func _refresh_view():
 	for y in GRID_H:
 		for x in GRID_W:
 			var cell := Vector2i(x, y)
-			var floor := TERRAIN_ART.create_floor_cell(
-				cell,
-				_grid_to_world(cell),
-				TILE_SIZE,
-				_floor_mat_for_cell(x, y)
-			)
-			map_root.add_child(floor)
-
-			if grid[y][x] == Cell.WALL:
-				var wall := TERRAIN_ART.create_rock_wall(cell, TILE_SIZE, art.mat_wall)
-				wall.position = _grid_to_world(cell) + Vector3(0, 0.62, 0)
-				map_root.add_child(wall)
-			elif grid[y][x] == Cell.CRATE:
-				var crate := MeshHelpers.box(Vector3(TILE_SIZE * 0.84, 0.92, TILE_SIZE * 0.84), art.mat_crate)
-				crate.name = "Crate_%d_%d" % [cell.x, cell.y]
-				crate.position = _grid_to_world(cell) + Vector3(0, 0.46, 0)
-				map_root.add_child(crate)
-			elif grid[y][x] == Cell.FOREST:
-				map_root.add_child(_create_forest_tile(cell))
-			elif grid[y][x] == Cell.LAVA:
-				map_root.add_child(_create_lava_tile(cell))
+			map_root.add_child(TERRAIN_ART.create_floor_cell(cell, _grid_to_world(cell), TILE_SIZE, _floor_mat_for_cell(x, y)))
+			match map_state.cell_at(cell):
+				Constants.Cell.WALL:
+					var wall := TERRAIN_ART.create_rock_wall(cell, TILE_SIZE, art.mat_wall)
+					wall.position = _grid_to_world(cell) + Vector3(0, 0.62, 0)
+					map_root.add_child(wall)
+				Constants.Cell.CRATE:
+					var crate := MeshHelpers.box(Vector3(TILE_SIZE * 0.84, 0.92, TILE_SIZE * 0.84), art.mat_crate)
+					crate.name = "Crate_%d_%d" % [cell.x, cell.y]
+					crate.position = _grid_to_world(cell) + Vector3(0, 0.46, 0)
+					map_root.add_child(crate)
+				Constants.Cell.FOREST:
+					map_root.add_child(_create_forest_tile(cell))
+				Constants.Cell.LAVA:
+					map_root.add_child(_create_lava_tile(cell))
 
 func _floor_mat_for_cell(x: int, y: int) -> Material:
-	match grid[y][x]:
-		Cell.FOREST:
+	match map_state.cell_at(Vector2i(x, y)):
+		Constants.Cell.FOREST:
 			return art.mat_forest_floor
-		Cell.LAVA:
+		Constants.Cell.LAVA:
 			return art.mat_lava
 		_:
 			return art.mat_floor_a if (x + y) % 2 == 0 else art.mat_floor_b
@@ -109,265 +114,64 @@ func _create_lava_tile(cell: Vector2i) -> Node3D:
 	return TERRAIN_ART.create_lava_tile(cell, _grid_to_world(cell), TILE_SIZE, art.mat_lava_glow)
 
 func _grid_to_world(cell: Vector2i) -> Vector3:
-	return Vector3((cell.x - (GRID_W - 1) / 2.0) * TILE_SIZE, FLOOR_Y, (cell.y - (GRID_H - 1) / 2.0) * TILE_SIZE)
+	return Constants.grid_to_world(cell)
 
-func _screen_to_grid(screen_pos: Vector2) -> Vector2i:
-	if camera == null:
-		return Vector2i(-1, -1)
-	var ray_origin := camera.project_ray_origin(screen_pos)
-	var ray_dir := camera.project_ray_normal(screen_pos)
-	if absf(ray_dir.y) < 0.001:
-		return Vector2i(-1, -1)
-	var distance := (FLOOR_Y - ray_origin.y) / ray_dir.y
-	if distance < 0.0:
-		return Vector2i(-1, -1)
-	var hit := ray_origin + ray_dir * distance
-	var gx := int(floor(hit.x / TILE_SIZE + (GRID_W - 1) / 2.0 + 0.5))
-	var gy := int(floor(hit.z / TILE_SIZE + (GRID_H - 1) / 2.0 + 0.5))
-	return Vector2i(gx, gy)
+func _screen_to_grid(screen_position: Vector2) -> Vector2i:
+	return picker.screen_to_grid(screen_position) if picker != null else Vector2i(-1, -1)
 
-func _cylinder(radius: float, height: float, mat: Material) -> MeshInstance3D:
-	var mesh := CylinderMesh.new()
-	mesh.top_radius = radius
-	mesh.bottom_radius = radius
-	mesh.height = height
-	mesh.radial_segments = 24
-	var node := MeshInstance3D.new()
-	node.mesh = mesh
-	node.material_override = mat
-	return node
+func _set_selected_cell(cell_type: int) -> void:
+	selected_cell = cell_type
+	if toolbar != null:
+		toolbar.set_selected_cell(cell_type)
 
-func _setup_ui():
-	var layer := CanvasLayer.new()
-	add_child(layer)
-	var top_band := ColorRect.new()
-	top_band.color = Color(0.025, 0.032, 0.040, 0.96)
-	top_band.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	top_band.set_anchors_preset(Control.PRESET_TOP_WIDE)
-	top_band.offset_bottom = 56.0
-	layer.add_child(top_band)
-	var bottom_band := ColorRect.new()
-	bottom_band.color = Color(0.025, 0.032, 0.040, 0.96)
-	bottom_band.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	bottom_band.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
-	bottom_band.offset_top = -72.0
-	layer.add_child(bottom_band)
-
-	var top_center := CenterContainer.new()
-	top_center.set_anchors_preset(Control.PRESET_TOP_WIDE)
-	top_center.offset_top = 8
-	top_center.offset_bottom = 50
-	layer.add_child(top_center)
-
-	var top_bar := PanelContainer.new()
-	top_bar.custom_minimum_size = Vector2(180, 38)
-	top_center.add_child(top_bar)
-
-	var top_margin := MarginContainer.new()
-	top_margin.add_theme_constant_override("margin_left", 12)
-	top_margin.add_theme_constant_override("margin_top", 5)
-	top_margin.add_theme_constant_override("margin_right", 12)
-	top_margin.add_theme_constant_override("margin_bottom", 5)
-	top_bar.add_child(top_margin)
-
-	var label := Label.new()
-	label.text = "Map Editor"
-	label.add_theme_font_size_override("font_size", 14)
-	label.add_theme_color_override("font_color", Color.WHITE)
-	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	label.custom_minimum_size = Vector2(150, 26)
-	top_margin.add_child(label)
-
-	var bottom_center := CenterContainer.new()
-	bottom_center.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
-	bottom_center.offset_top = -66
-	bottom_center.offset_bottom = -10
-	layer.add_child(bottom_center)
-
-	var bottom_bar := PanelContainer.new()
-	bottom_bar.custom_minimum_size = Vector2(438, 44)
-	bottom_center.add_child(bottom_bar)
-
-	var bottom_margin := MarginContainer.new()
-	bottom_margin.add_theme_constant_override("margin_left", 10)
-	bottom_margin.add_theme_constant_override("margin_top", 8)
-	bottom_margin.add_theme_constant_override("margin_right", 10)
-	bottom_margin.add_theme_constant_override("margin_bottom", 8)
-	bottom_bar.add_child(bottom_margin)
-
-	var controls := HBoxContainer.new()
-	controls.alignment = BoxContainer.ALIGNMENT_CENTER
-	controls.add_theme_constant_override("separation", 6)
-	bottom_margin.add_child(controls)
-
-	selected_label = Label.new()
-	selected_label.add_theme_font_size_override("font_size", 16)
-	selected_label.add_theme_color_override("font_color", Color.YELLOW)
-	selected_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	selected_label.custom_minimum_size = Vector2(92, 30)
-	_update_sel_label(selected_label)
-	controls.add_child(selected_label)
-
-	_add_tool_button(controls, Cell.WALL, "Wall / 1")
-	_add_tool_button(controls, Cell.CRATE, "Crate / 2")
-	_add_tool_button(controls, Cell.FOREST, "Forest: hides players / 3")
-	_add_tool_button(controls, Cell.LAVA, "Lava: damages over time / 4")
-	_add_tool_button(controls, Cell.EMPTY, "Empty / 5")
-
-	var save_btn := Button.new()
-	save_btn.text = "S"
-	save_btn.tooltip_text = "Save"
-	save_btn.custom_minimum_size = Vector2(42, 30)
-	save_btn.pressed.connect(_save_map)
-	controls.add_child(save_btn)
-
-	var back_btn := Button.new()
-	back_btn.text = "X"
-	back_btn.tooltip_text = "Exit"
-	back_btn.custom_minimum_size = Vector2(42, 30)
-	back_btn.pressed.connect(func(): get_tree().change_scene_to_file("res://scenes/menu/main_menu.tscn"))
-	controls.add_child(back_btn)
-
-func _add_tool_button(parent: Node, cell: int, tooltip: String):
-	var btn := Button.new()
-	btn.text = ""
-	btn.icon = _make_cell_icon(cell)
-	btn.expand_icon = true
-	btn.tooltip_text = tooltip
-	btn.custom_minimum_size = Vector2(32, 30)
-	btn.pressed.connect(func(): _set_selected_cell(cell))
-	parent.add_child(btn)
-
-func _make_cell_icon(cell: int) -> Texture2D:
-	var img := Image.create(24, 24, false, Image.FORMAT_RGBA8)
-	var bg := Color(0.20, 0.22, 0.24)
-	var fg := Color.WHITE
-	match cell:
-		Cell.WALL:
-			bg = Color(0.58, 0.62, 0.68)
-			fg = Color(0.32, 0.35, 0.40)
-		Cell.CRATE:
-			bg = Color(0.78, 0.50, 0.24)
-			fg = Color(0.42, 0.24, 0.10)
-		Cell.FOREST:
-			bg = Color(0.10, 0.42, 0.16)
-			fg = Color(0.40, 0.78, 0.28)
-		Cell.LAVA:
-			bg = Color(0.82, 0.14, 0.04)
-			fg = Color(1.0, 0.72, 0.10)
-		Cell.EMPTY:
-			bg = Color(0.70, 0.78, 0.66)
-			fg = Color(0.82, 0.88, 0.76)
-	img.fill(bg)
-	for i in range(24):
-		img.set_pixel(i, 0, Color(0.05, 0.06, 0.07))
-		img.set_pixel(i, 23, Color(0.05, 0.06, 0.07))
-		img.set_pixel(0, i, Color(0.05, 0.06, 0.07))
-		img.set_pixel(23, i, Color(0.05, 0.06, 0.07))
-	match cell:
-		Cell.WALL:
-			for y in range(5, 19, 6):
-				for x in range(3, 21):
-					img.set_pixel(x, y, fg)
-			for x in range(6, 21, 7):
-				for y in range(3, 21):
-					img.set_pixel(x, y, fg)
-		Cell.CRATE:
-			for i in range(4, 20):
-				img.set_pixel(i, i, fg)
-				img.set_pixel(23 - i, i, fg)
-			for i in range(5, 19):
-				img.set_pixel(i, 5, fg)
-				img.set_pixel(i, 18, fg)
-				img.set_pixel(5, i, fg)
-				img.set_pixel(18, i, fg)
-		Cell.FOREST:
-			for y in range(5, 17):
-				for x in range(7, 17):
-					if abs(x - 12) + abs(y - 11) < 8:
-						img.set_pixel(x, y, fg)
-			for y in range(14, 21):
-				img.set_pixel(11, y, Color(0.38, 0.20, 0.08))
-				img.set_pixel(12, y, Color(0.38, 0.20, 0.08))
-		Cell.LAVA:
-			for x in range(4, 20):
-				var y := 12 + int(sin(float(x) * 0.8) * 3.0)
-				for yy in range(y, 20):
-					img.set_pixel(x, yy, fg)
-		Cell.EMPTY:
-			for y in range(4, 20, 5):
-				for x in range(4, 20, 5):
-					img.set_pixel(x, y, fg)
-	return ImageTexture.create_from_image(img)
-
-func _update_sel_label(lbl: Label):
-	var names := {Cell.WALL: "Wall", Cell.CRATE: "Crate", Cell.FOREST: "Forest", Cell.LAVA: "Lava", Cell.EMPTY: "Empty"}
-	lbl.text = "Sel: " + names.get(selected_cell, "?")
-
-func _set_selected_cell(cell: int):
-	selected_cell = cell
-	if selected_label:
-		_update_sel_label(selected_label)
-
-func _input(event):
+func _input(event: InputEvent) -> void:
 	if event is InputEventKey and event.pressed:
 		match event.keycode:
-			KEY_1: _set_selected_cell(Cell.WALL)
-			KEY_2: _set_selected_cell(Cell.CRATE)
-			KEY_3: _set_selected_cell(Cell.FOREST)
-			KEY_4: _set_selected_cell(Cell.LAVA)
-			KEY_5: _set_selected_cell(Cell.EMPTY)
-			KEY_ESCAPE:
-				get_tree().change_scene_to_file("res://scenes/menu/main_menu.tscn")
+			KEY_1: _set_selected_cell(Constants.Cell.WALL)
+			KEY_2: _set_selected_cell(Constants.Cell.CRATE)
+			KEY_3: _set_selected_cell(Constants.Cell.FOREST)
+			KEY_4: _set_selected_cell(Constants.Cell.LAVA)
+			KEY_5: _set_selected_cell(Constants.Cell.EMPTY)
+			KEY_ESCAPE: _exit_to_menu()
 
-	if event is InputEventMouseButton:
-		if not event.pressed:
-			return
+	if event is InputEventMouseButton and event.pressed:
 		if _is_pointer_over_editor_ui(event.position):
 			return
 		var cell := _screen_to_grid(event.position)
-		if cell.x >= 1 and cell.x < GRID_W - 1 and cell.y >= 1 and cell.y < GRID_H - 1:
-			if event.button_index == MOUSE_BUTTON_LEFT:
-				map_state.set_cell(cell, selected_cell)
-			elif event.button_index == MOUSE_BUTTON_RIGHT:
-				map_state.set_cell(cell, Cell.EMPTY)
+		var changed := false
+		if event.button_index == MOUSE_BUTTON_LEFT:
+			changed = document.paint(cell, selected_cell)
+		elif event.button_index == MOUSE_BUTTON_RIGHT:
+			changed = document.erase(cell)
+		if changed:
 			_refresh_view()
 
-func _is_pointer_over_editor_ui(screen_pos: Vector2) -> bool:
-	var viewport_height := get_viewport().get_visible_rect().size.y
-	return screen_pos.y <= 56.0 or screen_pos.y >= viewport_height - 72.0
+func _is_pointer_over_editor_ui(screen_position: Vector2) -> bool:
+	if toolbar == null:
+		return false
+	return toolbar.handles_pointer(screen_position, get_viewport().get_visible_rect().size.y)
 
-func _save_map():
-	var file := FileAccess.open("user://map_data.json", FileAccess.WRITE)
-	if file:
-		var data := MAP_DATA_CODEC.encode_state(map_state)
-		file.store_string(JSON.stringify(data))
-		file.close()
-		print("Map saved!")
+func _save_map() -> void:
+	print("Map saved!" if document.save() else "Map save failed.")
 
-func _load_map(show_messages := true):
-	if not FileAccess.file_exists("user://map_data.json"):
+func _load_map(show_messages := true) -> void:
+	var result := document.load()
+	if result == MAP_EDITOR_DOCUMENT.LoadResult.LOADED:
+		_refresh_view()
 		if show_messages:
-			print("No saved map.")
-		return
-	var file := FileAccess.open("user://map_data.json", FileAccess.READ)
-	if file == null:
-		_delete_incompatible_map(show_messages)
-		return
-	var text := file.get_as_text()
-	file.close()
-	var json := JSON.new()
-	if json.parse(text) != OK or not MAP_DATA_CODEC.decode_into_state(json.get_data(), map_state):
-		_delete_incompatible_map(show_messages)
-		return
-	_refresh_view()
-	if show_messages:
-		print("Map loaded!")
+			print("Map loaded!")
+	elif result == MAP_EDITOR_DOCUMENT.LoadResult.RESET_INCOMPATIBLE:
+		_refresh_view()
+		if show_messages:
+			print("Incompatible map deleted. Start from an empty map.")
+	elif show_messages:
+		print("No saved map.")
 
-func _delete_incompatible_map(show_messages: bool):
-	DirAccess.remove_absolute(ProjectSettings.globalize_path("user://map_data.json"))
-	_init_grid()
+func _delete_incompatible_map(show_messages: bool) -> void:
+	document.reset_and_delete_saved_map()
 	_refresh_view()
 	if show_messages:
 		print("Incompatible map deleted. Start from an empty map.")
+
+func _exit_to_menu() -> void:
+	get_tree().change_scene_to_file("res://scenes/menu/main_menu.tscn")
