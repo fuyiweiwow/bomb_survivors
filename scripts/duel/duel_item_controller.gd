@@ -5,11 +5,11 @@ signal changed
 signal finished(player_won: bool)
 signal lava_relocated
 
-const SHIELD_DURATION := 5.0
-const INVINCIBLE_DURATION := 5.0
-const SLOW_DURATION := 3.0
-const PRISON_DURATION := 4.0
-const FOOTBALL_DURATION := 8.0
+const SHIELD_DURATION := Constants.SHIELD_DURATION
+const INVINCIBLE_DURATION := Constants.INVINCIBLE_DURATION
+const SLOW_DURATION := Constants.GLUE_SLOW_DURATION
+const PRISON_DURATION := Constants.PRISON_DURATION
+const FOOTBALL_DURATION := Constants.FOOTBALL_DURATION
 const WING_BOOST := 4.8
 const ACTIVE_ITEM_IDS := ["detonator", "glue", "shield_potion", "invincible_star", "oil_barrel", "rock", "wings", "football_shoes", "prison"]
 

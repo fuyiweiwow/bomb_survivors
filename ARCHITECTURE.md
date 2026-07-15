@@ -271,7 +271,7 @@ Duel Token → DuelManager.arm() → 触碰敌人
 - `tests/modular_gameplay_smoke.gd` 覆盖系统组合、Boss 策略注册、输入、移动、AI、背包、天气、爆炸和高度规则。
 - `tests/boss_strategy_smoke.gd` 实际触发爆破王炸弹、冰霜冻结、分身生成和分身自爆。
 - `tests/boundary_rules_smoke.gd` 独立覆盖三格背包 FIFO/重复道具/选中槽修正、爆炸高度与格子边缘、浮空落点 BFS 和踩踏接触边界。
-- `tests/consumable_effects_smoke.gd` 覆盖 3×3 Glue、分级 AI 认知、全图雷管、Wings 单独飞行、Rock 地面射击、Rock+Wings 高空投放、足球鞋踢弹、9×9 油火连锁/持续伤害、9×9 Prison 群控、可见动画节点和决斗进攻系数。
+- `tests/consumable_effects_smoke.gd` 覆盖延长后的计时道具、3×3 Glue、分级 AI 认知、全图雷管、Wings 单独飞行、Rock 地面射击、Rock+Wings 高空投放、足球鞋优先攻击附近敌人、安全踢弹及无安全落点拒绝踢弹、9×9 油火连锁/持续伤害、9×9 Prison 群控、可见动画节点和决斗进攻系数。
 - `tests/scene_load_smoke.gd` 验证地图编辑器组件组合以及地图元素与游戏逻辑格尺寸一致。
 - 架构重构必须先保持 smoke 行为不变，再增加边界初始化和唯一 ID 测试。
 - 新增脚本必须能被 Godot editor 全量扫描，并提交对应 `.gd.uid`。

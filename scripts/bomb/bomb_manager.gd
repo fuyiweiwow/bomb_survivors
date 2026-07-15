@@ -113,38 +113,82 @@ func kick_bomb_in_direction(state: CharacterState) -> bool:
 func kick_bomb_at(state: CharacterState, origin: Vector2i, direction: Vector2i) -> bool:
 	if direction == Vector2i.ZERO or not game.bomb_map.has(origin):
 		return false
+	var entry: Dictionary = game.bomb_map[origin]
+	var blast_range := int(entry.get("range", 1))
+	var enemy_destination := _football_enemy_target(state, origin, blast_range)
+	if Constants.is_grid_cell_valid(enemy_destination):
+		_move_kicked_bomb(state, origin, enemy_destination, true)
+		return true
+	var safe_destination := _football_safe_lane_destination(state, origin, direction, blast_range)
+	if not Constants.is_grid_cell_valid(safe_destination):
+		state.set_status("No safe kick target")
+		return false
+	_move_kicked_bomb(state, origin, safe_destination, false)
+	return true
+
+func _football_enemy_target(state: CharacterState, origin: Vector2i, blast_range: int) -> Vector2i:
+	var best_cell := Vector2i(-1, -1)
+	var best_distance := Constants.FOOTBALL_ENEMY_TARGET_RADIUS + 1
+	for raw_target in game.character_registry.states():
+		var target := raw_target as CharacterState
+		if target == state or not target.is_alive() or target.is_ai() == state.is_ai():
+			continue
+		if not target.is_in_attack_height(Constants.GROUND_ATTACK_MIN_HEIGHT, Constants.GROUND_ATTACK_MAX_HEIGHT):
+			continue
+		if target.is_hidden_in(game.map_state):
+			continue
+		var target_cell := target.cell()
+		var distance := Constants.grid_distance(origin, target_cell)
+		if distance <= 0 or distance > Constants.FOOTBALL_ENEMY_TARGET_RADIUS or distance >= best_distance:
+			continue
+		if not _is_football_landing_cell_open(target_cell, origin):
+			continue
+		if not _bomb_destination_is_safe_for(state, target_cell, blast_range):
+			continue
+		best_cell = target_cell
+		best_distance = distance
+	return best_cell
+
+func _football_safe_lane_destination(state: CharacterState, origin: Vector2i, direction: Vector2i, blast_range: int) -> Vector2i:
 	var destination := origin
-	var hit_obstacle := false
-	for step in range(Constants.FOOTBALL_KICK_DISTANCE):
-		var target: Vector2i = destination + direction
-		if target.x < 0 or target.x >= Constants.GRID_W or target.y < 0 or target.y >= Constants.GRID_H:
-			hit_obstacle = true
-			break
-		if game.map_state.cell_at(target) in [CELL_WALL, CELL_CRATE] or game.oil_barrels.has(target) or game.bomb_map.has(target):
-			hit_obstacle = true
+	for _step in range(Constants.FOOTBALL_SAFE_KICK_MAX_DISTANCE):
+		var target := destination + direction
+		if not _is_football_landing_cell_open(target, origin):
 			break
 		destination = target
-	if destination == origin:
-		explode_bomb(origin)
-		state.set_status("Bomb kick impact")
-		return true
+		if _bomb_destination_is_safe_for(state, destination, blast_range):
+			return destination
+	return Vector2i(-1, -1)
+
+func _is_football_landing_cell_open(cell: Vector2i, moving_bomb_origin: Vector2i) -> bool:
+	if not Constants.is_grid_cell_valid(cell):
+		return false
+	if game.map_state.cell_at(cell) in [CELL_WALL, CELL_CRATE] or game.oil_barrels.has(cell):
+		return false
+	return not game.bomb_map.has(cell) or cell == moving_bomb_origin
+
+func _bomb_destination_is_safe_for(state: CharacterState, destination: Vector2i, blast_range: int) -> bool:
+	return not blast_cell_set(destination, blast_range).has(state.cell())
+
+func _move_kicked_bomb(state: CharacterState, origin: Vector2i, destination: Vector2i, targets_enemy: bool) -> void:
 	var entry: Dictionary = game.bomb_map[origin]
 	game.bomb_map.erase(origin)
 	game.bomb_map[destination] = entry
 	var node = entry.get("node")
 	if is_instance_valid(node):
 		var distance := Constants.grid_distance(origin, destination)
+		var duration := maxf(distance * 0.10, 0.12)
 		var tween := game.create_tween().bind_node(node)
-		tween.set_parallel()
-		tween.tween_property(node, "position", Constants.grid_to_world(destination) + Vector3(0, BOMB_HEIGHT, 0), maxf(distance * 0.10, 0.12))
-		tween.tween_property(node, "rotation_degrees", Vector3(360, 180, 270), maxf(distance * 0.10, 0.12)).as_relative()
-		tween.set_parallel(false)
-		if hit_obstacle:
-			tween.tween_callback(func(): explode_bomb(destination))
-	elif hit_obstacle:
-		explode_bomb(destination)
-	state.set_status("Bomb kicked %d cells" % Constants.grid_distance(origin, destination))
-	return true
+		var destination_world := Constants.grid_to_world(destination) + Vector3(0, BOMB_HEIGHT, 0)
+		if targets_enemy:
+			var midpoint := ((node as Node3D).position + destination_world) * 0.5 + Vector3.UP * Constants.TILE_SIZE
+			tween.tween_property(node, "position", midpoint, duration * 0.5)
+			tween.tween_property(node, "position", destination_world, duration * 0.5)
+		else:
+			tween.tween_property(node, "position", destination_world, duration)
+		var spin := game.create_tween().bind_node(node)
+		spin.tween_property(node, "rotation_degrees", Vector3(360, 180, 270), duration).as_relative()
+	state.set_status("Bomb kicked to enemy" if targets_enemy else "Bomb kicked to safety")
 
 func explode_bomb(cell: Vector2i):
 	if not game.bomb_map.has(cell):

@@ -24,8 +24,17 @@ func _run() -> void:
 	_place_state(player, center)
 	_place_state(enemy_a, center + Vector2i(4, 0))
 	_place_state(enemy_b, center + Vector2i(5, 0))
+	if not _check(game.consumable_effects.use(0, "shield_potion") and player.effects.shield_time_left() == Constants.SHIELD_DURATION, "Shield Potion did not use the extended duration"):
+		return
+	if not _check(game.consumable_effects.use(0, "invincible_star") and player.effects.invincibility_time_left() == Constants.INVINCIBLE_DURATION, "Invincible Star did not use the extended duration"):
+		return
+	player.data["shield"] = 0
+	player.data["shield_timer"] = 0.0
+	player.data["invincible_timer"] = 0.0
 
 	if not _check(game.consumable_effects.use(0, "glue") and game.glue_areas.size() == 9, "Glue did not cover the complete 3x3 neighborhood"):
+		return
+	if not _check(float((game.glue_areas[center] as Dictionary)["time"]) == Constants.GLUE_AREA_DURATION, "Glue did not use the extended area duration"):
 		return
 	if not _check(game.get_node_or_null("ItemActivation_glue") != null, "Glue did not create a visible activation outline"):
 		return
@@ -49,6 +58,8 @@ func _run() -> void:
 	if not _check(game.consumable_effects.use(0, "prison"), "Prison rejected nearby enemies"):
 		return
 	if not _check(enemy_a.effects.is_imprisoned() and enemy_b.effects.is_imprisoned(), "Prison did not trap every enemy at the 9x9 boundary"):
+		return
+	if not _check(enemy_a.effects.prison_time_left() == Constants.PRISON_DURATION, "Prison did not use the extended duration"):
 		return
 	if not _check(game.get_node_or_null("ItemActivation_prison") != null, "Prison did not show its 9x9 activation boundary"):
 		return
@@ -78,6 +89,8 @@ func _run() -> void:
 	_place_state(player, center)
 	if not _check(game.consumable_effects.use(0, "wings"), "Wings could not be used"):
 		return
+	if not _check(player.effects.wings_time_left() == Constants.WINGS_DURATION, "Wings did not use the extended duration"):
+		return
 	if not _check(player.node().get_node_or_null("WingsEffect") != null and game.get_node_or_null("ItemActivation_wings") != null, "Wings did not create persistent and activation visuals"):
 		return
 	if not _check(player.is_airborne() and player.world_position().y >= Constants.WINGS_FLIGHT_HEIGHT, "Wings did not launch the player to the high flight layer"):
@@ -89,6 +102,8 @@ func _run() -> void:
 	if not _check(game.get_node_or_null("WingDropRock") == null, "Wings created an aerial rock without the Rock item"):
 		return
 	if not _check(game.consumable_effects.use(0, "rock"), "Rock could not be used"):
+		return
+	if not _check(player.effects.rock_time_left() == Constants.ROCK_DURATION, "Rock did not use the extended duration"):
 		return
 	if not _check(player.node().get_node_or_null("RockEffect") != null and game.get_node_or_null("ItemActivation_rock") != null, "Rock did not create persistent and activation visuals"):
 		return
@@ -129,13 +144,52 @@ func _run() -> void:
 	player.set_last_move_direction(Vector2i.RIGHT)
 	if not _check(game.consumable_effects.use(0, "football_shoes"), "Football Shoes could not be used"):
 		return
+	if not _check(player.effects.football_time_left() == Constants.FOOTBALL_DURATION, "Football Shoes did not use the extended duration"):
+		return
 	if not _check(game.movement_controller.try_move(0, Vector2i.RIGHT), "Football Shoes did not let the player move into a bomb"):
 		return
-	var kick_destination := center + Vector2i.RIGHT * (Constants.FOOTBALL_KICK_DISTANCE + 1)
-	if not _check(game.bomb_map.has(kick_destination) and not game.bomb_map.has(center + Vector2i.RIGHT), "Football Shoes did not kick away a bomb during movement"):
+	var enemy_kick_destination := enemy_a.cell()
+	if not _check(game.bomb_map.has(enemy_kick_destination) and not game.bomb_map.has(center + Vector2i.RIGHT), "Football Shoes did not kick a safe bomb to a nearby enemy"):
 		return
 	game.movement_controller.cancel_move(player.data)
-	game.bomb_manager.explode_bomb(kick_destination)
+	game.bomb_manager.explode_bomb(enemy_kick_destination)
+
+	_place_state(player, center)
+	_place_state(enemy_a, center + Vector2i(-5, -5))
+	player.bombs.configure(3, 3)
+	player.data["bomb_placed_count"] = 0
+	_place_state(player, center + Vector2i.RIGHT)
+	if not _check(game.bomb_manager.try_place_bomb(0), "Could not place a long-range bomb for the safe Football Shoes kick"):
+		return
+	_place_state(player, center)
+	player.set_last_move_direction(Vector2i.RIGHT)
+	if not _check(game.movement_controller.try_move(0, Vector2i.RIGHT), "Football Shoes rejected a safe forward kick"):
+		return
+	var safe_kick_destination := center + Vector2i.RIGHT * 4
+	if not _check(
+		game.bomb_map.has(safe_kick_destination)
+		and not game.bomb_manager.blast_cell_set(safe_kick_destination, 3).has(center),
+		"Football Shoes did not move the bomb beyond its blast range"
+	):
+		return
+	game.movement_controller.cancel_move(player.data)
+	game.bomb_manager.explode_bomb(safe_kick_destination)
+
+	_place_state(player, center + Vector2i.RIGHT)
+	player.bombs.configure(3, 3)
+	player.data["bomb_placed_count"] = 0
+	if not _check(game.bomb_manager.try_place_bomb(0), "Could not place a bomb for the blocked Football Shoes kick"):
+		return
+	_place_state(player, center)
+	game.grid_manager.set_cell(center.x + 2, center.y, Constants.Cell.WALL)
+	if not _check(
+		not game.movement_controller.try_move(0, Vector2i.RIGHT)
+		and game.bomb_map.has(center + Vector2i.RIGHT),
+		"Football Shoes moved or detonated a bomb without a safe landing cell"
+	):
+		return
+	game.grid_manager.set_cell(center.x + 2, center.y, Constants.Cell.EMPTY)
+	game.bomb_manager.explode_bomb(center + Vector2i.RIGHT)
 
 	_place_state(player, center)
 	player.set_move_direction(Vector2i.RIGHT)
@@ -150,6 +204,8 @@ func _run() -> void:
 		return
 	game.consumable_effects.damage_oil_barrel(barrel_cell)
 	if not _check(game.fire_areas.size() == 81 and not game.bomb_map.has(chained_bomb_cell), "Oil Barrel did not create a 9x9 fire area or chain an enclosed bomb"):
+		return
+	if not _check(float((game.fire_areas[barrel_cell] as Dictionary)["time"]) == Constants.OIL_FIRE_DURATION, "Oil Barrel fire did not use the extended duration"):
 		return
 	if not _check(game.get_node_or_null("OilIgnitionWave") != null, "Oil ignition did not create an outward visual wave"):
 		return
@@ -176,7 +232,7 @@ func _run() -> void:
 		"Duel AI aggression does not increase with difficulty"
 	):
 		return
-	print("CONSUMABLE_EFFECTS_SMOKE_OK glue_3x3 glue_ai_awareness prison_9x9 detonator_all wings_flight_only rock_ground_shot rock_wings_airdrop football_kick oil_fire_9x9 oil_fire_chain oil_fire_defeat item_visual_feedback duel_aggression")
+	print("CONSUMABLE_EFFECTS_SMOKE_OK glue_3x3 glue_ai_awareness prison_9x9 detonator_all wings_flight_only rock_ground_shot rock_wings_airdrop football_enemy_kick football_safe_kick football_blocked_kick oil_fire_9x9 oil_fire_chain oil_fire_defeat item_visual_feedback duel_aggression")
 	quit(0)
 
 func _clear_region(game: Node, center: Vector2i, radius: int) -> void:

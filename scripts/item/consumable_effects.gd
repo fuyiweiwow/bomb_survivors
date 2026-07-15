@@ -38,8 +38,8 @@ func use(player_index: int, item_id: String) -> bool:
 			game.combat_manager.grant_shield(player_index)
 			return _complete_use(state, item_id, true)
 		"invincible_star":
-			state.effects.grant_invincibility(5.0)
-			state.set_status("Invincible 5s")
+			state.effects.grant_invincibility(Constants.INVINCIBLE_DURATION)
+			state.set_status("Invincible %.0fs" % Constants.INVINCIBLE_DURATION)
 			status_visuals.refresh_player(state.data)
 			return _complete_use(state, item_id, true)
 		"oil_barrel":
@@ -58,8 +58,8 @@ func use(player_index: int, item_id: String) -> bool:
 			status_visuals.refresh_player(state.data)
 			return _complete_use(state, item_id, true)
 		"football_shoes":
-			state.effects.grant_football(8.0)
-			state.set_status("Football shoes 8s")
+			state.effects.grant_football(Constants.FOOTBALL_DURATION)
+			state.set_status("Football shoes %.0fs" % Constants.FOOTBALL_DURATION)
 			status_visuals.refresh_player(state.data)
 			return _complete_use(state, item_id, true)
 		"prison":

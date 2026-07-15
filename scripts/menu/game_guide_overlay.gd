@@ -125,15 +125,15 @@ func _build_item_page() -> void:
 	])
 	_add_item_section("Consumable Items", [
 		{"id": "detonator", "name": "Detonator", "description": "Immediately detonate every bomb on the current map."},
-		{"id": "glue", "name": "Glue", "description": "Cover the 3 x 3 area around you with slowing glue; Easy and Normal AI do not avoid it."},
-		{"id": "shield_potion", "name": "Shield Potion", "description": "Block one hit for 5 seconds and enable a lava launch."},
-		{"id": "invincible_star", "name": "Invincible Star", "description": "Ignore damage and control effects for 5 seconds."},
+		{"id": "glue", "name": "Glue", "description": "Cover the 3 x 3 area for 8 seconds and slow targets for 5 seconds; Easy and Normal AI do not avoid it."},
+		{"id": "shield_potion", "name": "Shield Potion", "description": "Block one hit for 8 seconds and enable a lava launch."},
+		{"id": "invincible_star", "name": "Invincible Star", "description": "Ignore damage and control effects for 8 seconds."},
 		{"id": "dummy", "name": "Dummy", "description": "Passive item consumed automatically to revive you from Down."},
-		{"id": "oil_barrel", "name": "Oil Barrel", "description": "One blast ignites an animated 9 x 9 fire; it chains bombs and defeats characters who stay inside."},
-		{"id": "rock", "name": "Rock", "description": "For 8 seconds, Space fires a rock up to 6 cells in your last movement direction. Combine it with Wings for lethal aerial drops."},
-		{"id": "wings", "name": "Wings", "description": "Launch into high flight, avoid ground bombs, and cross obstacles for 8 seconds. Wings alone cannot attack."},
-		{"id": "football_shoes", "name": "Football Shoes", "description": "For 8 seconds, move into bombs to kick them up to 4 cells; Space also kicks a bomb underfoot or ahead."},
-		{"id": "prison", "name": "Prison", "description": "Trap every enemy in the 9 x 9 area around you for 4 seconds."},
+		{"id": "oil_barrel", "name": "Oil Barrel", "description": "One blast ignites an animated 9 x 9 fire for 8 seconds; it chains bombs and defeats characters who stay inside."},
+		{"id": "rock", "name": "Rock", "description": "For 12 seconds, Space fires a rock up to 6 cells in your last movement direction. Combine it with Wings for lethal aerial drops."},
+		{"id": "wings", "name": "Wings", "description": "Launch into high flight, avoid ground bombs, and cross obstacles for 12 seconds. Wings alone cannot attack."},
+		{"id": "football_shoes", "name": "Football Shoes", "description": "For 12 seconds, kick bombs to a safe nearby enemy; otherwise send them forward beyond their blast range. Space also kicks a bomb underfoot or ahead."},
+		{"id": "prison", "name": "Prison", "description": "Trap every enemy in the 9 x 9 area around you for 6 seconds."},
 		{"id": "duel", "name": "Duel Token", "description": "Gain immunity until contact, then duel over one random single-use lava source."},
 	])
 	_add_section_title("Backpack")
