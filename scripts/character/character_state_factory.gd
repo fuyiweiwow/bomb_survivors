@@ -35,6 +35,7 @@ func create(id: int, root: Node3D, visual_root: Node3D, cell: Vector2i, ai: bool
 		"selected_consumable_index": 0,
 		"invincible_timer": 0.0,
 		"wings_timer": 0.0,
+		"rock_timer": 0.0,
 		"football_timer": 0.0,
 		"slow_timer": 0.0,
 		"prison_timer": 0.0,

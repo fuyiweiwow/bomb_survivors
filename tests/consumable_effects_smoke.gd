@@ -85,17 +85,38 @@ func _run() -> void:
 	game.combat_manager.apply_explosion_damage([center], -1, center, {}, false)
 	if not _check(player.is_alive() and not player.is_downed(), "A ground bomb damaged a high-flying Wings user"):
 		return
+	game.player_commands.handle_bomb_action()
+	if not _check(game.get_node_or_null("WingDropRock") == null, "Wings created an aerial rock without the Rock item"):
+		return
+	if not _check(game.consumable_effects.use(0, "rock"), "Rock could not be used"):
+		return
+	if not _check(player.node().get_node_or_null("RockEffect") != null and game.get_node_or_null("ItemActivation_rock") != null, "Rock did not create persistent and activation visuals"):
+		return
 	_place_state(enemy_a, center)
 	var bomb_count_before_rock: int = game.bomb_map.size()
 	game.player_commands.handle_bomb_action()
 	var dropped_rock := game.get_node_or_null("WingDropRock") as Node3D
 	if not _check(dropped_rock != null and game.bomb_map.size() == bomb_count_before_rock, "Wing action did not create a rock-only airdrop"):
 		return
-	game.wing_airdrop_controller._impact_rock(dropped_rock, center, 0, player.world_position().y)
+	game.rock_attack_controller._impact_aerial_rock(dropped_rock, center, 0, player.world_position().y)
 	if not _check(not enemy_a.is_alive() and game.get_node_or_null("WingRockImpact") != null, "Wing rock did not defeat the enemy below or show its impact"):
 		return
 	game.airborne_controller.force_land(0)
 	player.effects.grant_wings(0.0)
+	game.rock_attack_controller._last_attack_time_by_id.clear()
+	_place_state(player, center)
+	_place_state(enemy_a, center + Vector2i(3, 0))
+	enemy_a.data["invincible_timer"] = 0.0
+	enemy_a.data["shield"] = 0
+	player.set_last_move_direction(Vector2i.RIGHT)
+	game.player_commands.handle_bomb_action()
+	var shot_rock := game.get_node_or_null("GroundRockShot") as Node3D
+	if not _check(shot_rock != null and shot_rock.get_meta("impact_cell") == enemy_a.cell() and not game.bomb_map.has(center), "Rock did not target the first enemy along the movement direction"):
+		return
+	game.rock_attack_controller._impact_ground_rock(shot_rock, enemy_a.cell(), 0)
+	if not _check(enemy_a.is_alive() and enemy_a.is_downed() and game.get_node_or_null("RockShotImpact") != null, "Ground Rock did not damage the first enemy in its path"):
+		return
+	player.effects.grant_rock(0.0)
 
 	_place_state(player, center)
 	_place_state(enemy_a, center + Vector2i(4, 0))
@@ -155,7 +176,7 @@ func _run() -> void:
 		"Duel AI aggression does not increase with difficulty"
 	):
 		return
-	print("CONSUMABLE_EFFECTS_SMOKE_OK glue_3x3 glue_ai_awareness prison_9x9 detonator_all wing_high_flight wing_rock_drop football_kick oil_fire_9x9 oil_fire_chain oil_fire_defeat item_visual_feedback duel_aggression")
+	print("CONSUMABLE_EFFECTS_SMOKE_OK glue_3x3 glue_ai_awareness prison_9x9 detonator_all wings_flight_only rock_ground_shot rock_wings_airdrop football_kick oil_fire_9x9 oil_fire_chain oil_fire_defeat item_visual_feedback duel_aggression")
 	quit(0)
 
 func _clear_region(game: Node, center: Vector2i, radius: int) -> void:

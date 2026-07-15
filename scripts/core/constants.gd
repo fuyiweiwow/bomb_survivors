@@ -25,6 +25,7 @@ const LAVA_DAMAGE_TIME := 1.35
 const DOWNED_DURATION := 5.0
 const SHIELD_DURATION := 5.0
 const WINGS_DURATION := 8.0
+const ROCK_DURATION := 8.0
 const GLUE_AREA_DURATION := 5.0
 const GLUE_SLOW_DURATION := 3.0
 const GLUE_AREA_RADIUS := 1
@@ -41,8 +42,10 @@ const WINGS_AIR_GRAVITY := 0.65
 const WINGS_FLIGHT_HEIGHT := 2.40
 const WINGS_MIN_ALTITUDE := 2.20
 const WINGS_LAUNCH_VELOCITY := 1.80
-const WING_ROCK_DROP_COOLDOWN := 0.80
-const WING_ROCK_FALL_SPEED := 8.0
+const ROCK_ATTACK_COOLDOWN := 0.65
+const ROCK_SHOT_DISTANCE := 6
+const ROCK_SHOT_SPEED := 10.0
+const AERIAL_ROCK_FALL_SPEED := 8.0
 const FOOTBALL_KICK_DISTANCE := 4
 const CRATE_SUPPORT_HEIGHT := 0.98
 const WALL_SUPPORT_HEIGHT := 1.30
@@ -56,7 +59,7 @@ const AERIAL_ATTACK_MIN_HEIGHT := GROUND_ATTACK_MAX_HEIGHT
 const AERIAL_ATTACK_MAX_HEIGHT := 8.0
 const ATTACK_HEIGHT_EPSILON := 0.0001
 
-const CONSUMABLE_IDS := ["detonator", "glue", "shield_potion", "invincible_star", "dummy", "oil_barrel", "wings", "football_shoes", "prison", "duel"]
+const CONSUMABLE_IDS := ["detonator", "glue", "shield_potion", "invincible_star", "dummy", "oil_barrel", "rock", "wings", "football_shoes", "prison", "duel"]
 
 static func grid_to_world(cell: Vector2i) -> Vector3:
 	return Vector3((cell.x - (GRID_W - 1) / 2.0) * TILE_SIZE, FLOOR_Y, (cell.y - (GRID_H - 1) / 2.0) * TILE_SIZE)

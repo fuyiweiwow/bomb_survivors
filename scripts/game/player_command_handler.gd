@@ -58,12 +58,16 @@ func handle_bomb_action() -> void:
 	if state == null:
 		return
 	if state.is_airborne():
-		if state.effects.has_wings():
-			_game.wing_airdrop_controller.try_drop_rock(0)
+		if state.effects.has_wings() and state.effects.has_rock():
+			_game.rock_attack_controller.try_drop_rock(0)
+		elif state.effects.has_wings():
+			state.set_status("Rock is required for an aerial drop")
 		else:
 			state.set_status("Cannot use a ground attack in the air")
 		return
-	if state.effects.has_football():
+	if state.effects.has_rock():
+		_game.rock_attack_controller.try_shoot_rock(0)
+	elif state.effects.has_football():
 		_game.bomb_manager.kick_bomb_in_direction(state)
 	elif state.bombs.can_place():
 		_game.bomb_manager.try_place_bomb(0)

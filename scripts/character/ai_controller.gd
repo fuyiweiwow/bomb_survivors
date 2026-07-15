@@ -56,10 +56,10 @@ func process_ai(delta: float):
 				_game.movement_controller.try_move(i, state.move_direction())
 			continue
 
-		if state.is_airborne() and state.effects.has_wings() and state.is_ai_bomb_ready():
+		if state.is_airborne() and state.effects.has_wings() and state.effects.has_rock() and state.is_ai_bomb_ready():
 			if human_state != null and human_state.is_alive() and human_state.cell() == state.cell():
 				state.reset_ai_bomb_timer()
-				if _game.wing_airdrop_controller.try_drop_rock(i):
+				if _game.rock_attack_controller.try_drop_rock(i):
 					continue
 
 		if not state.is_airborne() and state.is_ai_bomb_ready() and _ai_should_place_bomb(i):

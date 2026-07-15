@@ -128,12 +128,13 @@ func _init() -> void:
 	if not _check(not state.is_moving() and state.cell() == Vector2i(4, 3), "Grid movement did not complete atomically"):
 		return
 	state.effects.grant_wings(1.0)
+	state.effects.grant_rock(1.0)
 	state.effects.apply_slow(0.5)
 	var expired_effects := state.effects.tick_active(0.6)
-	if not _check(state.effects.has_wings() and not state.effects.is_slowed() and not bool(expired_effects["wings_expired"]), "Timed effects did not advance through CharacterEffectState"):
+	if not _check(state.effects.has_wings() and state.effects.has_rock() and not state.effects.is_slowed() and not bool(expired_effects["wings_expired"]), "Timed effects did not advance through CharacterEffectState"):
 		return
 	state.effects.tick_active(0.5)
-	if not _check(not state.effects.has_wings(), "Wings did not expire through CharacterEffectState"):
+	if not _check(not state.effects.has_wings() and not state.effects.has_rock(), "Wings or Rock did not expire through CharacterEffectState"):
 		return
 	state.effects.imprison(0.5)
 	if not _check(state.effects.is_imprisoned() and state.effects.is_frozen(), "Prison did not own both its visible timer and movement lock"):

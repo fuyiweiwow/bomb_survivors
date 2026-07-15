@@ -77,6 +77,7 @@ func _item_display_name(item_id: String) -> String:
 		"invincible_star": return "Invincible Star"
 		"dummy": return "Dummy"
 		"oil_barrel": return "Oil Barrel"
+		"rock": return "Rock"
 		"wings": return "Wings"
 		"football_shoes": return "Football Shoes"
 		"prison": return "Prison"

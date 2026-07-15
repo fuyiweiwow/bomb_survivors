@@ -54,6 +54,11 @@ static func create(item_id: String, art) -> Node3D:
 		"oil_barrel":
 			_add_cylinder(root, 0.25, 0.58, Vector3(0, 0.12, 0), art.mat_oil)
 			_add_cylinder(root, 0.27, 0.08, Vector3(0, 0.14, 0), art.mat_bomb_power)
+		"rock":
+			var rock := _add_sphere(root, 0.28, Vector3(0, 0.12, 0), art.mat_wall)
+			rock.scale = Vector3(1.0, 0.78, 0.92)
+			_add_sphere(root, 0.08, Vector3(0.18, 0.24, -0.08), art.mat_wall)
+			_add_sphere(root, 0.07, Vector3(-0.16, 0.05, 0.12), art.mat_wall)
 		"wings":
 			_add_box(root, Vector3(0.10, 0.40, 0.34), Vector3(-0.22, 0.20, 0), material, Vector3(0, 0, -25))
 			_add_box(root, Vector3(0.10, 0.40, 0.34), Vector3(0.22, 0.20, 0), material, Vector3(0, 0, 25))

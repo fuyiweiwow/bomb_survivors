@@ -2,8 +2,8 @@ class_name PowerupDropTable
 extends RefCounted
 
 const ENTRIES := [
-	{"id": "speed", "weight": 16.0},
-	{"id": "bomb", "weight": 14.0},
+	{"id": "speed", "weight": 14.0},
+	{"id": "bomb", "weight": 13.0},
 	{"id": "range", "weight": 14.0},
 	{"id": "shield", "weight": 10.0},
 	{"id": "detonator", "weight": 4.0},
@@ -12,11 +12,12 @@ const ENTRIES := [
 	{"id": "invincible_star", "weight": 3.0},
 	{"id": "dummy", "weight": 2.0},
 	{"id": "oil_barrel", "weight": 5.0},
+	{"id": "rock", "weight": 5.0},
 	{"id": "wings", "weight": 4.0},
 	{"id": "football_shoes", "weight": 5.0},
 	{"id": "prison", "weight": 4.0},
 	{"id": "duel", "weight": 2.0},
-	{"id": "", "weight": 8.0},
+	{"id": "", "weight": 6.0},
 ]
 
 func pick(normalized_roll: float) -> String:

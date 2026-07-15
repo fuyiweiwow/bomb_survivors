@@ -641,6 +641,7 @@ func _run():
 	for effect_data in [
 		{"timer": "invincible_timer", "node": "InvincibleEffect"},
 		{"timer": "wings_timer", "node": "WingsEffect"},
+		{"timer": "rock_timer", "node": "RockEffect"},
 		{"timer": "football_timer", "node": "FootballEffect"},
 	]:
 		player[effect_data["timer"]] = 1.0

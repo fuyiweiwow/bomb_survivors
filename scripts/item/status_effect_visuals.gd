@@ -3,6 +3,7 @@ extends Node
 const SHIELD_EFFECT := "ShieldEffect"
 const INVINCIBLE_EFFECT := "InvincibleEffect"
 const WINGS_EFFECT := "WingsEffect"
+const ROCK_EFFECT := "RockEffect"
 const FOOTBALL_EFFECT := "FootballEffect"
 const PRISON_EFFECT := "PrisonEffect"
 const GLUE_EFFECT := "GlueSlowEffect"
@@ -32,6 +33,7 @@ func refresh_player(player: Dictionary):
 	_sync_effect(player_node, SHIELD_EFFECT, int(player.get("shield", 0)) > 0, _create_shield_effect)
 	_sync_effect(player_node, INVINCIBLE_EFFECT, float(player.get("invincible_timer", 0.0)) > 0.0, _create_invincible_effect)
 	_sync_effect(player_node, WINGS_EFFECT, float(player.get("wings_timer", 0.0)) > 0.0, _create_wings_effect)
+	_sync_effect(player_node, ROCK_EFFECT, float(player.get("rock_timer", 0.0)) > 0.0, _create_rock_effect)
 	_sync_effect(player_node, FOOTBALL_EFFECT, float(player.get("football_timer", 0.0)) > 0.0, _create_football_effect)
 	_sync_effect(player_node, PRISON_EFFECT, float(player.get("prison_timer", 0.0)) > 0.0, _create_prison_effect)
 	_sync_effect(player_node, GLUE_EFFECT, float(player.get("slow_timer", 0.0)) > 0.0, _create_glue_effect)
@@ -66,6 +68,10 @@ func _animate_player_effects(player: Dictionary):
 		var flutter := sin(_elapsed * 9.0) * 0.18
 		(wings.get_child(0) as Node3D).rotation.z = 0.35 + flutter
 		(wings.get_child(1) as Node3D).rotation.z = -0.35 - flutter
+	var rocks := (player_node as Node3D).get_node_or_null(ROCK_EFFECT) as Node3D
+	if rocks:
+		rocks.rotation.y = _elapsed * 2.6
+		rocks.position.y = 0.54 + sin(_elapsed * 4.0) * 0.04
 	var football := (player_node as Node3D).get_node_or_null(FOOTBALL_EFFECT) as Node3D
 	if football:
 		var boot_scale := 1.0 + sin(_elapsed * 8.0) * 0.08
@@ -114,6 +120,19 @@ func _create_wings_effect() -> Node3D:
 	var right := MeshHelpers.box(Vector3(0.48, 0.06, 0.34), material)
 	right.position = Vector3(0.42, 0.0, 0.0)
 	root.add_child(right)
+	return root
+
+func _create_rock_effect() -> Node3D:
+	var root := Node3D.new()
+	root.name = ROCK_EFFECT
+	root.position.y = 0.54
+	var material := _effect_material(Color(0.70, 0.68, 0.62, 0.94), false)
+	for index in range(3):
+		var angle := TAU * float(index) / 3.0
+		var rock := MeshHelpers.sphere(0.10, material)
+		rock.position = Vector3(cos(angle) * 0.68, float(index % 2) * 0.12, sin(angle) * 0.68)
+		rock.scale = Vector3(1.0, 0.72, 0.90)
+		root.add_child(rock)
 	return root
 
 

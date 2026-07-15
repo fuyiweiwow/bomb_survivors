@@ -130,7 +130,8 @@ func _build_item_page() -> void:
 		{"id": "invincible_star", "name": "Invincible Star", "description": "Ignore damage and control effects for 5 seconds."},
 		{"id": "dummy", "name": "Dummy", "description": "Passive item consumed automatically to revive you from Down."},
 		{"id": "oil_barrel", "name": "Oil Barrel", "description": "One blast ignites an animated 9 x 9 fire; it chains bombs and defeats characters who stay inside."},
-		{"id": "wings", "name": "Wings", "description": "Launch into high flight, avoid ground bombs, cross obstacles, and drop lethal rocks on enemies below."},
+		{"id": "rock", "name": "Rock", "description": "For 8 seconds, Space fires a rock up to 6 cells in your last movement direction. Combine it with Wings for lethal aerial drops."},
+		{"id": "wings", "name": "Wings", "description": "Launch into high flight, avoid ground bombs, and cross obstacles for 8 seconds. Wings alone cannot attack."},
 		{"id": "football_shoes", "name": "Football Shoes", "description": "For 8 seconds, move into bombs to kick them up to 4 cells; Space also kicks a bomb underfoot or ahead."},
 		{"id": "prison", "name": "Prison", "description": "Trap every enemy in the 9 x 9 area around you for 4 seconds."},
 		{"id": "duel", "name": "Duel Token", "description": "Gain immunity until contact, then duel over one random single-use lava source."},
@@ -189,7 +190,7 @@ func _add_item_row(item_id: String, display_name: String, description: String) -
 func _operation_guide_text() -> String:
 	return """[b][color=#ffd45a]Basic Controls[/color][/b]
 [b]W / A / S / D[/b]  Move; Football Shoes automatically kick bombs you run into
-[b]Space[/b]  Place a bomb; kick with Football Shoes; drop a rock during Wing flight
+[b]Space[/b]  Place a bomb; kick with Football Shoes; fire with Rock; combine Rock + Wings for an aerial drop
 [b]1 / 2 / 3[/b]  Select a backpack slot    [b]Q[/b]  Cycle items    [b]E[/b]  Use item
 [b]Esc[/b]  Return to the main menu
 

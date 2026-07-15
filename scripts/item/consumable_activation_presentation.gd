@@ -63,6 +63,8 @@ func _color_for(item_id: String) -> Color:
 			return Color(0.28, 0.92, 0.58, 0.82)
 		"oil_barrel":
 			return Color(1.0, 0.46, 0.05, 0.86)
+		"rock":
+			return Color(0.68, 0.66, 0.60, 0.90)
 		"wings":
 			return Color(0.52, 0.90, 1.0, 0.86)
 		"prison":

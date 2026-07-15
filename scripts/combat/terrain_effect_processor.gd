@@ -59,6 +59,8 @@ func process(delta: float) -> void:
 			status_parts.append("Invincible %.1fs" % state.effects.invincibility_time_left())
 		if state.effects.has_wings():
 			status_parts.append("Wings %.1fs" % state.effects.wings_time_left())
+		if state.effects.has_rock():
+			status_parts.append("Rock %.1fs" % state.effects.rock_time_left())
 		if state.effects.has_football():
 			status_parts.append("Football %.1fs" % state.effects.football_time_left())
 		if state.effects.is_slowed():
