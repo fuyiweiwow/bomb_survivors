@@ -19,6 +19,8 @@ func _run() -> void:
 		return
 	if not _check(menu.guide_overlay.operation_text.text.contains("W / A / S / D") and menu.guide_overlay.operation_text.text.contains("Space") and menu.guide_overlay.operation_text.text.contains("Duel Controls"), "Operation guide is missing the actual controls"):
 		return
+	if not _check(menu.guide_overlay.operation_text.text.contains("occupies one complete logical tile") and menu.guide_overlay.operation_text.text.contains("damages the complete logical tile"), "Operation guide is missing the occupancy or full-tile blast rules"):
+		return
 	var expected_item_ids := ["speed", "bomb", "range", "shield", "detonator", "glue", "shield_potion", "invincible_star", "dummy", "oil_barrel", "rock", "wings", "football_shoes", "prison", "duel"]
 	if not _check(menu.guide_overlay.item_icon_ids == expected_item_ids, "Item guide icon list is incomplete"):
 		return
@@ -26,6 +28,13 @@ func _run() -> void:
 	for label in menu.guide_overlay.item_list.find_children("*", "Label", true, false):
 		item_label_texts.append(str(label.text))
 	if not _check(item_label_texts.has("Prison") and not item_label_texts.has("Tianlao"), "Item guide did not use the English Prison display name"):
+		return
+	var has_smart_football_rule := false
+	for label_text in item_label_texts:
+		if label_text.contains("visible ground enemy within 6 cells") and label_text.contains("without a safe landing cell"):
+			has_smart_football_rule = true
+			break
+	if not _check(has_smart_football_rule, "Item guide is missing the smart and safe Football Shoes rules"):
 		return
 	for renderer in menu.guide_overlay.item_icon_renderers:
 		if not _check(renderer.icon_viewport != null and is_instance_valid(renderer.icon_model) and renderer.icon_model.get_child_count() > 1, "Item guide did not render a game model icon"):

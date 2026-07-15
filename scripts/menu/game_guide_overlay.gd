@@ -132,7 +132,7 @@ func _build_item_page() -> void:
 		{"id": "oil_barrel", "name": "Oil Barrel", "description": "One blast ignites an animated 9 x 9 fire for 8 seconds; it chains bombs and defeats characters who stay inside."},
 		{"id": "rock", "name": "Rock", "description": "For 12 seconds, Space fires a rock up to 6 cells in your last movement direction. Combine it with Wings for lethal aerial drops."},
 		{"id": "wings", "name": "Wings", "description": "Launch into high flight, avoid ground bombs, and cross obstacles for 12 seconds. Wings alone cannot attack."},
-		{"id": "football_shoes", "name": "Football Shoes", "description": "For 12 seconds, kick bombs to a safe nearby enemy; otherwise send them forward beyond their blast range. Space also kicks a bomb underfoot or ahead."},
+		{"id": "football_shoes", "name": "Football Shoes", "description": "For 12 seconds, kick a bomb to a safe visible ground enemy within 6 cells of it. Otherwise it travels forward beyond its blast range; without a safe landing cell, it stays in place."},
 		{"id": "prison", "name": "Prison", "description": "Trap every enemy in the 9 x 9 area around you for 6 seconds."},
 		{"id": "duel", "name": "Duel Token", "description": "Gain immunity until contact, then duel over one random single-use lava source."},
 	])
@@ -195,6 +195,7 @@ func _operation_guide_text() -> String:
 [b]Esc[/b]  Return to the main menu
 
 [b][color=#ffd45a]Combat Rules[/color][/b]
+Each character, wall, crate, and bomb occupies one complete logical tile. Floor artwork does not create smaller subcells.
 Explosions travel in four directions. Walls block flames; crates can break and drop items.
 An explosion damages the complete logical tile; crossing its edge is the only way to avoid that flame cell.
 Forests hide grounded characters. Lava burns unless a shield or wings trigger an eruption.
