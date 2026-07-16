@@ -194,7 +194,15 @@ func _init() -> void:
 	state.advance_ai_clocks(0.5)
 	if not _check(state.is_ai_move_ready() and state.is_ai_bomb_ready(), "AI clocks are not owned by CharacterState"):
 		return
-	if not _check(rules.damage_route(state, "blast") == CombatRules.DamageRoute.ENTER_DOWNED, "Normal damage route changed"):
+	state.configure_ai("normal", 5, 2, 0.25, 0.5)
+	if not _check(int(data["hp"]) == Constants.NORMAL_AI_MAX_HP and int(data["max_hp"]) == Constants.NORMAL_AI_MAX_HP, "Normal AI health was not limited to one HP"):
+		return
+	data["ai"] = false
+	data["hp"] = Constants.PLAYER_MAX_HP
+	data["max_hp"] = Constants.PLAYER_MAX_HP
+	if not _check(rules.damage_route(state, "blast") == CombatRules.DamageRoute.DAMAGE_HEALTH, "Normal characters did not route damage through HP"):
+		return
+	if not _check(not state.damage_health(1) and int(data["hp"]) == Constants.PLAYER_MAX_HP - 1 and not state.is_downed(), "A normal character did not survive one point of damage"):
 		return
 	data["shield"] = 1
 	if not _check(rules.damage_route(state, "blast") == CombatRules.DamageRoute.ABSORB_SHIELD, "Shield damage route changed"):

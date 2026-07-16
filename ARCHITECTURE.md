@@ -195,7 +195,8 @@ WaveManager.wave_started
 ```text
 Bomb / Lava / Thunder / Stomp / Boss Skill
 → CombatManager.damage_player()
-→ shield / invincible / boss HP / down / death
+→ shield / invincible / character HP
+→ player HP 0 = down / regular AI 1 HP then down / boss HP 0 = death
 → GameUI 读取状态更新 HUD
 ```
 

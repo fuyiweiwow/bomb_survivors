@@ -21,6 +21,8 @@ func _run() -> void:
 		return
 	if not _check(menu.guide_overlay.operation_text.text.contains("occupies one complete logical tile") and menu.guide_overlay.operation_text.text.contains("damages the complete logical tile"), "Operation guide is missing the occupancy or full-tile blast rules"):
 		return
+	if not _check(menu.guide_overlay.operation_text.text.contains("player has 3 HP") and menu.guide_overlay.operation_text.text.contains("regular AI has 1 HP") and menu.guide_overlay.operation_text.text.contains("hits remove 1 HP"), "Operation guide is missing the player, AI, or damage health rules"):
+		return
 	var expected_item_ids := ["speed", "bomb", "range", "shield", "detonator", "glue", "shield_potion", "invincible_star", "dummy", "oil_barrel", "rock", "wings", "football_shoes", "prison", "duel"]
 	if not _check(menu.guide_overlay.item_icon_ids == expected_item_ids, "Item guide icon list is incomplete"):
 		return

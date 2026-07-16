@@ -272,6 +272,8 @@ func configure_gameplay_stats(speed: int, bomb_capacity: int, blast_range: int) 
 	bombs.configure(bomb_capacity, blast_range)
 
 func configure_ai(difficulty: String, speed: int, blast_range: int, move_interval: float, bomb_interval: float) -> void:
+	data["hp"] = Constants.NORMAL_AI_MAX_HP
+	data["max_hp"] = Constants.NORMAL_AI_MAX_HP
 	data["ai_difficulty"] = difficulty
 	data["speed"] = clampi(speed, 1, Constants.MAX_SPEED)
 	data["bomb_range"] = clampi(blast_range, 1, Constants.MAX_BOMB_RANGE)
@@ -378,9 +380,6 @@ func damage_health(amount: int) -> bool:
 	data["hp"] = maxi(int(data.get("hp", 0)) - amount, 0)
 	data["status"] = "HP %d" % int(data["hp"])
 	return int(data["hp"]) <= 0
-
-func ensure_minimum_health(amount: int) -> void:
-	data["hp"] = maxi(int(data.get("hp", 0)), amount)
 
 func world_position() -> Vector3:
 	var character_node := node()

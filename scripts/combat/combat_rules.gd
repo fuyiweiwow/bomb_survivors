@@ -8,7 +8,6 @@ enum DamageRoute {
 	EXECUTE_DOWNED,
 	ABSORB_SHIELD,
 	DAMAGE_HEALTH,
-	ENTER_DOWNED,
 }
 
 func damage_route(state: CharacterState, source: String) -> int:
@@ -22,9 +21,7 @@ func damage_route(state: CharacterState, source: String) -> int:
 		return DamageRoute.EXECUTE_DOWNED if source in ["blast", "fire"] else DamageRoute.IGNORE
 	if state.has_shield():
 		return DamageRoute.ABSORB_SHIELD
-	if state.is_boss_like():
-		return DamageRoute.DAMAGE_HEALTH
-	return DamageRoute.ENTER_DOWNED
+	return DamageRoute.DAMAGE_HEALTH
 
 func is_in_attack_cells(state: CharacterState, cells: Array, min_height: float, max_height: float) -> bool:
 	var world_position := state.world_position()

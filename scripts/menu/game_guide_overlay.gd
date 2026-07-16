@@ -198,9 +198,10 @@ func _operation_guide_text() -> String:
 Each character, wall, crate, and bomb occupies one complete logical tile. Floor artwork does not create smaller subcells.
 Explosions travel in four directions. Walls block flames; crates can break and drop items.
 An explosion damages the complete logical tile; crossing its edge is the only way to avoid that flame cell.
+The player has 3 HP, regular AI has 1 HP, and bosses use their own health values. Most effective hits remove 1 HP.
 Forests hide grounded characters. Lava burns unless a shield or wings trigger an eruption.
 You can steer while airborne. Ground attacks miss high targets, but aerial attacks still hit.
-At zero health, a character enters Down. The timer, another blast, or an enemy stomp defeats them.
+At zero health, the player or regular AI enters Down. The timer, another blast, or an enemy stomp defeats them; bosses are defeated immediately.
 
 [b][color=#ffd45a]Duel Controls[/color][/b]
 The original map and bombs are frozen during a duel. Your 3-slot backpack remains available.

@@ -129,7 +129,7 @@ func _run() -> void:
 	if not _check(shot_rock != null and shot_rock.get_meta("impact_cell") == enemy_a.cell() and not game.bomb_map.has(center), "Rock did not target the first enemy along the movement direction"):
 		return
 	game.rock_attack_controller._impact_ground_rock(shot_rock, enemy_a.cell(), 0)
-	if not _check(enemy_a.is_alive() and enemy_a.is_downed() and game.get_node_or_null("RockShotImpact") != null, "Ground Rock did not damage the first enemy in its path"):
+	if not _check(enemy_a.is_alive() and enemy_a.is_downed() and int(enemy_a.data["hp"]) == 0 and game.get_node_or_null("RockShotImpact") != null, "Ground Rock did not reduce a one-HP enemy to Down"):
 		return
 	player.effects.grant_rock(0.0)
 
@@ -211,6 +211,8 @@ func _run() -> void:
 		return
 
 	_place_state(enemy_a, center)
+	enemy_a.data["hp"] = Constants.NORMAL_AI_MAX_HP
+	enemy_a.data["max_hp"] = Constants.NORMAL_AI_MAX_HP
 	enemy_a.data["invincible_timer"] = 0.0
 	enemy_a.data["shield"] = 0
 	enemy_a.data["shield_timer"] = 0.0
@@ -220,7 +222,7 @@ func _run() -> void:
 	if not _check(enemy_a.node().get_node_or_null("BurningEffect") != null, "Oil fire did not create a visible burning effect on the character"):
 		return
 	game.consumable_effects.area_effects.process(Constants.OIL_FIRE_DAMAGE_TIME)
-	if not _check(enemy_a.is_downed() and enemy_a.is_alive(), "Persistent oil fire did not put an exposed enemy into Down"):
+	if not _check(enemy_a.is_downed() and enemy_a.is_alive() and int(enemy_a.data["hp"]) == 0, "The first oil fire damage tick did not reduce a one-HP enemy to Down"):
 		return
 	game.consumable_effects.area_effects.process(Constants.OIL_FIRE_DAMAGE_TIME + 0.01)
 	if not _check(not enemy_a.is_alive(), "An enemy that remained in oil fire was not defeated"):

@@ -116,10 +116,10 @@ func damage_player(index: int, amount: int, source: String):
 			_game.character_presentation.flash_damage(state)
 			_game.audio_manager.play("hit")
 			if defeated:
-				_kill_player(index)
-		CombatRules.DamageRoute.ENTER_DOWNED:
-			state.ensure_minimum_health(1)
-			_enter_downed(index, source)
+				if state.boss_id() != "" or state.is_minion():
+					_kill_player(index)
+				else:
+					_enter_downed(index, source)
 
 func _enter_downed(index: int, source: String):
 	var state := _game.character_state_at(index) as CharacterState

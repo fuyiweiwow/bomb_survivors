@@ -493,6 +493,8 @@ func _run():
 	player["node"].position = Constants.grid_to_world(stomp_cell) + Vector3(0, 1.20, 0)
 	enemy["alive"] = true
 	enemy["downed"] = false
+	enemy["hp"] = Constants.NORMAL_AI_MAX_HP
+	enemy["max_hp"] = Constants.NORMAL_AI_MAX_HP
 	enemy["shield"] = 1
 	enemy["shield_timer"] = Constants.SHIELD_DURATION
 	enemy["grid_pos"] = stomp_cell
@@ -506,7 +508,7 @@ func _run():
 	player["node"].position = Constants.grid_to_world(stomp_cell) + Vector3(0, 1.20, 0)
 	game.airborne_controller.begin_fall(0, -2.0)
 	game.airborne_controller._physics_process(0.08)
-	if not _check(enemy["downed"] and enemy["alive"], "Unshielded stomp did not put the target into down state"):
+	if not _check(enemy["downed"] and enemy["alive"] and int(enemy["hp"]) == 0, "An unshielded stomp did not reduce a one-HP AI to Down"):
 		return
 	game.combat_manager.process_character_overlaps()
 	if not _check(enemy["downed"] and enemy["alive"], "Stomp bounce allowed immediate overlap execution"):
@@ -517,7 +519,7 @@ func _run():
 	player["node"].position = Constants.grid_to_world(stomp_cell) + Vector3(0, 1.20, 0)
 	player["vertical_velocity"] = -2.0
 	game.airborne_controller._physics_process(0.08)
-	if not _check(not enemy["downed"], "One airborne arc stomped the same target more than once"):
+	if not _check(not enemy["downed"] and int(enemy["hp"]) == Constants.NORMAL_AI_MAX_HP, "One airborne arc damaged the same target more than once"):
 		return
 	game.airborne_controller.force_land(0)
 	enemy["grid_pos"] = ai_lava_start
@@ -542,6 +544,8 @@ func _run():
 	player["shield"] = 0
 	player["alive"] = true
 	player["downed"] = false
+	player["hp"] = Constants.PLAYER_MAX_HP
+	player["max_hp"] = Constants.PLAYER_MAX_HP
 	player["grid_pos"] = blast_cell
 	player["node"].position = blast_center + Vector3(Constants.BLAST_HIT_RADIUS + 0.01, 0.0, 0.0)
 	game.combat_manager.apply_explosion_damage([blast_cell])
@@ -549,7 +553,13 @@ func _run():
 		return
 	player["node"].position = blast_center + Vector3(Constants.BLAST_HIT_RADIUS - 0.01, 0.0, 0.0)
 	game.combat_manager.apply_explosion_damage([blast_cell])
-	if not _check(player["downed"], "Player inside the logical tile avoided an explosion"):
+	if not _check(not player["downed"] and int(player["hp"]) == 2, "One explosion did not remove exactly one HP"):
+		return
+	game.combat_manager.apply_explosion_damage([blast_cell])
+	if not _check(not player["downed"] and int(player["hp"]) == 1, "A second explosion did not leave the player at one HP"):
+		return
+	game.combat_manager.apply_explosion_damage([blast_cell])
+	if not _check(player["downed"] and int(player["hp"]) == 0, "A player did not enter Down when HP reached zero"):
 		return
 	game.combat_manager._revive_player(0)
 	player["node"].position = blast_center
@@ -563,9 +573,9 @@ func _run():
 		return
 	player["node"].position = blast_center
 	game.bomb_manager._process_active_explosions(0.05)
-	if not _check(player["downed"], "Player entering a visible active flame was not hit"):
+	if not _check(not player["downed"] and int(player["hp"]) == 1, "Player entering a visible active flame did not lose exactly one HP"):
 		return
-	game.combat_manager._revive_player(0)
+	player["hp"] = Constants.PLAYER_MAX_HP
 	game.bomb_manager.active_explosions.clear()
 	player["node"].position = blast_center
 
@@ -687,6 +697,7 @@ func _run():
 	player["grid_pos"] = eruption_cell
 	player["shield"] = 0
 	player["shield_timer"] = 0.0
+	player["hp"] = 1
 	game.combat_manager.apply_explosion_damage([eruption_cell])
 	if not _check(not player["downed"], "Ground explosion hit a player above its height range"):
 		return
