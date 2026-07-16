@@ -5,6 +5,7 @@ const ENTRIES := [
 	{"id": "speed", "weight": 14.0},
 	{"id": "bomb", "weight": 13.0},
 	{"id": "range", "weight": 14.0},
+	{"id": "health", "weight": 8.0},
 	{"id": "shield", "weight": 10.0},
 	{"id": "detonator", "weight": 4.0},
 	{"id": "glue", "weight": 5.0},
@@ -17,7 +18,7 @@ const ENTRIES := [
 	{"id": "football_shoes", "weight": 5.0},
 	{"id": "prison", "weight": 4.0},
 	{"id": "duel", "weight": 2.0},
-	{"id": "", "weight": 6.0},
+	{"id": "", "weight": 5.0},
 ]
 
 func pick(normalized_roll: float) -> String:

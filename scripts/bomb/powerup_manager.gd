@@ -42,13 +42,18 @@ func check_powerup_pickup(index: int):
 		"range":
 			if not state.bombs.increase_range(2):
 				state.set_status("Bomb range at maximum")
+		"health":
+			if not state.restore_health(1):
+				state.set_status("HP at maximum")
 		"shield":
 			if state.is_ai():
 				_game.combat_manager.grant_shield(index)
 			else:
 				_add_consumable(state, "shield_potion")
 		_:
-			if Constants.CONSUMABLE_IDS.has(str(data["type"])):
+			if Constants.DIRECT_USE_ITEM_IDS.has(str(data["type"])):
+				_game.direct_use_item_manager.equip(state, str(data["type"]))
+			elif Constants.BACKPACK_ITEM_IDS.has(str(data["type"])):
 				_add_consumable(state, str(data["type"]))
 	_game.audio_manager.play("pickup")
 	_game.powerups.erase(cell)
@@ -77,6 +82,7 @@ func _item_display_name(item_id: String) -> String:
 		"invincible_star": return "Invincible Star"
 		"dummy": return "Dummy"
 		"oil_barrel": return "Oil Barrel"
+		"health": return "Health"
 		"rock": return "Rock"
 		"wings": return "Wings"
 		"football_shoes": return "Football Shoes"

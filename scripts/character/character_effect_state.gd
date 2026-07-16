@@ -52,14 +52,8 @@ func wings_time_left() -> float:
 func has_wings() -> bool:
 	return wings_time_left() > 0.0
 
-func grant_rock(duration: float) -> void:
-	data["rock_timer"] = maxf(duration, 0.0)
-
-func rock_time_left() -> float:
-	return float(data.get("rock_timer", 0.0))
-
 func has_rock() -> bool:
-	return rock_time_left() > 0.0
+	return str(data.get("direct_use_item", "")) == "rock"
 
 func grant_football(duration: float) -> void:
 	data["football_timer"] = maxf(duration, 0.0)
@@ -112,7 +106,6 @@ func tick_active(delta: float) -> Dictionary:
 	var had_wings := has_wings()
 	data["invincible_timer"] = maxf(invincibility_time_left() - delta, 0.0)
 	data["wings_timer"] = maxf(wings_time_left() - delta, 0.0)
-	data["rock_timer"] = maxf(rock_time_left() - delta, 0.0)
 	data["football_timer"] = maxf(football_time_left() - delta, 0.0)
 	data["slow_timer"] = maxf(slow_time_left() - delta, 0.0)
 	data["frozen_timer"] = maxf(frozen_time_left() - delta, 0.0)

@@ -24,6 +24,7 @@ var duel_manager: Node
 var bomb_manager: Node
 var wall_mechanics: Node
 var consumable_effects: Node
+var direct_use_item_manager: Node
 var rock_attack_controller: Node
 var inventory_manager: RefCounted = INVENTORY_MANAGER_SCRIPT.new()
 var weather_manager: Node
@@ -134,6 +135,9 @@ func _handle_player_bomb_action():
 
 func _try_use_player_consumable():
 	player_commands.use_consumable()
+
+func _discard_player_direct_item():
+	player_commands.discard_direct_item()
 
 func _cycle_player_consumable():
 	player_commands.cycle_consumable()

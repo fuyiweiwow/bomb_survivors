@@ -238,6 +238,7 @@ Duel Token → DuelManager.arm() → 触碰敌人
 - `GameConfigRepository`：主菜单、玩家编辑器和游戏启动共用的配置默认值、范围约束与文件读写。
 - `BossCatalog`：Boss ID、显示名、战斗数值和材质选择目录；调用方只接收副本。
 - `PowerupModelFactory`：游戏掉落物与菜单道具图标共用的程序化 3D 模型定义。
+- `DirectUseItemManager`：管理独立于三格背包的持久直接使用装备、替换与主动丢弃。
 - `TerrainArtFactory`：只负责根据材质创建地形表现。
 - `MeshHelpers`：基础 Mesh 与材质构造。
 
@@ -245,12 +246,19 @@ Duel Token → DuelManager.arm() → 触碰敌人
 
 ## 七、扩展方式
 
-### 新增消耗道具
+### 新增主动背包道具
 
-1. 在 `Constants.CONSUMABLE_IDS` 注册 ID。
+1. 在 `Constants.BACKPACK_ITEM_IDS` 注册 ID。
 2. 在 `ConsumableEffects.use()` 增加效果实现；复杂效果拆为独立策略。
 3. 在 `PowerupManager` 增加模型或显示名。
 4. 增加背包拾取、使用和清理测试。
+
+### 新增直接使用装备
+
+1. 在 `Constants.DIRECT_USE_ITEM_IDS` 注册 ID。
+2. 在 `DirectUseItemManager` 增加装备与卸下规则。
+3. 能力判断读取角色的 `direct_use_item`，不使用临时效果计时器。
+4. 增加拾取即装备、替换、持久生效与主动丢弃测试。
 
 ### 新增 Boss
 

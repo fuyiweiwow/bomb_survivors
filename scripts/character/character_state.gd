@@ -310,6 +310,12 @@ func increase_speed(amount := 1) -> bool:
 func status() -> String:
 	return str(data.get("status", ""))
 
+func direct_use_item() -> String:
+	return str(data.get("direct_use_item", ""))
+
+func set_direct_use_item(item_id: String) -> void:
+	data["direct_use_item"] = item_id
+
 func arm_duel() -> void:
 	data["duel_pending"] = true
 	set_status("Duel ready: touch an enemy")
@@ -380,6 +386,16 @@ func damage_health(amount: int) -> bool:
 	data["hp"] = maxi(int(data.get("hp", 0)) - amount, 0)
 	data["status"] = "HP %d" % int(data["hp"])
 	return int(data["hp"]) <= 0
+
+func restore_health(amount: int) -> bool:
+	if not is_alive() or is_downed():
+		return false
+	var previous := int(data.get("hp", 0))
+	data["hp"] = mini(previous + maxi(amount, 0), int(data.get("max_hp", Constants.PLAYER_MAX_HP)))
+	if int(data["hp"]) > previous:
+		data["status"] = "HP %d/%d" % [int(data["hp"]), int(data.get("max_hp", Constants.PLAYER_MAX_HP))]
+		return true
+	return false
 
 func world_position() -> Vector3:
 	var character_node := node()

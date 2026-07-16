@@ -128,13 +128,16 @@ func _init() -> void:
 	if not _check(not state.is_moving() and state.cell() == Vector2i(4, 3), "Grid movement did not complete atomically"):
 		return
 	state.effects.grant_wings(1.0)
-	state.effects.grant_rock(1.0)
+	state.set_direct_use_item("rock")
 	state.effects.apply_slow(0.5)
 	var expired_effects := state.effects.tick_active(0.6)
 	if not _check(state.effects.has_wings() and state.effects.has_rock() and not state.effects.is_slowed() and not bool(expired_effects["wings_expired"]), "Timed effects did not advance through CharacterEffectState"):
 		return
 	state.effects.tick_active(0.5)
-	if not _check(not state.effects.has_wings() and not state.effects.has_rock(), "Wings or Rock did not expire through CharacterEffectState"):
+	if not _check(not state.effects.has_wings() and state.effects.has_rock() and query.direct_use_item() == "rock", "Direct-use Rock expired with timed effects"):
+		return
+	state.set_direct_use_item("")
+	if not _check(not state.effects.has_rock(), "Discarded direct-use Rock remained active"):
 		return
 	state.effects.imprison(0.5)
 	if not _check(state.effects.is_imprisoned() and state.effects.is_frozen(), "Prison did not own both its visible timer and movement lock"):
@@ -179,7 +182,7 @@ func _init() -> void:
 	data["shield_timer"] = 0.0
 	var drop_table := PowerupDropTable.new()
 	var droppable_ids := drop_table.droppable_ids()
-	for expected_id in ["speed", "bomb", "range", "shield"] + Constants.CONSUMABLE_IDS:
+	for expected_id in ["speed", "bomb", "range", "health", "shield"] + Constants.ALL_ITEM_IDS:
 		if not _check(droppable_ids.has(expected_id), "Crate drop table omitted %s" % expected_id):
 			return
 	if not _check(drop_table.pick(0.0) == "speed" and drop_table.pick(0.999999).is_empty(), "Crate drop table boundaries changed"):
@@ -203,6 +206,8 @@ func _init() -> void:
 	if not _check(rules.damage_route(state, "blast") == CombatRules.DamageRoute.DAMAGE_HEALTH, "Normal characters did not route damage through HP"):
 		return
 	if not _check(not state.damage_health(1) and int(data["hp"]) == Constants.PLAYER_MAX_HP - 1 and not state.is_downed(), "A normal character did not survive one point of damage"):
+		return
+	if not _check(state.restore_health(1) and int(data["hp"]) == Constants.PLAYER_MAX_HP and not state.restore_health(1), "Health restoration did not stop at the character maximum"):
 		return
 	data["shield"] = 1
 	if not _check(rules.damage_route(state, "blast") == CombatRules.DamageRoute.ABSORB_SHIELD, "Shield damage route changed"):

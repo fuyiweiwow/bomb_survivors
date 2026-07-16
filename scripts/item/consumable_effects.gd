@@ -45,10 +45,7 @@ func use(player_index: int, item_id: String) -> bool:
 		"oil_barrel":
 			return _complete_use(state, item_id, area_effects.place_oil_barrel(player_index))
 		"rock":
-			state.effects.grant_rock(Constants.ROCK_DURATION)
-			state.set_status("Rock shots %.0fs" % Constants.ROCK_DURATION)
-			status_visuals.refresh_player(state.data)
-			return _complete_use(state, item_id, true)
+			return _complete_use(state, item_id, game.direct_use_item_manager.equip(state, item_id))
 		"wings":
 			state.effects.grant_wings(Constants.WINGS_DURATION)
 			game.airborne_controller.launch_with_wings(player_index)

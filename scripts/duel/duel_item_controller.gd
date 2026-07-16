@@ -11,7 +11,7 @@ const SLOW_DURATION := Constants.GLUE_SLOW_DURATION
 const PRISON_DURATION := Constants.PRISON_DURATION
 const FOOTBALL_DURATION := Constants.FOOTBALL_DURATION
 const WING_BOOST := 4.8
-const ACTIVE_ITEM_IDS := ["detonator", "glue", "shield_potion", "invincible_star", "oil_barrel", "rock", "wings", "football_shoes", "prison"]
+const ACTIVE_ITEM_IDS := ["detonator", "glue", "shield_potion", "invincible_star", "oil_barrel", "wings", "football_shoes", "prison"]
 
 var game: Node
 var arena: Node3D
@@ -132,12 +132,6 @@ func _apply_item(item_id: String, actor: DuelActorState, target: DuelActorState)
 			arena.place_lava_near(target.character_node.position.x)
 			lava_relocated.emit()
 			_set_status("Lava moved near opponent")
-			return true
-		"rock":
-			var rock_defeated := damage_actor(target, 1)
-			_set_status("Rock strike")
-			if rock_defeated:
-				finished.emit(actor.human)
 			return true
 		"wings":
 			actor.airborne = true

@@ -28,6 +28,8 @@ func _run():
 		return
 	if not _check(game.consumable_effects != null, "ConsumableEffects was not initialized"):
 		return
+	if not _check(game.direct_use_item_manager is DirectUseItemManager, "DirectUseItemManager was not initialized"):
+		return
 	if not _check(game.movement_controller != null, "GridMovementController was not initialized"):
 		return
 	if not _check(game.airborne_controller != null, "AirborneController was not initialized"):
@@ -135,6 +137,16 @@ func _run():
 	frontier_actor["grid_pos"] = Vector2i(1, 1)
 	frontier_actor["ai_difficulty"] = "hard"
 	var frontier_query := CharacterQuery.new(frontier_actor)
+	var full_health_score := AIDecisionPolicy._powerup_score(frontier_query, "health", 2)
+	frontier_actor["hp"] = 1
+	var wounded_health_score := AIDecisionPolicy._powerup_score(frontier_query, "health", 2)
+	var unequipped_rock_score := AIDecisionPolicy._powerup_score(frontier_query, "rock", 2)
+	frontier_actor["direct_use_item"] = "rock"
+	var equipped_rock_score := AIDecisionPolicy._powerup_score(frontier_query, "rock", 2)
+	if not _check(wounded_health_score > full_health_score and unequipped_rock_score > equipped_rock_score, "AI did not value missing Health or devalue an already equipped Rock"):
+		return
+	frontier_actor["hp"] = frontier_actor["max_hp"]
+	frontier_actor["direct_use_item"] = ""
 	var frontier_walkable := {Vector2i(1, 1): true, Vector2i(2, 1): true, Vector2i(3, 1): true}
 	if not _check(
 		AIDecisionPolicy.choose_direction(frontier_query, {}, frontier_walkable, Vector2i(5, 1), true) == Vector2i.RIGHT,
@@ -150,7 +162,7 @@ func _run():
 	game.game_ui.update_hud()
 	if not _check(game.game_hud.inventory_slot_labels[0].text.contains("Shield Potion"), "Backpack HUD does not show the starter item"):
 		return
-	if not _check(game.powerup_manager.item_display_name("prison") == "Prison" and not Constants.CONSUMABLE_IDS.has("tianlao"), "Prison still uses its internal pinyin ID"):
+	if not _check(game.powerup_manager.item_display_name("prison") == "Prison" and not Constants.ALL_ITEM_IDS.has("tianlao"), "Prison still uses its internal pinyin ID"):
 		return
 	game._try_use_player_consumable()
 	if not _check((player["consumables"] as Array).is_empty() and int(player["shield"]) == 1, "Using the starter shield potion did not consume only the backpack item"):
@@ -164,6 +176,29 @@ func _run():
 		return
 	if not _check((player["consumables"] as Array) == ["shield_potion"], "A picked-up shield was not stored as a shield potion"):
 		return
+	player["hp"] = 1
+	player["max_hp"] = Constants.PLAYER_MAX_HP
+	var health_pickup_node := Node3D.new()
+	game.add_child(health_pickup_node)
+	game.powerups[player["grid_pos"]] = {"node": health_pickup_node, "type": "health"}
+	game.powerup_manager.check_powerup_pickup(0)
+	if not _check(int(player["hp"]) == 2 and (player["consumables"] as Array) == ["shield_potion"], "Health pickup did not restore one HP outside the backpack"):
+		return
+	var rock_pickup_node := Node3D.new()
+	game.add_child(rock_pickup_node)
+	game.powerups[player["grid_pos"]] = {"node": rock_pickup_node, "type": "rock"}
+	game.powerup_manager.check_powerup_pickup(0)
+	game.game_ui.update_hud()
+	if not _check(str(player["direct_use_item"]) == "rock" and (player["consumables"] as Array) == ["shield_potion"] and game.game_hud.inventory_count_label.text.contains("EQUIP Rock"), "Rock pickup did not equip directly outside the backpack"):
+		return
+	var discard_key := InputEventKey.new()
+	discard_key.physical_keycode = KEY_X
+	discard_key.pressed = true
+	game.input_controller._unhandled_input(discard_key)
+	await process_frame
+	if not _check(str(player["direct_use_item"]).is_empty() and player["node"].get_node_or_null("RockEffect") == null, "X did not discard the direct-use item and its visual"):
+		return
+	player["hp"] = Constants.PLAYER_MAX_HP
 	player["shield"] = 0
 	player["shield_timer"] = 0.0
 	game.consumable_effects.status_visuals.refresh_player(player)
@@ -219,7 +254,7 @@ func _run():
 	duel_enemy["max_hp"] = enemy_max_health_before_duel
 	if not _check(human_duelist.health == DuelRoundController.DUEL_MAX_HEALTH and human_duelist.max_health == DuelRoundController.DUEL_MAX_HEALTH and enemy_duelist.health == DuelRoundController.DUEL_MAX_HEALTH and enemy_duelist.max_health == DuelRoundController.DUEL_MAX_HEALTH, "Duel did not normalize player and high-health enemy HP to 3/3"):
 		return
-	for duel_item_id in Constants.CONSUMABLE_IDS:
+	for duel_item_id in Constants.BACKPACK_ITEM_IDS:
 		if duel_item_id not in ["dummy", "duel"] and not _check(DuelItemController.ACTIVE_ITEM_IDS.has(duel_item_id), "Duel item mapping omitted %s" % duel_item_id):
 			return
 	var duel_items_before: int = (player["consumables"] as Array).size()
@@ -651,7 +686,6 @@ func _run():
 	for effect_data in [
 		{"timer": "invincible_timer", "node": "InvincibleEffect"},
 		{"timer": "wings_timer", "node": "WingsEffect"},
-		{"timer": "rock_timer", "node": "RockEffect"},
 		{"timer": "football_timer", "node": "FootballEffect"},
 	]:
 		player[effect_data["timer"]] = 1.0

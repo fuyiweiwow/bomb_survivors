@@ -145,7 +145,8 @@ func _update_inventory(player: CharacterQuery, item_display_name: Callable):
 	var items := player.consumables()
 	var selected := player.selected_consumable_index()
 	if inventory_count_label:
-		inventory_count_label.text = "BACKPACK  %d/%d" % [items.size(), MAX_INVENTORY_SLOTS]
+		var equipped := str(item_display_name.call(player.direct_use_item())) if not player.direct_use_item().is_empty() else "Empty"
+		inventory_count_label.text = "BACKPACK %d/%d  |  EQUIP %s  |  X DROP" % [items.size(), MAX_INVENTORY_SLOTS, equipped]
 	for i in range(inventory_slot_labels.size()):
 		var slot := inventory_slot_labels[i]
 		slot.text = "%d  %s" % [i + 1, str(item_display_name.call(str(items[i])))] if i < items.size() else "%d  Empty" % [i + 1]

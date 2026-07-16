@@ -22,6 +22,14 @@ static func create(item_id: String, art) -> Node3D:
 			flame.scale = Vector3(0.75, 1.25, 0.75)
 			var glow := _add_sphere(root, 0.34, Vector3(0, 0.12, 0), MeshHelpers.make_mat(Color(1.0, 0.18, 0.05), true, art.tex_powerup))
 			glow.scale = Vector3(1.0, 0.45, 1.0)
+		"health":
+			var heart_material := MeshHelpers.make_mat(Color(0.96, 0.10, 0.20), true)
+			_add_sphere(root, 0.19, Vector3(-0.14, 0.20, 0), heart_material)
+			_add_sphere(root, 0.19, Vector3(0.14, 0.20, 0), heart_material)
+			_add_box(root, Vector3(0.34, 0.34, 0.20), Vector3(0, 0.06, 0), heart_material, Vector3(0, 0, 45))
+			var cross_material := MeshHelpers.make_mat(Color.WHITE, true)
+			_add_box(root, Vector3(0.08, 0.30, 0.05), Vector3(0, 0.14, -0.20), cross_material)
+			_add_box(root, Vector3(0.30, 0.08, 0.05), Vector3(0, 0.14, -0.20), cross_material)
 		"shield":
 			_add_sphere(root, 0.20, Vector3(0, 0.12, 0), material)
 			_add_box(root, Vector3(0.46, 0.08, 0.12), Vector3(0, 0.12, -0.34), material)
@@ -87,6 +95,7 @@ static func _material_for(item_id: String, art) -> Material:
 		"speed": return art.mat_speed
 		"bomb": return art.mat_bomb_power
 		"range": return art.mat_range
+		"health": return MeshHelpers.make_mat(Color(0.96, 0.10, 0.20), true)
 		"shield", "shield_potion": return art.mat_shield
 		"dummy": return art.mat_dummy
 	return art.mat_consumable

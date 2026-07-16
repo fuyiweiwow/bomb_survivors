@@ -121,16 +121,19 @@ func _build_item_page() -> void:
 		{"id": "speed", "name": "Speed", "description": "Move faster, up to level 10."},
 		{"id": "bomb", "name": "Bomb", "description": "Place more bombs at the same time, up to 8."},
 		{"id": "range", "name": "Range", "description": "Extend blast distance, up to 10 cells."},
+		{"id": "health", "name": "Health", "description": "Restore 1 HP immediately, up to the character's maximum health."},
 		{"id": "shield", "name": "Shield", "description": "Store a Shield Potion in the backpack."},
 	])
-	_add_item_section("Consumable Items", [
+	_add_item_section("Direct-use Equipment", [
+		{"id": "rock", "name": "Rock", "description": "Equip immediately without using a backpack slot. Space fires up to 6 cells; it remains active until replaced by another direct-use item or discarded with X."},
+	])
+	_add_item_section("Active Backpack Items", [
 		{"id": "detonator", "name": "Detonator", "description": "Immediately detonate every bomb on the current map."},
 		{"id": "glue", "name": "Glue", "description": "Cover the 3 x 3 area for 8 seconds and slow targets for 5 seconds; Easy and Normal AI do not avoid it."},
 		{"id": "shield_potion", "name": "Shield Potion", "description": "Block one hit for 8 seconds and enable a lava launch."},
 		{"id": "invincible_star", "name": "Invincible Star", "description": "Ignore damage and control effects for 8 seconds."},
 		{"id": "dummy", "name": "Dummy", "description": "Passive item consumed automatically to revive you from Down."},
 		{"id": "oil_barrel", "name": "Oil Barrel", "description": "One blast ignites an animated 9 x 9 fire for 8 seconds; it chains bombs and defeats characters who stay inside."},
-		{"id": "rock", "name": "Rock", "description": "For 12 seconds, Space fires a rock up to 6 cells in your last movement direction. Combine it with Wings for lethal aerial drops."},
 		{"id": "wings", "name": "Wings", "description": "Launch into high flight, avoid ground bombs, and cross obstacles for 12 seconds. Wings alone cannot attack."},
 		{"id": "football_shoes", "name": "Football Shoes", "description": "For 12 seconds, kick a bomb to a safe visible ground enemy within 6 cells of it. Otherwise it travels forward beyond its blast range; without a safe landing cell, it stays in place."},
 		{"id": "prison", "name": "Prison", "description": "Trap every enemy in the 9 x 9 area around you for 6 seconds."},
@@ -138,7 +141,7 @@ func _build_item_page() -> void:
 	])
 	_add_section_title("Backpack")
 	var backpack := Label.new()
-	backpack.text = "3 slots; duplicate items are allowed. When full, a new pickup replaces the oldest item."
+	backpack.text = "Active items use 3 backpack slots; duplicates are allowed and a full bag replaces the oldest. Direct-use equipment has one separate persistent slot."
 	backpack.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	backpack.add_theme_font_size_override("font_size", 16)
 	backpack.add_theme_color_override("font_color", Color(0.82, 0.86, 0.90))
@@ -192,6 +195,7 @@ func _operation_guide_text() -> String:
 [b]W / A / S / D[/b]  Move; Football Shoes automatically kick bombs you run into
 [b]Space[/b]  Place a bomb; kick with Football Shoes; fire with Rock; combine Rock + Wings for an aerial drop
 [b]1 / 2 / 3[/b]  Select a backpack slot    [b]Q[/b]  Cycle items    [b]E[/b]  Use item
+[b]X[/b]  Discard the equipped direct-use item
 [b]Esc[/b]  Return to the main menu
 
 [b][color=#ffd45a]Combat Rules[/color][/b]
@@ -204,7 +208,7 @@ You can steer while airborne. Ground attacks miss high targets, but aerial attac
 At zero health, the player or regular AI enters Down. The timer, another blast, or an enemy stomp defeats them; bosses are defeated immediately.
 
 [b][color=#ffd45a]Duel Controls[/color][/b]
-The original map and bombs are frozen during a duel. Your 3-slot backpack remains available.
+The original map and bombs are frozen during a duel. Your 3-slot backpack remains available; direct-use equipment is retained but disabled.
 [b]A / D[/b]  Move    [b]W[/b]  Glide while airborne    [b]Hold S[/b]  Accelerate downward into a dive
 [b]1 / 2 / 3[/b]  Select item    [b]Q[/b]  Cycle item    [b]E[/b]  Use item
 Both fighters use 3 HP. Flight is capped at 6 meters and fast-dive speed at 12 m/s. Duel items provide shields, boosts, control, lava relocation, or a shockwave; Duel Tokens cannot nest.

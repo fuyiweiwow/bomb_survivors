@@ -75,8 +75,13 @@ static func _powerup_score(actor: CharacterQuery, powerup_type: String, distance
 			score += float(maxi(5 - actor.bomb_capacity(), 0)) * 1.4
 		"range":
 			score += float(maxi(6 - actor.bomb_range(), 0))
+		"health":
+			var missing_health := maxi(actor.max_health() - actor.health(), 0)
+			score += float(missing_health) * 7.0 if missing_health > 0 else -10.0
 		"shield":
 			score += 9.0 if actor.shield_count() == 0 else 3.0
+		"rock":
+			score += 8.0 if actor.direct_use_item() != "rock" else -4.0
 		"dummy":
 			score += 12.0 if not actor.has_consumable("dummy") else 4.0
 	if distance <= 2:

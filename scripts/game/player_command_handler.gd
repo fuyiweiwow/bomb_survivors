@@ -27,6 +27,7 @@ func handle_action(action: String) -> void:
 		"bomb": _game.bomb_pressed = true
 		"use_item": use_consumable()
 		"cycle_item": cycle_consumable()
+		"discard_direct_item": discard_direct_item()
 		"menu": _game.get_tree().change_scene_to_file("res://scenes/menu/main_menu.tscn")
 
 func process_player_input() -> void:
@@ -128,3 +129,10 @@ func select_consumable(slot_index: int) -> void:
 		return
 	state.set_status("Selected %s" % _game.powerup_manager.item_display_name(item_id))
 	_game.audio_manager.play("ui_select")
+
+func discard_direct_item() -> void:
+	var state := _game.character_state_at(0) as CharacterState
+	if state == null or not state.is_alive() or state.is_downed():
+		return
+	if not _game.direct_use_item_manager.discard(state).is_empty():
+		_game.audio_manager.play("ui_select")

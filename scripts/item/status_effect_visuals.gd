@@ -33,7 +33,7 @@ func refresh_player(player: Dictionary):
 	_sync_effect(player_node, SHIELD_EFFECT, int(player.get("shield", 0)) > 0, _create_shield_effect)
 	_sync_effect(player_node, INVINCIBLE_EFFECT, float(player.get("invincible_timer", 0.0)) > 0.0, _create_invincible_effect)
 	_sync_effect(player_node, WINGS_EFFECT, float(player.get("wings_timer", 0.0)) > 0.0, _create_wings_effect)
-	_sync_effect(player_node, ROCK_EFFECT, float(player.get("rock_timer", 0.0)) > 0.0, _create_rock_effect)
+	_sync_effect(player_node, ROCK_EFFECT, str(player.get("direct_use_item", "")) == "rock", _create_rock_effect)
 	_sync_effect(player_node, FOOTBALL_EFFECT, float(player.get("football_timer", 0.0)) > 0.0, _create_football_effect)
 	_sync_effect(player_node, PRISON_EFFECT, float(player.get("prison_timer", 0.0)) > 0.0, _create_prison_effect)
 	_sync_effect(player_node, GLUE_EFFECT, float(player.get("slow_timer", 0.0)) > 0.0, _create_glue_effect)

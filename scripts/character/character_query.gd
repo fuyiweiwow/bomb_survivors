@@ -84,3 +84,6 @@ func selected_consumable_index() -> int:
 
 func has_consumable(item_id: String) -> bool:
 	return consumables().has(item_id)
+
+func direct_use_item() -> String:
+	return str(_data.get("direct_use_item", ""))

@@ -101,11 +101,11 @@ func _run() -> void:
 	game.player_commands.handle_bomb_action()
 	if not _check(game.get_node_or_null("WingDropRock") == null, "Wings created an aerial rock without the Rock item"):
 		return
-	if not _check(game.consumable_effects.use(0, "rock"), "Rock could not be used"):
+	if not _check(game.direct_use_item_manager.equip(player, "rock"), "Rock could not be equipped"):
 		return
-	if not _check(player.effects.rock_time_left() == Constants.ROCK_DURATION, "Rock did not use the extended duration"):
+	if not _check(player.direct_use_item() == "rock" and player.effects.has_rock(), "Rock did not occupy the direct-use equipment slot"):
 		return
-	if not _check(player.node().get_node_or_null("RockEffect") != null and game.get_node_or_null("ItemActivation_rock") != null, "Rock did not create persistent and activation visuals"):
+	if not _check(player.node().get_node_or_null("RockEffect") != null, "Equipped Rock did not create its persistent visual"):
 		return
 	_place_state(enemy_a, center)
 	var bomb_count_before_rock: int = game.bomb_map.size()
@@ -131,7 +131,11 @@ func _run() -> void:
 	game.rock_attack_controller._impact_ground_rock(shot_rock, enemy_a.cell(), 0)
 	if not _check(enemy_a.is_alive() and enemy_a.is_downed() and int(enemy_a.data["hp"]) == 0 and game.get_node_or_null("RockShotImpact") != null, "Ground Rock did not reduce a one-HP enemy to Down"):
 		return
-	player.effects.grant_rock(0.0)
+	player.effects.tick_active(60.0)
+	if not _check(player.effects.has_rock(), "Equipped Rock expired over time"):
+		return
+	if not _check(game.direct_use_item_manager.discard(player) == "rock" and not player.effects.has_rock(), "Rock could not be actively discarded"):
+		return
 
 	_place_state(player, center)
 	_place_state(enemy_a, center + Vector2i(4, 0))
