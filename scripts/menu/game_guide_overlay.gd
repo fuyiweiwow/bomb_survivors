@@ -193,6 +193,7 @@ func _add_item_row(item_id: String, display_name: String, description: String) -
 func _operation_guide_text() -> String:
 	return """[b][color=#ffd45a]Basic Controls[/color][/b]
 [b]W / A / S / D[/b]  Move; Football Shoes automatically kick bombs you run into
+Press a blocked direction to turn in place without moving.
 [b]Space[/b]  Place a bomb; kick with Football Shoes; fire with Rock; combine Rock + Wings for an aerial drop
 [b]1 / 2 / 3[/b]  Select a backpack slot    [b]Q[/b]  Cycle items    [b]E[/b]  Use item
 [b]X[/b]  Discard the equipped direct-use item

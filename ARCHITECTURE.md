@@ -277,7 +277,7 @@ Duel Token → DuelManager.arm() → 触碰敌人
 ## 八、测试与约束
 
 - `tests/domain_model_smoke.gd` 独立覆盖配置校验和持久化、Boss 档案隔离与技能计时、决斗临时状态、地图、编辑器文档边界、角色查询实时性与集合隔离、角色聚合、注册表唯一 ID、兼容视图隔离、移动事务、状态计时、浮空落地、炸弹卡位和战斗判定。
-- `tests/modular_gameplay_smoke.gd` 覆盖系统组合、Boss 策略注册、输入、移动、AI、背包、天气、爆炸和高度规则。
+- `tests/modular_gameplay_smoke.gd` 覆盖系统组合、Boss 策略注册、输入、原地转向、无缝地板、移动、AI、背包、天气、爆炸和高度规则。
 - `tests/boss_strategy_smoke.gd` 实际触发爆破王炸弹、冰霜冻结、分身生成和分身自爆。
 - `tests/boundary_rules_smoke.gd` 独立覆盖三格背包 FIFO/重复道具/选中槽修正、爆炸高度与格子边缘、浮空落点 BFS 和踩踏接触边界。
 - `tests/consumable_effects_smoke.gd` 覆盖延长后的计时道具、3×3 Glue、分级 AI 认知、全图雷管、Wings 单独飞行、Rock 地面射击、Rock+Wings 高空投放、足球鞋优先攻击附近敌人、安全踢弹及无安全落点拒绝踢弹、9×9 油火连锁/持续伤害、9×9 Prison 群控、可见动画节点和决斗进攻系数。

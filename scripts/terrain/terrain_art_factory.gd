@@ -68,7 +68,7 @@ static func _floor_mesh(tile_size: float) -> BoxMesh:
 	if _floor_meshes.has(cache_key):
 		return _floor_meshes[cache_key] as BoxMesh
 	var mesh := BoxMesh.new()
-	mesh.size = Vector3(tile_size * 0.95, 0.08, tile_size * 0.95)
+	mesh.size = Vector3(tile_size, 0.08, tile_size)
 	_floor_meshes[cache_key] = mesh
 	return mesh
 

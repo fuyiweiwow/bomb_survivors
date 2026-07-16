@@ -10,8 +10,11 @@ func setup(game_manager: Node):
 
 func try_move(player_index: int, direction: Vector2i) -> bool:
 	var state := _game.character_state_at(player_index) as CharacterState
-	if state == null or not state.can_start_grid_move() or direction == Vector2i.ZERO:
+	if state == null or direction == Vector2i.ZERO:
 		return false
+	if not state.can_start_grid_move():
+		return false
+	face_direction(state, direction)
 	var node := state.node()
 	var current_cell := Constants.world_to_grid(node.position)
 	state.set_cell(current_cell)
@@ -32,15 +35,23 @@ func try_move(player_index: int, direction: Vector2i) -> bool:
 	if not is_airborne and target_cell != current_cell and not is_cell_walkable(target_cell, player_index):
 		return false
 
-	state.set_last_move_direction(direction)
 	if state.elevation.is_elevated():
 		_game.wall_mechanics.leave_elevated_cell(state)
-	node.look_at(target_world, Vector3.UP)
 	var move_duration: float = Constants.move_duration_for_speed(state.speed_value()) / float(Constants.MOVE_SUBSTEPS_PER_TILE)
 	if _game.weather_manager:
 		move_duration *= _game.weather_manager.movement_duration_multiplier(target_cell)
 	move_duration *= state.movement_duration_multiplier()
 	start_move(player_index, current_cell, target_cell, target_world, move_duration)
+	return true
+
+func face_direction(state: CharacterState, direction: Vector2i) -> bool:
+	if state == null or direction == Vector2i.ZERO or state.node() == null:
+		return false
+	var node := state.node()
+	var look_target := node.position + Vector3(direction.x * Constants.TILE_SIZE, 0.0, direction.y * Constants.TILE_SIZE)
+	look_target.y = node.position.y
+	state.set_last_move_direction(direction)
+	node.look_at(look_target, Vector3.UP)
 	return true
 
 func is_cell_walkable(cell: Vector2i, player_index := -1) -> bool:

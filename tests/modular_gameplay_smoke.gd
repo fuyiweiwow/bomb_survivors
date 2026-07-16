@@ -395,6 +395,20 @@ func _run():
 	game.movement_controller.cancel_move(player)
 	if not _check(player["node"].position.is_equal_approx(Constants.grid_to_world(movement_down)), "Movement cancellation did not settle at the current refined cell"):
 		return
+	var blocked_turn_cell := movement_down + Vector2i.LEFT
+	game.grid_manager.set_cell(blocked_turn_cell.x, blocked_turn_cell.y, Constants.Cell.CRATE)
+	var turn_position_before: Vector3 = player["node"].position
+	if not _check(not game._try_move_player(0, Vector2i.LEFT), "Blocked in-place turn incorrectly started movement"):
+		return
+	var facing_forward: Vector3 = -(player["node"] as Node3D).transform.basis.z
+	if not _check(
+		player["node"].position.is_equal_approx(turn_position_before)
+		and player["last_move_dir"] == Vector2i.LEFT
+		and facing_forward.normalized().dot(Vector3.LEFT) > 0.99,
+		"Blocked movement did not rotate the character in place"
+	):
+		return
+	game.grid_manager.set_cell(blocked_turn_cell.x, blocked_turn_cell.y, Constants.Cell.EMPTY)
 	player["grid_pos"] = movement_start
 	player["node"].position = Constants.grid_to_world(movement_start)
 	var right_hold := InputEventKey.new()
@@ -566,7 +580,7 @@ func _run():
 	if not _check(ground_cell != null and is_equal_approx(float(ground_cell.get_meta("logical_cell_size", 0.0)), Constants.TILE_SIZE), "Ground did not expose one mesh per refined logical cell"):
 		return
 	var ground_mesh := ground_cell.mesh as BoxMesh
-	if not _check(ground_mesh != null and ground_mesh.size.x < Constants.TILE_SIZE and ground_mesh.size.x > Constants.TILE_SIZE * 0.9, "Ground cell mesh does not fit one refined logical cell"):
+	if not _check(ground_mesh != null and is_equal_approx(ground_mesh.size.x, Constants.TILE_SIZE) and is_equal_approx(ground_mesh.size.z, Constants.TILE_SIZE), "Ground cell mesh leaves visible gaps between logical cells"):
 		return
 	var footprint_wall := game.grid_manager.wall_nodes.values()[0] as MeshInstance3D
 	var wall_mesh := footprint_wall.mesh as CylinderMesh
@@ -865,7 +879,7 @@ func _run():
 		if not _check(int(game.audio_manager.played_events.get(event_id, 0)) > 0, "Gameplay did not emit the %s audio event" % event_id):
 			return
 
-	print("GAME_DESIGN_SMOKE_OK modular_composition config_repository boss_catalog boss_skill_registry character_query character_registry character_presentation visual_factory state_factory shared_art_catalog audio_events duel_actor_state duel_token_immunity duel_arena_catalog duel_world_pause duel_backpack_items duel_height_cap duel_lava_launch duel_dive_damage duel_random_lava duel_win_restore progression_unique_ids boss_behavior_boundary refined_logical_grid visible_initial_spawn clear_first_wave shield_pickup_inventory duplicate_inventory_fifo boss_crate_refresh strict_map_config attack_frontier crate_breach ai_lava_strategy difficulty_lava_probability ai_lava_wait winged_ai_lava_strategy airborne_stomp shielded_stomp stomp_bounce stomp_overlap_safety stomp_single_hit one_cell_ground full_cell_blast cell_center_turning held_grid_motion shared_ai_movement active_world_blast timed_status_effects bomb_warning weather_bounds speed_curve forest_materials backpack_slots wall_hop chain_reaction overlap spawn_fx lava_launch wing_lava_launch wing_airborne_immunity wing_extended_flight airborne_movement vertical_attack_ranges safe_landing impact_support same_height_attack active_support_exit support_cracks support_fragments")
+	print("GAME_DESIGN_SMOKE_OK modular_composition config_repository boss_catalog boss_skill_registry character_query character_registry character_presentation visual_factory state_factory shared_art_catalog audio_events duel_actor_state duel_token_immunity duel_arena_catalog duel_world_pause duel_backpack_items duel_height_cap duel_lava_launch duel_dive_damage duel_random_lava duel_win_restore progression_unique_ids boss_behavior_boundary refined_logical_grid visible_initial_spawn clear_first_wave shield_pickup_inventory duplicate_inventory_fifo boss_crate_refresh strict_map_config attack_frontier crate_breach ai_lava_strategy difficulty_lava_probability ai_lava_wait winged_ai_lava_strategy airborne_stomp shielded_stomp stomp_bounce stomp_overlap_safety stomp_single_hit one_cell_ground seamless_floor blocked_in_place_turn full_cell_blast cell_center_turning held_grid_motion shared_ai_movement active_world_blast timed_status_effects bomb_warning weather_bounds speed_curve forest_materials backpack_slots wall_hop chain_reaction overlap spawn_fx lava_launch wing_lava_launch wing_airborne_immunity wing_extended_flight airborne_movement vertical_attack_ranges safe_landing impact_support same_height_attack active_support_exit support_cracks support_fragments")
 	quit(0)
 
 

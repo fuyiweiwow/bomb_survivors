@@ -19,6 +19,8 @@ func _run() -> void:
 		return
 	if not _check(menu.guide_overlay.operation_text.text.contains("W / A / S / D") and menu.guide_overlay.operation_text.text.contains("Space") and menu.guide_overlay.operation_text.text.contains("Duel Controls"), "Operation guide is missing the actual controls"):
 		return
+	if not _check(menu.guide_overlay.operation_text.text.contains("blocked direction to turn in place"), "Operation guide is missing the in-place turn rule"):
+		return
 	if not _check(menu.guide_overlay.operation_text.text.contains("occupies one complete logical tile") and menu.guide_overlay.operation_text.text.contains("damages the complete logical tile"), "Operation guide is missing the occupancy or full-tile blast rules"):
 		return
 	if not _check(menu.guide_overlay.operation_text.text.contains("player has 3 HP") and menu.guide_overlay.operation_text.text.contains("regular AI has 1 HP") and menu.guide_overlay.operation_text.text.contains("hits remove 1 HP"), "Operation guide is missing the player, AI, or damage health rules"):
