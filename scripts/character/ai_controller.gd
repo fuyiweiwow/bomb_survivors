@@ -2,10 +2,14 @@ extends Node
 
 const LAVA_FLIGHT_STRATEGY := preload("res://scripts/character/ai_lava_flight_strategy.gd")
 const BOSS_BEHAVIOR_CONTROLLER := preload("res://scripts/character/boss_behavior_controller.gd")
+const AI_DECISION_INTERVAL := 0.05
 
 var _game: Node
 var lava_flight_strategy: Node
 var boss_behavior: Node
+var _decision_accumulator := 0.0
+var _danger_cells: Dictionary = {}
+var _navigation_cache: Dictionary = {}
 
 func setup(game_manager: Node):
 	_game = game_manager
@@ -23,6 +27,13 @@ func on_wings_granted(player_index: int):
 	lava_flight_strategy.notify_state(_game.character_registry.state_at(player_index))
 
 func process_ai(delta: float):
+	_decision_accumulator += delta
+	if _decision_accumulator + 0.000001 < AI_DECISION_INTERVAL:
+		return
+	var decision_delta := _decision_accumulator
+	_decision_accumulator = 0.0
+	_danger_cells = _game.bomb_manager.active_blast_cell_set()
+	_navigation_cache.clear()
 	for i in range(_game.character_registry.count()):
 		var state := _game.character_registry.state_at(i) as CharacterState
 		if state == null or not state.can_process_ai():
@@ -33,14 +44,14 @@ func process_ai(delta: float):
 				boss_behavior.explode_clone_minion(i)
 				continue
 		if state.boss_id() != "":
-			boss_behavior.process_skill(i, delta)
+			boss_behavior.process_skill(i, decision_delta)
 
 		_update_ai_target_memory(state)
-		state.advance_ai_clocks(delta)
+		state.advance_ai_clocks(decision_delta)
 		if state.is_moving():
 			continue
 
-		var danger_escape := _ai_escape_dir_from_active_bombs(i)
+		var danger_escape := _ai_escape_dir_from_active_bombs(i, _danger_cells)
 		if danger_escape != Vector2i.ZERO:
 			state.set_move_direction(danger_escape)
 			if _game.movement_controller.try_move(i, danger_escape):
@@ -48,7 +59,7 @@ func process_ai(delta: float):
 				continue
 			state.set_move_direction(Vector2i.ZERO)
 
-		var lava_action: Dictionary = lava_flight_strategy.choose_action(i, _game.bomb_manager.active_blast_cell_set())
+		var lava_action: Dictionary = lava_flight_strategy.choose_action(i, _danger_cells)
 		if bool(lava_action["active"]):
 			state.set_move_direction(lava_action["direction"])
 			state.reset_ai_move_timer()
@@ -65,9 +76,9 @@ func process_ai(delta: float):
 		if not state.is_airborne() and state.is_ai_bomb_ready() and _ai_should_place_bomb(i):
 			state.reset_ai_bomb_timer()
 			var escape_dir := _ai_escape_dir_after_bomb(i)
-			if escape_dir != Vector2i.ZERO:
-				_game.bomb_manager.try_place_bomb(i)
+			if escape_dir != Vector2i.ZERO and _game.bomb_manager.try_place_bomb(i):
 				state.set_last_bomb_cell(state.cell())
+				_register_new_bomb_danger(state.cell(), state.bomb_range())
 				state.set_move_direction(escape_dir)
 				if _game.movement_controller.try_move(i, escape_dir):
 					state.reset_ai_move_timer()
@@ -130,7 +141,7 @@ func _is_target_in_ground_attack_layer(target: CharacterState) -> bool:
 func _choose_ai_direction(state: CharacterState) -> Vector2i:
 	var dirs := [Vector2i(0, -1), Vector2i(0, 1), Vector2i(-1, 0), Vector2i(1, 0)]
 	dirs.shuffle()
-	var danger_cells: Dictionary = _game.bomb_manager.active_blast_cell_set()
+	var danger_cells: Dictionary = _danger_cells
 	var walkable_cells: Dictionary = _ai_navigation_cells(state, danger_cells)
 	var difficulty := state.ai_difficulty()
 	var human_state := _game.character_registry.state_at(0) as CharacterState
@@ -171,26 +182,30 @@ func _choose_ai_direction(state: CharacterState) -> Vector2i:
 	return Vector2i.ZERO
 
 func _ai_navigation_cells(state: CharacterState, danger_cells: Dictionary) -> Dictionary:
+	var cache_key := "hard" if state.ai_difficulty() == "hard" else "standard"
+	if _navigation_cache.has(cache_key):
+		return _navigation_cache[cache_key] as Dictionary
 	var result: Dictionary = {}
-	var start := state.cell()
-	var occupied: Dictionary = {}
-	for other_state in _game.character_registry.states():
-		if other_state.is_alive() and other_state.cell() != start:
-			occupied[other_state.cell()] = true
 	for y: int in range(Constants.GRID_H):
 		for x: int in range(Constants.GRID_W):
 			var cell := Vector2i(x, y)
 			if not _game.map_state.is_walkable(cell):
 				continue
-			if _game.bomb_map.has(cell) or _game.oil_barrels.has(cell) or occupied.has(cell):
+			if _game.bomb_map.has(cell) or _game.oil_barrels.has(cell):
 				continue
 			if danger_cells.has(cell) or _game.map_state.is_lava(cell):
 				continue
 			if _game.consumable_effects.should_ai_avoid_glue(state, cell):
 				continue
 			result[cell] = true
-	result[start] = true
+	_navigation_cache[cache_key] = result
 	return result
+
+func _register_new_bomb_danger(cell: Vector2i, blast_range: int) -> void:
+	var new_danger: Dictionary = _game.bomb_manager.blast_cell_set(cell, blast_range)
+	for raw_cell in new_danger.keys():
+		_danger_cells[raw_cell as Vector2i] = true
+	_navigation_cache.clear()
 
 func _filter_away(dirs: Array, pos: Vector2i, away_from: Vector2i) -> Array:
 	var result: Array = []
@@ -240,12 +255,13 @@ func _ai_escape_dir_after_bomb(player_index: int) -> Vector2i:
 
 	return Vector2i.ZERO
 
-func _ai_escape_dir_from_active_bombs(player_index: int) -> Vector2i:
+func _ai_escape_dir_from_active_bombs(player_index: int, danger_cells := {}) -> Vector2i:
 	var state := _game.character_state_at(player_index) as CharacterState
 	if state == null:
 		return Vector2i.ZERO
 	var start := state.cell()
-	var danger_cells: Dictionary = _game.bomb_manager.active_blast_cell_set()
+	if (danger_cells as Dictionary).is_empty():
+		danger_cells = _game.bomb_manager.active_blast_cell_set()
 	if not danger_cells.has(start):
 		return Vector2i.ZERO
 

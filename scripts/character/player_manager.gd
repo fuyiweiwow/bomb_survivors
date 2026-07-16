@@ -3,6 +3,7 @@ extends Node
 const PLAYER_VISUAL_FACTORY_SCRIPT := preload("res://scripts/character/player_visual_factory.gd")
 const CHARACTER_STATE_FACTORY_SCRIPT := preload("res://scripts/character/character_state_factory.gd")
 const BOSS_CATALOG_SCRIPT := preload("res://scripts/character/boss_catalog.gd")
+const AI_DIFFICULTY_PROFILE_SCRIPT := preload("res://scripts/character/ai_difficulty_profile.gd")
 
 var _game: Node
 var visual_factory: PlayerVisualFactory = PLAYER_VISUAL_FACTORY_SCRIPT.new()
@@ -21,13 +22,16 @@ func create_player(id: int, cell: Vector2i, ai: bool, mat: Material, style := "m
 	return state_factory.create(id, root, visual_root, cell, ai, style)
 
 func apply_ai_difficulty(state: CharacterState, difficulty: String):
-	match difficulty:
-		"easy":
-			state.configure_ai(difficulty, 3, 1, randf_range(0.55, 0.85), randf_range(3.2, 5.0))
-		"hard":
-			state.configure_ai(difficulty, 6, 3, randf_range(0.14, 0.26), randf_range(0.9, 1.7))
-		_:
-			state.configure_ai(difficulty, 5, 2, randf_range(0.22, 0.42), randf_range(1.6, 3.2))
+	var normalized_difficulty := difficulty if difficulty in ["easy", "normal", "hard"] else "normal"
+	var profile := AI_DIFFICULTY_PROFILE_SCRIPT.profile(normalized_difficulty)
+	state.configure_ai(
+		normalized_difficulty,
+		int(profile["speed"]),
+		int(profile["bomb_range"]),
+		AI_DIFFICULTY_PROFILE_SCRIPT.random_interval(profile, "move_interval"),
+		AI_DIFFICULTY_PROFILE_SCRIPT.random_interval(profile, "bomb_interval"),
+		int(profile["bomb_capacity"])
+	)
 
 func player_material_from_config(config: Dictionary) -> Material:
 	return visual_factory.material_from_config(config)

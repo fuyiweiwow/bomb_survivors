@@ -212,7 +212,7 @@ func _create_rain_visuals():
 	rain_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	rain_mat.no_depth_test = true
 	var extents := _map_half_extents()
-	var drop_count := maxi(80, roundi(float(Constants.LEGACY_GRID_W * Constants.LEGACY_GRID_H) * 0.42))
+	var drop_count := mini(40, maxi(28, roundi(float(Constants.LEGACY_GRID_W * Constants.LEGACY_GRID_H) * 0.14)))
 	for i in range(drop_count):
 		var drop := MeshHelpers.box(Vector3(0.04, 0.85, 0.04), rain_mat)
 		var start_y := randf_range(5.0, 8.5)
@@ -226,7 +226,7 @@ func _create_rain_visuals():
 	splash_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	var splash_cells: Array = _game.grid_manager.walkable_cells()
 	splash_cells.shuffle()
-	for i in range(mini(28, splash_cells.size())):
+	for i in range(mini(10, splash_cells.size())):
 		var splash := MeshHelpers.cylinder(0.11, 0.025, splash_mat)
 		var cell := splash_cells[i] as Vector2i
 		splash.position = Constants.grid_to_world(cell) + Vector3(randf_range(-0.38, 0.38), 0.10, randf_range(-0.38, 0.38))
@@ -242,7 +242,7 @@ func _create_wind_visuals():
 	wind_mat.no_depth_test = true
 	var dir3 := Vector3(_game.weather_manager.wind_direction.x, 0, _game.weather_manager.wind_direction.y)
 	var extents := _map_half_extents()
-	var streak_count := maxi(20, roundi(float(Constants.LEGACY_GRID_W * Constants.LEGACY_GRID_H) * 0.10))
+	var streak_count := mini(14, maxi(10, roundi(float(Constants.LEGACY_GRID_W * Constants.LEGACY_GRID_H) * 0.05)))
 	for i in range(streak_count):
 		var streak := MeshHelpers.box(Vector3(0.7 if dir3.x != 0 else 0.04, 0.035, 0.7 if dir3.z != 0 else 0.04), wind_mat)
 		streak.position = Vector3(randf_range(-extents.x, extents.x), randf_range(0.6, 1.8), randf_range(-extents.y, extents.y))

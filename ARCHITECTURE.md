@@ -34,9 +34,10 @@ GameManager3D                         共享运行时上下文与帧顺序
 ├── PlayerManager                    角色生成与选点编排
 │   ├── CharacterStateFactory        合法角色默认数据构建
 │   ├── PlayerVisualFactory          碰撞根与角色 Mesh 构建
+│   ├── AIDifficultyProfile          三档 AI 的进攻、炸弹和频率参数
 │   └── BossCatalog                  Boss 静态档案与共享材质绑定
 ├── CharacterPresentation            出生、受伤、倒地、复活与死亡表现
-├── AIController                     通用 AI 决策和逃生
+├── AIController                     20Hz 通用 AI 决策、共享导航缓存和逃生
 │   ├── AILavaFlightStrategy
 │   └── BossBehaviorController       Boss 策略注册、冷却触发与分派
 │       ├── BlastKingSkillStrategy   炸弹压制
@@ -79,7 +80,7 @@ GameManager3D                         共享运行时上下文与帧顺序
 | `scripts/bomb` | 炸弹与地图掉落物；`powerup_manager.gd` 是保留路径，语义属于道具域 |
 | `scripts/item` | 三格背包、消耗品分发、区域效果和状态视觉 |
 | `scripts/duel` | 决斗生命周期、竞技场目录、横版回合规则与决斗 HUD |
-| `scripts/grid` | 网格数据、地图编解码和地形实例 |
+| `scripts/grid` | 网格数据、地图编解码和批量地形实例 |
 | `scripts/terrain` | 地形美术工厂与动态地形机制 |
 | `scripts/weather` | 天气状态和天气规则 |
 | `scripts/wave` | 纯波次计时与波次配置 |

@@ -1,5 +1,7 @@
 extends Node3D
 
+const UI_UPDATE_INTERVAL := 0.10
+
 const INVENTORY_MANAGER_SCRIPT := preload("res://scripts/item/inventory_manager.gd")
 const ART_CATALOG_SCRIPT := preload("res://scripts/core/game_art_catalog.gd")
 const SYSTEM_INSTALLER := preload("res://scripts/game/game_system_installer.gd")
@@ -55,6 +57,7 @@ var game_over := false
 var next_player_id := 2
 var bomb_pressed := false
 var ai_difficulty := "normal"
+var _ui_update_accumulator := 0.0
 
 var map_state: RefCounted:
 	get: return grid_manager.map_state
@@ -143,10 +146,13 @@ func _process(delta):
 	combat_manager.process_terrain_effects(delta)
 	wall_mechanics.process(delta)
 	consumable_effects.process(delta)
-	game_ui.update_hud()
 	player_commands.process_player_input()
 	ai_controller.process_ai(delta)
-	game_ui.update_weather_visibility()
+	_ui_update_accumulator += delta
+	if _ui_update_accumulator >= UI_UPDATE_INTERVAL:
+		_ui_update_accumulator = fmod(_ui_update_accumulator, UI_UPDATE_INTERVAL)
+		game_ui.update_hud()
+		game_ui.update_weather_visibility()
 
 func _process_player_input():
 	player_commands.process_player_input()

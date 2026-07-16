@@ -5,10 +5,18 @@ signal weather_changed(weather_type: String)
 signal thunder_requested
 
 const WEATHER_TYPES := ["clear", "rain", "fog", "wind", "thunder", "snow"]
+const WEATHER_DURATIONS := {
+	"rain": 9.0,
+	"fog": 7.0,
+	"wind": 8.0,
+	"thunder": 9.0,
+	"snow": 10.0,
+}
 
 var current_weather := "clear"
 var wind_direction := Vector2i.RIGHT
 var snow_cells: Dictionary = {}
+var weather_time_left := 0.0
 var _thunder_timer := 0.0
 
 func start_wave(wave_number: int, walkable_cells: Array) -> void:
@@ -18,6 +26,7 @@ func start_wave(wave_number: int, walkable_cells: Array) -> void:
 	elif choices.size() > 1:
 		choices.erase(current_weather)
 		current_weather = str(choices.pick_random())
+	weather_time_left = float(WEATHER_DURATIONS.get(current_weather, 0.0))
 	wind_direction = [Vector2i.UP, Vector2i.DOWN, Vector2i.LEFT, Vector2i.RIGHT].pick_random()
 	snow_cells.clear()
 	if current_weather == "snow":
@@ -30,6 +39,14 @@ func start_wave(wave_number: int, walkable_cells: Array) -> void:
 	weather_changed.emit(current_weather)
 
 func process_weather(delta: float) -> void:
+	if current_weather == "clear":
+		return
+	weather_time_left = maxf(weather_time_left - delta, 0.0)
+	if weather_time_left <= 0.0:
+		current_weather = "clear"
+		snow_cells.clear()
+		weather_changed.emit(current_weather)
+		return
 	if current_weather != "thunder":
 		return
 	_thunder_timer -= delta
@@ -60,6 +77,9 @@ func display_name() -> String:
 		"thunder": return "Thunder"
 		"snow": return "Snow"
 		_: return "Clear"
+
+func duration_for(weather_type: String) -> float:
+	return float(WEATHER_DURATIONS.get(weather_type, 0.0))
 
 func _direction_name(direction: Vector2i) -> String:
 	if direction == Vector2i.UP: return "N"

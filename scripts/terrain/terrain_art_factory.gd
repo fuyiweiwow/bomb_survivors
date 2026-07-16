@@ -63,6 +63,25 @@ static func create_floor_cell(cell: Vector2i, world_position: Vector3, tile_size
 	node.set_meta("logical_cell_size", tile_size)
 	return node
 
+static func create_floor_batch(batch_name: String, cells: Array, tile_size: float, material: Material) -> MultiMeshInstance3D:
+	var multimesh := MultiMesh.new()
+	multimesh.transform_format = MultiMesh.TRANSFORM_3D
+	multimesh.mesh = _floor_mesh(tile_size)
+	multimesh.instance_count = cells.size()
+	for index in range(cells.size()):
+		var cell := cells[index] as Vector2i
+		var transform := Transform3D.IDENTITY
+		transform.origin = Constants.grid_to_world(cell) + Vector3(0, -0.04, 0)
+		multimesh.set_instance_transform(index, transform)
+	var node := MultiMeshInstance3D.new()
+	node.name = batch_name
+	node.multimesh = multimesh
+	node.material_override = material
+	node.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	node.set_meta("logical_cell_size", tile_size)
+	node.set_meta("logical_cell_count", cells.size())
+	return node
+
 static func _floor_mesh(tile_size: float) -> BoxMesh:
 	var cache_key := "%0.4f" % tile_size
 	if _floor_meshes.has(cache_key):

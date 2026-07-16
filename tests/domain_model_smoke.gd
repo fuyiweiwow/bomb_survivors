@@ -21,6 +21,24 @@ func _init() -> void:
 		return
 	if not _check(config_repository.save_ai_difficulty("impossible") and config_repository.load_ai_difficulty() == "normal", "GameConfigRepository accepted an invalid AI difficulty"):
 		return
+	var easy_ai := AIDifficultyProfile.profile("easy")
+	var normal_ai := AIDifficultyProfile.profile("normal")
+	var hard_ai := AIDifficultyProfile.profile("hard")
+	if not _check(
+		int(easy_ai["bomb_capacity"]) < int(normal_ai["bomb_capacity"])
+		and int(normal_ai["bomb_capacity"]) < int(hard_ai["bomb_capacity"])
+		and AIDifficultyProfile.aggression_score("easy") < AIDifficultyProfile.aggression_score("normal")
+		and AIDifficultyProfile.aggression_score("normal") < AIDifficultyProfile.aggression_score("hard"),
+		"AI difficulty did not preserve increasing bomb capacity and aggression"
+	):
+		return
+	var weather := WeatherManager.new()
+	weather.current_weather = "fog"
+	weather.weather_time_left = weather.duration_for("fog")
+	weather.process_weather(weather.weather_time_left + 0.01)
+	if not _check(weather.current_weather == "clear" and is_zero_approx(weather.weather_time_left), "Timed weather did not return to clear"):
+		return
+	weather.free()
 	_remove_file(player_config_path)
 	_remove_file(ai_settings_path)
 
@@ -197,8 +215,8 @@ func _init() -> void:
 	state.advance_ai_clocks(0.5)
 	if not _check(state.is_ai_move_ready() and state.is_ai_bomb_ready(), "AI clocks are not owned by CharacterState"):
 		return
-	state.configure_ai("normal", 5, 2, 0.25, 0.5)
-	if not _check(int(data["hp"]) == Constants.NORMAL_AI_MAX_HP and int(data["max_hp"]) == Constants.NORMAL_AI_MAX_HP, "Normal AI health was not limited to one HP"):
+	state.configure_ai("normal", 5, 2, 0.25, 0.5, 2)
+	if not _check(int(data["hp"]) == Constants.NORMAL_AI_MAX_HP and int(data["max_hp"]) == Constants.NORMAL_AI_MAX_HP and state.bombs.capacity() == 2, "Normal AI health or bomb capacity was not configured"):
 		return
 	data["ai"] = false
 	data["hp"] = Constants.PLAYER_MAX_HP

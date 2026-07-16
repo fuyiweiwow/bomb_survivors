@@ -80,17 +80,28 @@ func create_world():
 	sun.rotation_degrees = Vector3(-55, -35, 0)
 	_game.add_child(sun)
 
+	var floor_a_cells: Array[Vector2i] = []
+	var floor_b_cells: Array[Vector2i] = []
+	var forest_floor_cells: Array[Vector2i] = []
+	var lava_floor_cells: Array[Vector2i] = []
 	for y in Constants.GRID_H:
 		for x in Constants.GRID_W:
 			var cell := Vector2i(x, y)
-			var floor := TerrainArtFactory.create_floor_cell(
-				cell,
-				Constants.grid_to_world(cell),
-				Constants.TILE_SIZE,
-				_floor_mat_for_cell(x, y)
-			)
-			_game.add_child(floor)
+			match grid[y][x]:
+				Constants.Cell.FOREST:
+					forest_floor_cells.append(cell)
+				Constants.Cell.LAVA:
+					lava_floor_cells.append(cell)
+				_:
+					(floor_a_cells if (x + y) % 2 == 0 else floor_b_cells).append(cell)
+	_add_floor_batch("FloorBatchA", floor_a_cells, _mat_floor_a)
+	_add_floor_batch("FloorBatchB", floor_b_cells, _mat_floor_b)
+	_add_floor_batch("ForestFloorBatch", forest_floor_cells, _mat_forest_floor)
+	_add_floor_batch("LavaFloorBatch", lava_floor_cells, _mat_lava)
 
+	for y in Constants.GRID_H:
+		for x in Constants.GRID_W:
+			var cell := Vector2i(x, y)
 			if grid[y][x] == Constants.Cell.WALL:
 				var wall_node = TerrainArtFactory.create_rock_wall(cell, Constants.TILE_SIZE, _mat_wall)
 				wall_node.position = Constants.grid_to_world(cell) + Vector3(0, 0.62, 0)
@@ -102,6 +113,11 @@ func create_world():
 				_game.add_child(_create_forest_tile(cell))
 			elif grid[y][x] == Constants.Cell.LAVA:
 				_game.add_child(_create_lava_tile(cell))
+
+func _add_floor_batch(batch_name: String, cells: Array[Vector2i], material: Material) -> void:
+	if cells.is_empty():
+		return
+	_game.add_child(TerrainArtFactory.create_floor_batch(batch_name, cells, Constants.TILE_SIZE, material))
 
 func destroy_crate(cell: Vector2i):
 	var had_crate: bool = grid[cell.y][cell.x] == Constants.Cell.CRATE or crate_nodes.has(cell)

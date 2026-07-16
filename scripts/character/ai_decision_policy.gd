@@ -2,14 +2,12 @@ class_name AIDecisionPolicy
 extends RefCounted
 
 const AI_PATHFINDER := preload("res://scripts/character/ai_pathfinder.gd")
+const AI_DIFFICULTY_PROFILE_SCRIPT := preload("res://scripts/character/ai_difficulty_profile.gd")
 
 const INVALID_SCORE := -1000000.0
 const EASY_POWERUP_SCORE := 27.0
 const NORMAL_POWERUP_SCORE := 16.0
 const HARD_POWERUP_SCORE := 10.0
-const EASY_AGGRESSION_SCORE := 7.0
-const NORMAL_AGGRESSION_SCORE := 25.0
-const HARD_AGGRESSION_SCORE := 38.0
 const NEARBY_POWERUP_BONUS := 9.0
 const DISTANCE_POWERUP_COST := 1.2
 const DISTANCE_ATTACK_COST := 0.22
@@ -111,12 +109,7 @@ static func _attack_plan(
 		blocked_path = true
 	if path.is_empty():
 		return {"path": empty_path, "score": INVALID_SCORE}
-	var aggression: float = EASY_AGGRESSION_SCORE
-	match actor.ai_difficulty():
-		"normal":
-			aggression = NORMAL_AGGRESSION_SCORE
-		"hard":
-			aggression = HARD_AGGRESSION_SCORE
+	var aggression := AI_DIFFICULTY_PROFILE_SCRIPT.aggression_score(actor.ai_difficulty())
 	return {
 		"path": path,
 		"score": aggression - float(path.size()) * DISTANCE_ATTACK_COST - (BLOCKED_PATH_PENALTY if blocked_path else 0.0),

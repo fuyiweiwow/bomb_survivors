@@ -271,12 +271,12 @@ func configure_gameplay_stats(speed: int, bomb_capacity: int, blast_range: int) 
 	data["speed"] = clampi(speed, 1, Constants.MAX_SPEED)
 	bombs.configure(bomb_capacity, blast_range)
 
-func configure_ai(difficulty: String, speed: int, blast_range: int, move_interval: float, bomb_interval: float) -> void:
+func configure_ai(difficulty: String, speed: int, blast_range: int, move_interval: float, bomb_interval: float, bomb_capacity := 1) -> void:
 	data["hp"] = Constants.NORMAL_AI_MAX_HP
 	data["max_hp"] = Constants.NORMAL_AI_MAX_HP
 	data["ai_difficulty"] = difficulty
 	data["speed"] = clampi(speed, 1, Constants.MAX_SPEED)
-	data["bomb_range"] = clampi(blast_range, 1, Constants.MAX_BOMB_RANGE)
+	bombs.configure(bomb_capacity, blast_range)
 	data["move_interval"] = maxf(move_interval, 0.01)
 	data["bomb_interval"] = maxf(bomb_interval, 0.01)
 

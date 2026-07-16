@@ -160,7 +160,15 @@ func _run():
 	game.weather_manager.current_weather = "rain"
 	if not _check(is_equal_approx(game.weather_manager.movement_duration_multiplier(Vector2i(1, 1)), 1.12), "Rain movement multiplier is incorrect"):
 		return
+	game.game_ui.on_weather_changed("rain")
+	var active_weather_visual_count := 0
+	for weather_visual in game.game_ui.weather_visuals.get_children():
+		if not weather_visual.is_queued_for_deletion():
+			active_weather_visual_count += 1
+	if not _check(active_weather_visual_count <= 50, "Rain visuals exceeded the low-cost node budget"):
+		return
 	game.weather_manager.current_weather = "clear"
+	game.game_ui.on_weather_changed("clear")
 	game.game_ui.update_hud()
 	if not _check(game.game_hud.inventory_slot_labels[0].text.contains("Shield Potion"), "Backpack HUD does not show the starter item"):
 		return
@@ -578,10 +586,16 @@ func _run():
 
 	var blast_cell := Vector2i(1, 1)
 	var blast_center := Constants.grid_to_world(blast_cell)
-	var ground_cell := game.get_node_or_null("GroundCell_1_1") as MeshInstance3D
-	if not _check(ground_cell != null and is_equal_approx(float(ground_cell.get_meta("logical_cell_size", 0.0)), Constants.TILE_SIZE), "Ground did not expose one mesh per refined logical cell"):
+	var floor_batches: Array[MultiMeshInstance3D] = []
+	var floor_instance_count := 0
+	for batch_name in ["FloorBatchA", "FloorBatchB", "ForestFloorBatch", "LavaFloorBatch"]:
+		var batch := game.get_node_or_null(batch_name) as MultiMeshInstance3D
+		if batch != null:
+			floor_batches.append(batch)
+			floor_instance_count += batch.multimesh.instance_count
+	if not _check(floor_batches.size() <= 4 and floor_instance_count == Constants.GRID_W * Constants.GRID_H and game.get_node_or_null("GroundCell_1_1") == null, "Ground was not batched into a complete low-draw-call grid"):
 		return
-	var ground_mesh := ground_cell.mesh as BoxMesh
+	var ground_mesh := floor_batches[0].multimesh.mesh as BoxMesh
 	if not _check(ground_mesh != null and is_equal_approx(ground_mesh.size.x, Constants.TILE_SIZE) and is_equal_approx(ground_mesh.size.z, Constants.TILE_SIZE), "Ground cell mesh leaves visible gaps between logical cells"):
 		return
 	var footprint_wall := game.grid_manager.wall_nodes.values()[0] as MeshInstance3D
@@ -881,7 +895,7 @@ func _run():
 		if not _check(int(game.audio_manager.played_events.get(event_id, 0)) > 0, "Gameplay did not emit the %s audio event" % event_id):
 			return
 
-	print("GAME_DESIGN_SMOKE_OK modular_composition config_repository boss_catalog boss_skill_registry character_query character_registry character_presentation visual_factory state_factory shared_art_catalog audio_events duel_actor_state duel_token_immunity duel_arena_catalog duel_world_pause duel_backpack_items duel_height_cap duel_lava_launch duel_dive_damage duel_random_lava duel_win_restore progression_unique_ids boss_behavior_boundary refined_logical_grid visible_initial_spawn clear_first_wave shield_pickup_inventory duplicate_inventory_fifo boss_crate_refresh strict_map_config attack_frontier crate_breach ai_lava_strategy difficulty_lava_probability ai_lava_wait winged_ai_lava_strategy airborne_stomp shielded_stomp stomp_bounce stomp_overlap_safety stomp_single_hit one_cell_ground seamless_floor blocked_in_place_turn full_cell_blast cell_center_turning held_grid_motion shared_ai_movement active_world_blast timed_status_effects bomb_warning weather_bounds speed_curve forest_materials backpack_slots wall_hop chain_reaction overlap spawn_fx lava_launch wing_lava_launch wing_airborne_immunity wing_extended_flight airborne_movement vertical_attack_ranges safe_landing impact_support same_height_attack active_support_exit support_cracks support_fragments")
+	print("GAME_DESIGN_SMOKE_OK modular_composition config_repository boss_catalog boss_skill_registry character_query character_registry character_presentation visual_factory state_factory shared_art_catalog audio_events duel_actor_state duel_token_immunity duel_arena_catalog duel_world_pause duel_backpack_items duel_height_cap duel_lava_launch duel_dive_damage duel_random_lava duel_win_restore progression_unique_ids boss_behavior_boundary refined_logical_grid visible_initial_spawn clear_first_wave shield_pickup_inventory duplicate_inventory_fifo boss_crate_refresh strict_map_config attack_frontier crate_breach ai_lava_strategy difficulty_lava_probability ai_lava_wait winged_ai_lava_strategy airborne_stomp shielded_stomp stomp_bounce stomp_overlap_safety stomp_single_hit one_cell_ground seamless_floor batched_floor blocked_in_place_turn full_cell_blast cell_center_turning held_grid_motion shared_ai_movement active_world_blast timed_status_effects bomb_warning timed_weather low_cost_weather weather_bounds speed_curve forest_materials backpack_slots wall_hop chain_reaction overlap spawn_fx lava_launch wing_lava_launch wing_airborne_immunity wing_extended_flight airborne_movement vertical_attack_ranges safe_landing impact_support same_height_attack active_support_exit support_cracks support_fragments")
 	quit(0)
 
 
