@@ -30,16 +30,19 @@ func update_hud():
 		return
 	var characters: Array[CharacterQuery] = _game.character_registry.queries()
 	var wave_number := 0
+	var max_wave := 7
 	var wave_time := 0.0
 	var weather_text := "Clear"
 	if _game.wave_manager:
 		wave_number = int(_game.wave_manager.current_wave)
+		max_wave = int(_game.wave_manager.max_wave)
 		wave_time = float(_game.wave_manager.time_remaining())
 	if _game.weather_manager:
 		weather_text = str(_game.weather_manager.display_name())
 	_game.game_hud.update_display(
 		characters,
 		wave_number,
+		max_wave,
 		wave_time,
 		weather_text,
 		_difficulty_label(),
@@ -95,8 +98,9 @@ func show_result(winner_id: int):
 	restart_btn.pressed.connect(func(): _game.get_tree().reload_current_scene())
 	box.add_child(restart_btn)
 
-	var menu_btn := _make_result_button("Main Menu (Esc)")
-	menu_btn.pressed.connect(func(): _game.get_tree().change_scene_to_file("res://scenes/menu/main_menu.tscn"))
+	var return_label := "World Map (Esc)" if _game.is_level_run() else "Main Menu (Esc)"
+	var menu_btn := _make_result_button(return_label)
+	menu_btn.pressed.connect(func(): _game.get_tree().change_scene_to_file(_game.return_scene_path()))
 	box.add_child(menu_btn)
 
 	var quit_btn := _make_result_button("Quit Game (Q)")

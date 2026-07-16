@@ -2,6 +2,7 @@ extends SceneTree
 
 const SCENES := [
 	"res://scenes/menu/main_menu.tscn",
+	"res://scenes/menu/world_map.tscn",
 	"res://scenes/game/main_3d.tscn",
 	"res://scenes/editor/map_editor.tscn",
 	"res://scenes/editor/player_editor.tscn",
@@ -23,6 +24,10 @@ func _run() -> void:
 		if scene_path.ends_with("main_menu.tscn"):
 			if scene.get("guide_button") == null or scene.get("guide_overlay") == null or not scene.get("config_repository") is GameConfigRepository:
 				_fail("Main menu did not expose the game guide")
+				return
+		elif scene_path.ends_with("world_map.tscn"):
+			if not scene is WorldMap or scene.get("level_buttons") == null or (scene.get("level_buttons") as Dictionary).size() != 6:
+				_fail("World map did not expose six level nodes")
 				return
 		elif scene_path.ends_with("main_3d.tscn"):
 			var game = scene.get_node_or_null("GameManager3D")
@@ -68,7 +73,7 @@ func _run() -> void:
 				return
 		scene.queue_free()
 		await process_frame
-	print("SCENE_LOAD_SMOKE_OK menu game map_editor player_editor")
+	print("SCENE_LOAD_SMOKE_OK menu world_map game map_editor player_editor")
 	quit(0)
 
 func _fail(message: String) -> void:

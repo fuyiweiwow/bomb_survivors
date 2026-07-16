@@ -17,7 +17,7 @@ func handle_action(action: String) -> void:
 	if _game.game_over:
 		match action:
 			"restart": _game.get_tree().reload_current_scene()
-			"menu": _game.get_tree().change_scene_to_file("res://scenes/menu/main_menu.tscn")
+			"menu": _game.get_tree().change_scene_to_file(_game.return_scene_path())
 			"cycle_item": _game.get_tree().quit()
 		return
 	if action.begins_with("select_item_"):
@@ -28,7 +28,7 @@ func handle_action(action: String) -> void:
 		"use_item": use_consumable()
 		"cycle_item": cycle_consumable()
 		"discard_direct_item": discard_direct_item()
-		"menu": _game.get_tree().change_scene_to_file("res://scenes/menu/main_menu.tscn")
+		"menu": _game.get_tree().change_scene_to_file(_game.return_scene_path())
 
 func process_player_input() -> void:
 	if _game.character_registry.is_empty():

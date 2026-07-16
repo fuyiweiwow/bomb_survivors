@@ -191,13 +191,17 @@ func _add_item_row(item_id: String, display_name: String, description: String) -
 	item_list.add_child(HSeparator.new())
 
 func _operation_guide_text() -> String:
-	return """[b][color=#ffd45a]Basic Controls[/color][/b]
+	return """[b][color=#ffd45a]Campaign[/color][/b]
+Start Game opens the World Map. Click an unlocked level node to begin; completing it unlocks the next connected level.
+Level 1 is a two-wave tutorial with prompts for movement, bombs, and the starter Shield Potion.
+
+[b][color=#ffd45a]Basic Controls[/color][/b]
 [b]W / A / S / D[/b]  Move; Football Shoes automatically kick bombs you run into
 Press a blocked direction to turn in place without moving.
 [b]Space[/b]  Place a bomb; kick with Football Shoes; fire with Rock; combine Rock + Wings for an aerial drop
 [b]1 / 2 / 3[/b]  Select a backpack slot    [b]Q[/b]  Cycle items    [b]E[/b]  Use item
 [b]X[/b]  Discard the equipped direct-use item
-[b]Esc[/b]  Return to the main menu
+[b]Esc[/b]  Return to the World Map, or the main menu in standalone mode
 
 [b][color=#ffd45a]Combat Rules[/color][/b]
 Each character, wall, crate, and bomb occupies one complete logical tile. Floor artwork does not create smaller subcells.
@@ -216,7 +220,7 @@ Both fighters use 3 HP. Flight is capped at 6 meters and fast-dive speed at 12 m
 One random lava source appears at a time and disappears after launching one fighter. The duel has no time limit.
 
 [b][color=#ffd45a]Result Screen[/color][/b]
-[b]R[/b]  Restart    [b]Esc[/b]  Main Menu    [b]Q[/b]  Quit Game"""
+[b]R[/b]  Restart level    [b]Esc[/b]  World Map / Main Menu    [b]Q[/b]  Quit Game"""
 
 func _resize_panel() -> void:
 	if guide_panel == null:

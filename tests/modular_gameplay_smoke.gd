@@ -11,6 +11,8 @@ func _run():
 	root.add_child(bootstrap)
 	await process_frame
 	var game = bootstrap.get_node("GameManager3D")
+	if not _check(not game.is_level_run() and game.wave_manager.max_wave == WaveManager.DEFAULT_MAX_WAVE and game.tutorial_controller == null and game.return_scene_path().ends_with("main_menu.tscn"), "Direct game loading did not preserve standalone seven-wave mode or return path"):
+		return
 
 	if not _check(game.bomb_manager != null, "BombManager was not initialized"):
 		return

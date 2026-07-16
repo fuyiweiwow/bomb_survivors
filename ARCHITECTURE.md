@@ -14,6 +14,8 @@
 
 ```text
 GameManager3D                         共享运行时上下文与帧顺序
+├── LevelSession / LevelCatalog      当前关卡会话与静态关卡档案
+├── LevelProgressRepository          完成记录与相邻关卡解锁持久化
 ├── GameSystemInstaller              组合根，创建领域系统
 ├── PlayerCommandHandler             玩家命令与背包操作
 │   └── PlayerInputController        物理输入采集和输入缓冲
@@ -59,6 +61,8 @@ GameManager3D                         共享运行时上下文与帧顺序
 ├── WallMechanics                    墙顶/箱顶承重与破坏
 ├── AirborneController               垂直运动和落点
 ├── GameUI / GameHUD                 显示与天气可见性
+├── TutorialController               第一关操作事件检测与非阻塞提示
+├── WorldMap                         全局地图节点、锁定状态与关卡入口
 └── MapEditor                        编辑器场景编排与地图预览渲染
 	├── MapEditorDocument            编辑、保存与严格版本加载
 	├── MapEditorPicker              屏幕射线到逻辑格子的换算
@@ -82,6 +86,9 @@ GameManager3D                         共享运行时上下文与帧顺序
 | `scripts/ui` | HUD、结果界面和视觉反馈 |
 | `scripts/audio` | 全局音效事件映射、音量/音高设置和播放器复用 |
 | `scripts/config` | 跨场景用户配置的默认值、校验与 JSON 持久化 |
+| `scripts/level` | 关卡目录、当前会话和完成/解锁进度持久化 |
+| `scripts/tutorial` | 关卡内教程步骤、操作检测和提示 UI |
+| `scripts/menu` | 主菜单、全局地图和游戏说明 |
 | `scripts/editor` | 地图/角色编辑器，只调用共享数据与美术模块 |
 | `scripts/core` | 无场景状态的常量、网格换算、Mesh 工具和美术目录 |
 
@@ -156,6 +163,19 @@ GameManager3D                         共享运行时上下文与帧顺序
 - 编辑器渲染读取 `MapState` 的公开查询；新交互不得绕过 `MapEditorDocument.paint()` 和 `erase()`。
 
 ## 五、主要数据流
+
+### 关卡流程
+
+```text
+MainMenu → WorldMap → LevelSession.select_level()
+→ GameManager3D 读取 LevelCatalog profile
+→ WaveManager.configure(max_waves, wave_duration)
+→ 第一关挂载 TutorialController
+→ 胜利后 LevelProgressRepository.complete_level()
+→ WorldMap 解锁相邻下一关
+```
+
+`LevelSession` 只保存当前进程中的关卡 ID，不作为隐藏服务持有游戏系统；静态档案由 `LevelCatalog` 提供，跨启动进度只由 `LevelProgressRepository` 写入 JSON。直接加载游戏场景时会话为空，使用独立 7 波档案。
 
 ### 玩家输入
 
@@ -282,6 +302,7 @@ Duel Token → DuelManager.arm() → 触碰敌人
 - `tests/boundary_rules_smoke.gd` 独立覆盖三格背包 FIFO/重复道具/选中槽修正、爆炸高度与格子边缘、浮空落点 BFS 和踩踏接触边界。
 - `tests/consumable_effects_smoke.gd` 覆盖延长后的计时道具、3×3 Glue、分级 AI 认知、全图雷管、Wings 单独飞行、Rock 地面射击、Rock+Wings 高空投放、足球鞋优先攻击附近敌人、安全踢弹及无安全落点拒绝踢弹、9×9 油火连锁/持续伤害、9×9 Prison 群控、可见动画节点和决斗进攻系数。
 - `tests/scene_load_smoke.gd` 验证地图编辑器组件组合以及地图元素与游戏逻辑格尺寸一致。
+- `tests/level_flow_smoke.gd` 覆盖全局地图节点、初始锁定、关卡会话、第一关波次配置、三步教程和通关解锁下一关。
 - 架构重构必须先保持 smoke 行为不变，再增加边界初始化和唯一 ID 测试。
 - 新增脚本必须能被 Godot editor 全量扫描，并提交对应 `.gd.uid`。
 - `project.godot` 的用户本地窗口设置不应混入功能提交。

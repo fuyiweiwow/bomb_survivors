@@ -17,6 +17,7 @@ func _ready() -> void:
 func update_display(
 	characters: Array[CharacterQuery],
 	wave_number: int,
+	max_wave: int,
 	wave_time: float,
 	weather_text: String,
 	difficulty_text: String,
@@ -26,7 +27,7 @@ func update_display(
 	if characters.is_empty() or hud_label == null:
 		return
 	var player := characters[0]
-	var wave_text := "W -" if wave_number <= 0 else "W %d/7 %.0fs" % [wave_number, wave_time]
+	var wave_text := "W -" if wave_number <= 0 else "W %d/%d %.0fs" % [wave_number, max_wave, wave_time]
 	hud_label.text = "%s  |  %s  |  AI %s  |  SPD %d  BOMB %d/%d  RNG %d  SH %d" % [
 		wave_text,
 		weather_text,

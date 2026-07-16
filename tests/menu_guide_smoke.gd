@@ -13,11 +13,15 @@ func _run() -> void:
 
 	if not _check(menu.guide_button != null and menu.guide_button.text == "Game Guide", "Main menu did not create the English game guide button"):
 		return
+	if not _check(menu.start_button != null and menu.start_button.text == "Start Game", "Main menu did not expose the world map entry"):
+		return
 	menu.guide_button.pressed.emit()
 	await process_frame
 	if not _check(menu.guide_overlay.visible and menu.guide_overlay.guide_tabs.get_tab_count() == 2, "Game guide did not open with two pages"):
 		return
 	if not _check(menu.guide_overlay.operation_text.text.contains("W / A / S / D") and menu.guide_overlay.operation_text.text.contains("Space") and menu.guide_overlay.operation_text.text.contains("Duel Controls"), "Operation guide is missing the actual controls"):
+		return
+	if not _check(menu.guide_overlay.operation_text.text.contains("World Map") and menu.guide_overlay.operation_text.text.contains("Level 1 is a two-wave tutorial") and menu.guide_overlay.operation_text.text.contains("unlocks the next"), "Operation guide is missing the campaign or tutorial flow"):
 		return
 	if not _check(menu.guide_overlay.operation_text.text.contains("blocked direction to turn in place"), "Operation guide is missing the in-place turn rule"):
 		return

@@ -7,6 +7,9 @@ const PLAYER_COMMAND_HANDLER := preload("res://scripts/game/player_command_handl
 const PROGRESSION_COORDINATOR := preload("res://scripts/game/progression_coordinator.gd")
 const CHARACTER_REGISTRY_SCRIPT := preload("res://scripts/character/character_registry.gd")
 const GAME_CONFIG_REPOSITORY_SCRIPT := preload("res://scripts/config/game_config_repository.gd")
+const LEVEL_SESSION := preload("res://scripts/level/level_session.gd")
+const LEVEL_PROGRESS_REPOSITORY_SCRIPT := preload("res://scripts/level/level_progress_repository.gd")
+const TUTORIAL_CONTROLLER := preload("res://scripts/tutorial/tutorial_controller.gd")
 
 var grid_manager: Node
 var player_manager: Node
@@ -35,6 +38,9 @@ var player_commands: Node
 var progression_coordinator: Node
 var art: RefCounted = ART_CATALOG_SCRIPT.new()
 var config_repository: GameConfigRepository = GAME_CONFIG_REPOSITORY_SCRIPT.new()
+var level_progress_repository: LevelProgressRepository = LEVEL_PROGRESS_REPOSITORY_SCRIPT.new()
+var level_profile: Dictionary = {}
+var tutorial_controller: Node
 
 var character_registry: CharacterRegistry = CHARACTER_REGISTRY_SCRIPT.new()
 var players: Array:
@@ -59,14 +65,19 @@ var grid: Array:
 func _ready():
 	add_to_group("game")
 	randomize()
+	level_profile = LEVEL_SESSION.current_profile()
 	_setup_gameplay_systems()
 	ai_difficulty = config_repository.load_ai_difficulty()
+	var difficulty_override := str(level_profile.get("difficulty_override", ""))
+	if not difficulty_override.is_empty():
+		ai_difficulty = difficulty_override
 	grid_manager.init_grid()
 	grid_manager.create_world()
 	_spawn_players()
 	game_ui.setup_camera()
 	game_ui.setup_hud()
 	_setup_player_commands()
+	_setup_tutorial()
 	_setup_progression()
 
 func _setup_gameplay_systems():
@@ -84,6 +95,23 @@ func _setup_progression():
 	progression_coordinator = PROGRESSION_COORDINATOR.new()
 	add_child(progression_coordinator)
 	progression_coordinator.setup(self)
+
+func _setup_tutorial() -> void:
+	if not bool(level_profile.get("tutorial", false)):
+		return
+	tutorial_controller = TUTORIAL_CONTROLLER.new()
+	add_child(tutorial_controller)
+	tutorial_controller.setup(self, level_profile)
+	tutorial_controller.completed.connect(func(): progression_coordinator.start_waves())
+
+func is_level_run() -> bool:
+	return LEVEL_SESSION.has_selected_level() and not str(level_profile.get("id", "")).is_empty()
+
+func return_scene_path() -> String:
+	return "res://scenes/menu/world_map.tscn" if is_level_run() else "res://scenes/menu/main_menu.tscn"
+
+func complete_current_level() -> bool:
+	return is_level_run() and level_progress_repository.complete_level(str(level_profile["id"]))
 
 func _spawn_players():
 	var config: Dictionary = config_repository.load_player_config()

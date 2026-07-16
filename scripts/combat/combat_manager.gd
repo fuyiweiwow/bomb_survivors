@@ -173,6 +173,7 @@ func check_game_over():
 			hostile_count += 1
 	if _game.wave_manager and _game.wave_manager.is_final_wave() and hostile_count == 0:
 		_game.game_over = true
+		_game.complete_current_level()
 		_game.game_ui.show_result(1)
 
 func _cancel_player_movement(character: Variant):

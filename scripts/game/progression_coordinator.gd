@@ -5,6 +5,7 @@ const WEATHER_MANAGER := preload("res://scripts/weather/weather_manager.gd")
 const WAVE_MANAGER := preload("res://scripts/wave/wave_manager.gd")
 
 var _game: Node
+var waves_started := false
 
 func setup(game: Node) -> void:
 	_game = game
@@ -15,12 +16,21 @@ func setup(game: Node) -> void:
 
 	_game.wave_manager = WAVE_MANAGER.new()
 	add_child(_game.wave_manager)
+	_game.wave_manager.configure(_game.level_profile)
 	_game.wave_manager.wave_started.connect(_on_wave_started)
+	if not bool(_game.level_profile.get("tutorial", false)):
+		start_waves()
+
+func start_waves() -> void:
+	if waves_started:
+		return
+	waves_started = true
 	_game.wave_manager.start()
 
 func process(delta: float) -> void:
-	_game.wave_manager.process_wave(delta)
-	_game.weather_manager.process_weather(delta)
+	if waves_started:
+		_game.wave_manager.process_wave(delta)
+		_game.weather_manager.process_weather(delta)
 
 func _on_wave_started(wave_number: int, enemy_count: int, boss_id: String) -> void:
 	_game.weather_manager.start_wave(wave_number, _game.grid_manager.walkable_cells())

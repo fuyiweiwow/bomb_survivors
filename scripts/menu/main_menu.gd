@@ -2,14 +2,17 @@ extends Control
 
 const GAME_GUIDE_OVERLAY := preload("res://scripts/menu/game_guide_overlay.gd")
 const GAME_CONFIG_REPOSITORY_SCRIPT := preload("res://scripts/config/game_config_repository.gd")
+const LEVEL_SESSION := preload("res://scripts/level/level_session.gd")
 
 var config_repository: GameConfigRepository = GAME_CONFIG_REPOSITORY_SCRIPT.new()
 var difficulty_option: OptionButton = null
 var difficulty_ids := ["easy", "normal", "hard"]
 var guide_button: Button = null
+var start_button: Button = null
 var guide_overlay = null
 
 func _ready():
+	LEVEL_SESSION.clear()
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 
 	var center := CenterContainer.new()
@@ -40,8 +43,8 @@ func _ready():
 	ver.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	box.add_child(ver)
 
-	_add_button(box, "Start Game", func():
-		get_tree().change_scene_to_file("res://scenes/game/main_3d.tscn")
+	start_button = _add_button(box, "Start Game", func():
+		get_tree().change_scene_to_file("res://scenes/menu/world_map.tscn")
 	)
 
 	_add_button(box, "Map Editor", func():
