@@ -418,6 +418,13 @@ func _run():
 		"Blocked movement did not rotate the character in place"
 	):
 		return
+	player["node"].position = Constants.grid_to_world(movement_down) + Vector3(0, 0, Constants.TILE_SIZE * 0.18)
+	player["grid_pos"] = movement_down
+	if not _check(game._try_move_player(0, Vector2i.LEFT), "Blocked offset movement did not start a lane recenter"):
+		return
+	game.movement_controller._physics_process(cell_duration)
+	if not _check(Constants.is_world_position_at_cell_center(player["node"].position, movement_down), "Lane recenter did not settle the player back to the current cell center"):
+		return
 	game.grid_manager.set_cell(blocked_turn_cell.x, blocked_turn_cell.y, Constants.Cell.EMPTY)
 	player["grid_pos"] = movement_start
 	player["node"].position = Constants.grid_to_world(movement_start)

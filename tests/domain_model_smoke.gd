@@ -12,6 +12,9 @@ func _init() -> void:
 	var sanitized := config_repository.sanitize_player_config({"gender": "robot", "start_speed": 99, "start_bombs": 0, "start_range": 99, "start_shields": -1})
 	if not _check(sanitized["gender"] == "male" and sanitized["start_speed"] == 10 and sanitized["start_bombs"] == 1 and sanitized["start_range"] == 10 and sanitized["start_shields"] == 0, "GameConfigRepository did not constrain invalid player settings"):
 		return
+	var custom_visual := config_repository.sanitize_player_config({"character_preset": "titan", "body_type": "giant", "body_color": "not-a-color", "visor_color": "#101820"})
+	if not _check(custom_visual["character_preset"] == "titan" and custom_visual["body_type"] == "sturdy" and custom_visual["body_color"] == "#5c6e7e" and custom_visual["visor_color"] == "#101820" and custom_visual["source_hero"].contains("Titan.json"), "Player customization did not sanitize through the shared strategy"):
+		return
 	if not _check(config_repository.save_player_config({"gender": "female", "start_speed": 7, "start_bombs": 3, "start_range": 4, "start_shields": 2}), "GameConfigRepository did not save player settings"):
 		return
 	var loaded_config := config_repository.load_player_config()

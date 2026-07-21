@@ -1,6 +1,7 @@
 class_name GameConfigRepository
 extends RefCounted
 
+const CUSTOMIZATION_STRATEGY := preload("res://scripts/character/player_customization_strategy.gd")
 const DEFAULT_PLAYER_CONFIG_PATH := "user://player_config.json"
 const DEFAULT_AI_SETTINGS_PATH := "user://ai_settings.json"
 const VALID_GENDERS := ["male", "female"]
@@ -17,13 +18,14 @@ func _init(
 	ai_settings_path = p_ai_settings_path
 
 func default_player_config() -> Dictionary:
-	return {
-		"gender": "male",
+	var config := CUSTOMIZATION_STRATEGY.default_config()
+	config.merge({
 		"start_speed": 5,
 		"start_bombs": 1,
 		"start_range": 2,
 		"start_shields": 0,
-	}
+	})
+	return config
 
 func load_player_config() -> Dictionary:
 	return sanitize_player_config(_read_json(player_config_path))
@@ -36,8 +38,9 @@ func sanitize_player_config(raw_config: Variant) -> Dictionary:
 	if not raw_config is Dictionary:
 		return config
 	var source := raw_config as Dictionary
-	var gender := str(source.get("gender", config["gender"]))
-	config["gender"] = gender if VALID_GENDERS.has(gender) else config["gender"]
+	var visual_config := CUSTOMIZATION_STRATEGY.sanitize_config(source)
+	for key in visual_config:
+		config[key] = visual_config[key]
 	config["start_speed"] = clampi(int(source.get("start_speed", config["start_speed"])), 1, Constants.MAX_SPEED)
 	config["start_bombs"] = clampi(int(source.get("start_bombs", config["start_bombs"])), 1, Constants.MAX_BOMB_CAPACITY)
 	config["start_range"] = clampi(int(source.get("start_range", config["start_range"])), 1, Constants.MAX_BOMB_RANGE)

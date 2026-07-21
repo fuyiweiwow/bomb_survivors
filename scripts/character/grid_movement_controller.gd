@@ -2,6 +2,7 @@ extends Node
 
 const ARRIVAL_EPSILON := 0.0001
 const MAX_SUBSTEPS_PER_TICK := 4
+const LANE_RECENTER_EPSILON := 0.015
 
 var _game: Node
 
@@ -33,7 +34,7 @@ func try_move(player_index: int, direction: Vector2i) -> bool:
 		if not _game.bomb_manager.kick_bomb_at(state, target_cell, direction):
 			return false
 	if not is_airborne and target_cell != current_cell and not is_cell_walkable(target_cell, player_index):
-		return false
+		return _try_lane_recenter(player_index, state, direction, current_cell)
 
 	if state.elevation.is_elevated():
 		_game.wall_mechanics.leave_elevated_cell(state)
@@ -87,6 +88,39 @@ func start_move(player_index: int, from_cell: Vector2i, target_cell: Vector2i, t
 		offset.y = 0.0
 		move_distance = offset.length()
 	state.begin_grid_move(from_cell, target_cell, target, move_distance / maxf(duration, 0.01))
+
+func _try_lane_recenter(player_index: int, state: CharacterState, blocked_direction: Vector2i, current_cell: Vector2i) -> bool:
+	var node := state.node()
+	if node == null or blocked_direction == Vector2i.ZERO:
+		return false
+	var center := Constants.grid_to_world(current_cell) + Vector3(0, state.movement_height(), 0)
+	var target := node.position
+	var alignment_direction := Vector2i.ZERO
+	if blocked_direction.x != 0:
+		var z_delta := center.z - node.position.z
+		if absf(z_delta) <= LANE_RECENTER_EPSILON:
+			return false
+		target.z = center.z
+		alignment_direction = Vector2i(0, 1 if z_delta > 0.0 else -1)
+	else:
+		var x_delta := center.x - node.position.x
+		if absf(x_delta) <= LANE_RECENTER_EPSILON:
+			return false
+		target.x = center.x
+		alignment_direction = Vector2i(1 if x_delta > 0.0 else -1, 0)
+	if alignment_direction != Vector2i.ZERO and not is_cell_walkable(current_cell + alignment_direction, player_index):
+		return false
+	var world_speed := _world_speed_for_state(state, current_cell)
+	var duration := node.position.distance_to(target) / maxf(world_speed, 0.01)
+	start_move(player_index, current_cell, current_cell, target, duration)
+	return true
+
+func _world_speed_for_state(state: CharacterState, cell: Vector2i) -> float:
+	var move_duration: float = Constants.move_duration_for_speed(state.speed_value()) / float(Constants.MOVE_SUBSTEPS_PER_TILE)
+	if _game.weather_manager:
+		move_duration *= _game.weather_manager.movement_duration_multiplier(cell)
+	move_duration *= state.movement_duration_multiplier()
+	return Constants.MOVE_STEP_SIZE / maxf(move_duration, 0.01)
 
 func cancel_move(player: Dictionary):
 	var state := _game.character_state_by_id(int(player.get("id", -1))) as CharacterState

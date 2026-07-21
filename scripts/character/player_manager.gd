@@ -14,12 +14,12 @@ func setup(game_manager: Node) -> void:
 	_game = game_manager
 	boss_catalog.setup(_game.art)
 
-func create_player(id: int, cell: Vector2i, ai: bool, mat: Material, style := "male") -> CharacterState:
-	var visual_data := visual_factory.create(id, cell, mat, style)
+func create_player(id: int, cell: Vector2i, ai: bool, mat: Material, style_config: Variant = "male") -> CharacterState:
+	var visual_data := visual_factory.create(id, cell, mat, style_config)
 	var root := visual_data["root"] as Area3D
 	var visual_root := visual_data["visual"] as Node3D
 	_game.add_child(root)
-	return state_factory.create(id, root, visual_root, cell, ai, style)
+	return state_factory.create(id, root, visual_root, cell, ai, visual_factory.style_id_from_config(style_config))
 
 func apply_ai_difficulty(state: CharacterState, difficulty: String):
 	var normalized_difficulty := difficulty if difficulty in ["easy", "normal", "hard"] else "normal"
@@ -59,7 +59,7 @@ func find_spawn_cell() -> Vector2i:
 	return candidates[randi_range(0, pool_size - 1)]
 
 func spawn_player(config: Dictionary, inventory_manager):
-	var state := create_player(1, Constants.PLAYER_START_CELL, false, player_material_from_config(config), str(config["gender"]))
+	var state := create_player(1, Constants.PLAYER_START_CELL, false, player_material_from_config(config), config)
 	state.configure_gameplay_stats(int(config["start_speed"]), int(config["start_bombs"]), int(config["start_range"]))
 	state.effects.grant_shield(int(config["start_shields"]), Constants.SHIELD_DURATION)
 	inventory_manager.add_item(state, "shield_potion")
